@@ -44,6 +44,77 @@ for mark in gnome-initial-setup-done "gnome-initial-setup/upgrade-$version_id-do
     fi
 done
 
+# --- ホームのフォルダー名を英語にする ---
+# xdg-user-dirs はロケール(ja_JP)に合わせて「デスクトップ」などの日本語名で作る。ターミナルやエージェントから
+# 扱いやすいように英語名にする。既に日本語名で作られていたら、中身ごと英語名へ移す
+xdg_dirs=(
+    "DESKTOP Desktop デスクトップ"
+    "DOWNLOAD Downloads ダウンロード"
+    "TEMPLATES Templates テンプレート"
+    "PUBLICSHARE Public 公開"
+    "DOCUMENTS Documents ドキュメント"
+    "MUSIC Music ミュージック"
+    "PICTURES Pictures ピクチャ"
+    "VIDEOS Videos ビデオ"
+)
+user_dirs="# agent-host-autoinstall が置いた設定(英語名に固定)"
+for entry in "${xdg_dirs[@]}"; do
+    read -r key en ja <<<"$entry"
+    if [ -d "$AGENT_HOME/$ja" ]; then
+        if [ ! -e "$AGENT_HOME/$en" ]; then
+            mv "$AGENT_HOME/$ja" "$AGENT_HOME/$en"
+        elif rmdir "$AGENT_HOME/$ja" 2>/dev/null; then
+            :
+        else
+            log "注意: $AGENT_HOME/$ja と $en の両方に中身があるので、$ja を手で整理する"
+        fi
+    fi
+    runuser -u "$AGENT_USER" -- mkdir -p "$AGENT_HOME/$en"
+    user_dirs+=$'\n'"XDG_${key}_DIR=\"\$HOME/$en\""
+done
+printf '%s\n' "$user_dirs" | write_agent_file 644 "$AGENT_HOME/.config/user-dirs.dirs"
+# ログイン時に「フォルダー名を現在の言語に合わせて更新しますか」と聞かれないようにする
+write_agent_file 644 "$AGENT_HOME/.config/autostart/user-dirs-update-gtk.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=User folders update
+Exec=xdg-user-dirs-gtk-update
+Hidden=true
+EOF
+# Files のサイドバーのブックマークも英語名に合わせる
+bookmarks="$AGENT_HOME/.config/gtk-3.0/bookmarks"
+if [ -f "$bookmarks" ]; then
+    python3 - "$bookmarks" "${xdg_dirs[@]}" <<'PY'
+import sys
+from urllib.parse import quote
+path, entries = sys.argv[1], sys.argv[2:]
+text = open(path, encoding="utf-8").read()
+for entry in entries:
+    _, en, ja = entry.split()
+    text = text.replace("/" + quote(ja), "/" + en)
+open(path, "w", encoding="utf-8").write(text)
+PY
+fi
+log "ホームのフォルダー名を英語にした"
+
+# --- git ---
+# 名前とメールがないと、エージェントの git commit が「Please tell me who you are」で失敗する
+agent_git() { runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" git config --global "$@"; }
+agent_git user.name "$AH_GIT_USER_NAME"
+agent_git user.email "$AH_GIT_USER_EMAIL"
+agent_git init.defaultBranch main
+log "agent の git の名前・メール・既定ブランチを設定した"
+
+# --- 更新の通知を出さない ---
+# agent には sudo がなく更新できないうえ、誰も見ていない画面に残る。更新は unattended-upgrades と sysadmin が行う
+write_agent_file 644 "$AGENT_HOME/.config/autostart/update-notifier.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Update Notifier
+Exec=update-notifier
+Hidden=true
+EOF
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
     # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)

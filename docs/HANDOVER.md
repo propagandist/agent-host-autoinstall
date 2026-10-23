@@ -19,13 +19,13 @@
 - shellcheck(0.11.0、Docker の ubuntu:26.04)は指摘なし
 - **VirtualBox で一通り動いた(2026-10-23)。** ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った ISO で、確認画面なしにインストール → 初回起動の構成 → agent の自動ログイン → first-login → RDP の待ち受けまで、手を触れずに通った。再起動と強制電源オフ後も、何もせずに RDP の認証が通る(受け入れテスト 1・3・4 の範囲。結果は docs/acceptance-test.md)
   - 環境: Windows 10 + VirtualBox 7.2.6。Hyper-V(Docker Desktop)が有効なため VirtualBox は NEM モードで動き、CPU 2 つ以上ではゲストのカーネルが止まった。CPU 1・メモリ 4GB で試した(インストールに約 47 分)
-  - RDP は FreeRDP の `/auth-only /sec:nla` で認証が通ることだけを確かめた(間違ったパスワードは LOGON_FAILURE で拒否)。画面の操作と、切断・再接続(受け入れテスト 6)は未確認
+  - 2026-10-24 に作業者が mstsc(101 キーボード)で入り、受け入れテスト 2・4・5・6 を確かめた(結果は docs/acceptance-test.md)。テスト 7 は実機で行う
 - 実装の都合で SPEC.md から変えた点: post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)。SPEC.md §5.2 に反映済み
 
 ## 次にやること(この順で)
 
-1. VirtualBox の VM に RDP クライアント(mstsc など)で入り、画面の操作、Claude Code / Codex のログインとタスク実行、切断・再接続(受け入れテスト 2・5・6)を確かめる
-2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP と、lan_cidrs の外からの到達(テスト 7)
+1. すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on
+2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
 3. 下の「未確認」を潰す
 
 ## §9 の調査結果(2026-10-23)
@@ -80,6 +80,17 @@
   - Google のリポジトリには最新版しかないので固定しない。unattended-upgrades の許可元に `Google LLC:stable` を足して自動更新する(dry-run で許可元を確認済み)
   - パッケージは入ると自分用のリポジトリ定義 `google-chrome.sources`(接続先 `chrome-stable/deb`、署名鍵は `/usr/share/keyrings/google-chrome.gpg`)を作る。`/etc/default/google-chrome` の `repo_add_once="false"` でも止まらなかった。75-chrome.sh は導入用の定義を最初の導入にだけ使い、導入後に消す
   - 署名鍵の主鍵の fingerprint は EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796
+
+### ホームのフォルダー名(2026-10-24 追加)
+- xdg-user-dirs はロケール ja_JP に合わせて「デスクトップ」などの日本語名で作る。80-agent-session.sh が英語名にし、`~/.config/user-dirs.dirs` と Files のブックマークも書き換える。ログイン時の「フォルダー名を更新しますか」(xdg-user-dirs-gtk-update)は agent の autostart で止める(VirtualBox で、日本語名から英語名への移行と冪等性を確認済み。新規インストールでの動作は未確認)
+
+### 初期設定の見直し(2026-10-24 追加)
+- autoinstall の LVM は既定(sizing-policy: scaled)だとボリュームグループの半分ほどしかルートに使わない(VirtualBox で 37GB 中 18.5GB。公式リファレンスで確認済み)。`sizing-policy: all` にした(**未確認: 新規インストールでの動作**)
+- ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(**未確認: 26.04 Desktop のインストーラーがこのキーを使い、インストール後も NetworkManager で同じ設定になるか**)
+- 26.04 の時刻同期は chrony(systemd-timesyncd は入っていない)。同期先は `/etc/chrony/sources.d/*.sources`、DHCP で配られた NTP も使う。35-system.sh が `ntp_servers` を `agent-host.sources` に書く(VirtualBox で確認済み)
+- agent の git 設定、GitHub CLI(リリースの .deb を SHA256 照合、2.103.2。apt リポジトリは最新版しか置かない)、build-essential 等、inotify の上限、apport の無効化、update-notifier の停止、`check-alive-timeout 0` を足した(動いている VM に反映して確認済み)
+- 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
+- SPEC.md §10 の対象外だが気付いた点: Orca の初回の案内で「Yolo モード」(確認なしでコマンド実行)が最初からオン。agent でログインしたアカウントのスキルが `~/.claude/skills/synced/` に同期される。どのアカウントでログインするかは決めておく
 
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)
