@@ -4,11 +4,12 @@
 
 常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)を、autoinstall で自動構成するための設定とスクリプト一式。
 
-仕様は `SPEC.md`、経緯と次の作業は `HANDOVER.md` を必ず先に読むこと。
+仕様は `docs/SPEC.md`、経緯と次の作業は `docs/HANDOVER.md` を必ず先に読むこと。
 
 ## 想定ディレクトリ構成
 
 ```
+README.md                   # 概要と文書の案内
 autoinstall/
   autoinstall.yaml          # 本体(環境固有値はプレースホルダ)
   env.example.yaml          # 環境固有値のサンプル(コミットする)
@@ -25,6 +26,8 @@ scripts/
     70-orca.sh
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings など)
 docs/
+  SPEC.md                   # 仕様
+  HANDOVER.md               # 経緯と次の作業
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順
 ```
@@ -40,6 +43,15 @@ docs/
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと HANDOVER.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語
+
+## ブランチ運用
+
+GitFlow(git-flow AVH)で運用する。
+
+- `main`:リリース済みの状態だけを置く。直接コミットしない
+- `develop`:次のリリースに向けた統合先。直接コミットしない
+- `feature/<内容>`:作業はここで行い、`git flow feature finish` で develop に戻す
+- `release/<版>` / `hotfix/<版>`:main に入れるときだけ使う
 
 ## 検証
 
