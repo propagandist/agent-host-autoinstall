@@ -19,13 +19,13 @@
 - shellcheck(0.11.0、Docker の ubuntu:26.04)は指摘なし
 - **VirtualBox で一通り動いた(2026-10-23)。** ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った ISO で、確認画面なしにインストール → 初回起動の構成 → agent の自動ログイン → first-login → RDP の待ち受けまで、手を触れずに通った。再起動と強制電源オフ後も、何もせずに RDP の認証が通る(受け入れテスト 1・3・4 の範囲。結果は docs/acceptance-test.md)
   - 環境: Windows 10 + VirtualBox 7.2.6。Hyper-V(Docker Desktop)が有効なため VirtualBox は NEM モードで動き、CPU 2 つ以上ではゲストのカーネルが止まった。CPU 1・メモリ 4GB で試した(インストールに約 47 分)
-  - RDP は FreeRDP の `/auth-only /sec:nla` で認証が通ることだけを確かめた(間違ったパスワードは LOGON_FAILURE で拒否)。画面の操作と、切断・再接続(受け入れテスト 6)は未確認
+  - 2026-10-24 に作業者が mstsc(101 キーボード)で入り、受け入れテスト 2・4・5・6 を確かめた(結果は docs/acceptance-test.md)。テスト 7 は実機で行う
 - 実装の都合で SPEC.md から変えた点: post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)。SPEC.md §5.2 に反映済み
 
 ## 次にやること(この順で)
 
-1. VirtualBox の VM に RDP クライアント(mstsc など)で入り、画面の操作、Claude Code / Codex のログインとタスク実行、切断・再接続(受け入れテスト 2・5・6)を確かめる
-2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP と、lan_cidrs の外からの到達(テスト 7)
+1. すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on
+2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
 3. 下の「未確認」を潰す
 
 ## §9 の調査結果(2026-10-23)
