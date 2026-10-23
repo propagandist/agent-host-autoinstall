@@ -7,6 +7,7 @@ autoinstall とスクリプトで自動化できない作業と、自動化が�
 Linux か WSL で行う。xorriso と python3-yaml が要る。
 
 1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
+   - `keyboard_layout` は RDP で使う人のキーボードに合わせる(101/104 の英字配列なら `us`、106/109 なら `jp`)
    - `sysadmin.password_hash` は `mkpasswd -m sha-512` で作る
 2. Ubuntu Desktop 26.04 LTS の ISO を用意し、次を実行する
    ```

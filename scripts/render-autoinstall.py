@@ -41,6 +41,7 @@ def main():
         env = yaml.safe_load(f) or {}
 
     hostname = require(env, "hostname")
+    keyboard_layout = require(env, "keyboard_layout")
     password_hash = require(env, "sysadmin.password_hash")
     keys = require(env, "sysadmin.ssh_authorized_keys")
     cidrs = require(env, "lan_cidrs")
@@ -49,6 +50,8 @@ def main():
 
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
+    if keyboard_layout not in ("us", "jp"):
+        fail("keyboard_layout は us か jp にする")
     for c in cidrs:
         try:
             ipaddress.ip_network(str(c), strict=False)
@@ -56,6 +59,7 @@ def main():
             fail(f"lan_cidrs の {c} が CIDR として読めない")
 
     ai = doc["autoinstall"]
+    ai["keyboard"]["layout"] = str(keyboard_layout)
     ai["identity"]["hostname"] = str(hostname)
     ai["identity"]["password"] = str(password_hash)
     ai["ssh"]["authorized-keys"] = [str(k) for k in keys]
