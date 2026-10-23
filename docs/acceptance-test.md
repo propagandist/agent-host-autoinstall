@@ -29,7 +29,7 @@ sudo ss -tlnp | grep 33
 | スリープの無効化 | `systemctl is-enabled sleep.target` | `masked` |
 | SSH | `sudo sshd -T \| grep -E 'passwordauthentication\|permitrootlogin'` | どちらも `no` |
 | ufw | `sudo ufw status` | 22/tcp と 3389/tcp が lan_cidrs からだけ ALLOW |
-| バージョンの固定 | `apt-mark showhold` | `claude-code`、`gh`、`orca-ide` |
+| バージョンの固定 | `apt-mark showhold` | `claude-code`、`containerd.io`、`docker-*`(5 つ)、`gh`、`orca-ide` |
 | 既定のブラウザ | `sudo -u agent DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u agent)/bus xdg-settings get default-web-browser` | `google-chrome.desktop` |
 | Chrome の自動更新 | `sudo unattended-upgrade --dry-run --debug 2>&1 \| grep -i 'Google LLC'` | 許可元に `o=Google LLC,a=stable` がある |
 | ホームのフォルダー名 | `sudo ls /home/agent` | Desktop・Downloads などの英語名だけで、日本語名のフォルダーがない |
@@ -39,5 +39,6 @@ sudo ss -tlnp | grep 33
 | agent の git | `sudo -u agent git config --global --list` | user.name・user.email・init.defaultbranch=main |
 | inotify | `sysctl fs.inotify.max_user_watches` | 524288 |
 | 確認画面を出さない | `grep ^enabled /etc/default/apport; sudo ls /home/agent/.config/autostart` | enabled=0。autostart に update-notifier.desktop(Hidden=true) |
+| Docker(rootless) | `sudo -u agent XDG_RUNTIME_DIR=/run/user/$(id -u agent) docker info --format '{{.SecurityOptions}}'` と、RDP の端末で `docker run --rm hello-world` | `rootless` を含む。hello-world が動く。`systemctl is-active docker` は inactive |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |
 | agent に sudo がない | `id agent` | sudo グループに入っていない |

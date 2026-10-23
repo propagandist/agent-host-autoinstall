@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # unattended-upgrades をセキュリティ更新と Google Chrome のみ・自動再起動なしにする。
-# apt-mark hold したパッケージ(claude-code, orca-ide)は更新されない。
+# apt-mark hold したパッケージ(claude-code, gh, docker-ce ほか, orca-ide)は更新されない。
 # Chrome は Google のリポジトリに最新版しかなく固定できないので、自動で上げる(75-chrome.sh)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
