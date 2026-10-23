@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# agent ユーザーを作る(sudo なし)。admin は autoinstall の identity で作られる。
+# agent ユーザーを作る(sudo なし)。sysadmin は autoinstall の identity で作られる。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 
 if ! id "$AGENT_USER" >/dev/null 2>&1; then
     # パスワードは設定しない(ロック状態)。GDM の自動ログインで入る
-    # 未確認: パスワードがロックされたユーザーで GDM 自動ログインが通るか(KVM で確認する)
+    # パスワードがロックされたユーザーでも GDM 自動ログインは通る(VirtualBox で確認済み)
     useradd --create-home --shell /bin/bash --comment "AI agent" "$AGENT_USER"
     log "$AGENT_USER を作成した"
 fi

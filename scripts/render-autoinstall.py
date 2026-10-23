@@ -41,14 +41,14 @@ def main():
         env = yaml.safe_load(f) or {}
 
     hostname = require(env, "hostname")
-    password_hash = require(env, "admin.password_hash")
-    keys = require(env, "admin.ssh_authorized_keys")
+    password_hash = require(env, "sysadmin.password_hash")
+    keys = require(env, "sysadmin.ssh_authorized_keys")
     cidrs = require(env, "lan_cidrs")
     rdp_user = require(env, "rdp.username")
     rdp_password = require(env, "rdp.password")
 
     if not str(password_hash).startswith("$"):
-        fail("admin.password_hash は crypt 形式のハッシュ($6$... など)にする")
+        fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
     for c in cidrs:
         try:
             ipaddress.ip_network(str(c), strict=False)

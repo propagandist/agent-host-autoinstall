@@ -21,7 +21,7 @@ apt-mark hold orca-ide
 log "Orca $ORCA_VERSION を入れて hold した"
 
 # 自動起動。/usr/bin/orca-ide は CLI 用のシムなので、GUI 本体の /opt/Orca/orca-ide を書く
-# 未確認: /opt/Orca/orca-ide で GUI が起動するか(KVM で確認する)
+# /opt/Orca/orca-ide で GUI が Wayland ネイティブで起動する(VirtualBox で確認済み)
 write_agent_file 644 "$AGENT_HOME/.config/autostart/orca.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application

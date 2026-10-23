@@ -40,7 +40,7 @@ find "$stage" -name '*.sh' -exec chmod 755 {} +
 chmod 600 "$stage/env.sh"
 
 # 3. grub.cfg の linux 行に autoinstall を足す(確認画面を出さないため)
-# 未確認: 26.04 Desktop ISO の grub.cfg が「linux /casper/vmlinuz ... ---」の形か(KVM で確認する)
+# 26.04.1 Desktop ISO の grub.cfg は「linux /casper/vmlinuz ... --- quiet splash」の形(確認済み)
 xorriso -osirrox on -indev "$src_iso" -extract /boot/grub/grub.cfg "$work/grub.cfg" >/dev/null 2>&1
 chmod u+w "$work/grub.cfg"
 if ! grep -Eq '^\s*linux\s.*\sautoinstall(\s|$)' "$work/grub.cfg"; then

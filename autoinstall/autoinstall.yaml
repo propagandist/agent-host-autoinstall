@@ -17,8 +17,8 @@ autoinstall:
       name: lvm
   identity:
     hostname: SET_BY_BUILD
-    realname: admin
-    username: admin
+    realname: sysadmin
+    username: sysadmin
     password: SET_BY_BUILD
   # Desktop ISO には openssh-server が入っていないので、インストール中にネットワークから取得する
   ssh:
@@ -27,7 +27,7 @@ autoinstall:
     allow-pw: false
   # late-commands は薄く: 同梱スクリプトを /opt/agent-host に置き、初回起動時の構成サービスを有効にするだけ。
   # 構成そのものは初回起動時に agent-host-provision.service が post-install/ を番号順に実行する。
-  # 未確認: 26.04 Desktop で late-commands の時点に /cdrom がマウントされているか(KVM で確認する)
+  # late-commands の時点で /cdrom はマウントされている(26.04.1、VirtualBox で確認済み)
   late-commands:
     - cp -a /cdrom/agent-host /target/opt/agent-host
     - curtin in-target --target=/target -- bash /opt/agent-host/setup-provision.sh

@@ -1,2 +1,5 @@
 # 環境固有値（秘密情報を含む）。サンプルは env.example.yaml をコミットする
 autoinstall/env.yaml
+
+# ISO のダウンロード先と build-usb.sh の出力(秘密情報を含む)
+build/

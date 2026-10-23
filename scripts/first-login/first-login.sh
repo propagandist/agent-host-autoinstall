@@ -29,8 +29,10 @@ if [ ! -f "$cert_dir/tls.crt" ] || [ ! -f "$cert_dir/tls.key" ]; then
         -subj "/CN=$(hostname)" -keyout "$cert_dir/tls.key" -out "$cert_dir/tls.crt"
     chmod 600 "$cert_dir/tls.key"
 fi
-grdctl rdp set-tls-key "$cert_dir/tls.key"
+# 鍵を先に設定したとき "RDP server certificate is invalid" が出た(VirtualBox。最終的な状態は正常)。
+# 証明書が未設定の時点で検証されたためと推定し、証明書を先にする
 grdctl rdp set-tls-cert "$cert_dir/tls.crt"
+grdctl rdp set-tls-key "$cert_dir/tls.key"
 
 # 認証情報はログインキーリングに保存される。キーリングがロックされているとここで失敗する
 if [ -f "$creds" ]; then

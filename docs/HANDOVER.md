@@ -16,14 +16,17 @@
 ## 現状(2026-10-23)
 
 - §9 を調査し(結果は下)、autoinstall.yaml・env.example.yaml・scripts/・docs/manual-steps.md・docs/acceptance-test.md を一通り作った
-- **まだ一度も動かしていない。** 手元(Windows)で確かめたのは、bash の構文検査、render-autoinstall.py の生成結果、ini_set と grub.cfg 書き換えの冪等性だけ。shellcheck は未実行
+- shellcheck(0.11.0、Docker の ubuntu:26.04)は指摘なし
+- **VirtualBox で一通り動いた(2026-10-23)。** ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った ISO で、確認画面なしにインストール → 初回起動の構成 → agent の自動ログイン → first-login → RDP の待ち受けまで、手を触れずに通った。再起動と強制電源オフ後も、何もせずに RDP の認証が通る(受け入れテスト 1・3・4 の範囲。結果は docs/acceptance-test.md)
+  - 環境: Windows 10 + VirtualBox 7.2.6。Hyper-V(Docker Desktop)が有効なため VirtualBox は NEM モードで動き、CPU 2 つ以上ではゲストのカーネルが止まった。CPU 1・メモリ 4GB で試した(インストールに約 47 分)
+  - RDP は FreeRDP の `/auth-only /sec:nla` で認証が通ることだけを確かめた(間違ったパスワードは LOGON_FAILURE で拒否)。画面の操作と、切断・再接続(受け入れテスト 6)は未確認
 - 実装の都合で SPEC.md から変えた点: post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)。SPEC.md §5.2 に反映済み
 
 ## 次にやること(この順で)
 
-1. Linux(または WSL に xorriso と shellcheck を入れて)で shellcheck をかけ、build-usb.sh で ISO を作る
-2. KVM/QEMU の仮想マシンでインストールを通し、下の「未確認」を一つずつ潰す。特に受け入れテスト 4
-3. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)
+1. VirtualBox の VM に RDP クライアント(mstsc など)で入り、画面の操作、Claude Code / Codex のログインとタスク実行、切断・再接続(受け入れテスト 2・5・6)を確かめる
+2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP と、lan_cidrs の外からの到達(テスト 7)
+3. 下の「未確認」を潰す
 
 ## §9 の調査結果(2026-10-23)
 
@@ -34,11 +37,14 @@
 - 設定は ISO 直下の `/autoinstall.yaml` を `/cdrom/autoinstall.yaml` として読む(確認済み、subiquity のソース)。dd で書いた USB には後から足せないので、build-usb.sh は xorriso で ISO を作り直す
 - 確認画面を出さないにはカーネル引数 `autoinstall` が要る(確認済み)。build-usb.sh が grub.cfg の linux 行に足す
 - Desktop ISO には openssh-server が入っていない(確認済み)。インストール中にネットワークが要る
-- identity は Desktop では省略できるが、ここでは admin を作るために使う(確認済み)
+- identity は Desktop では省略できるが、ここでは sysadmin を作るために使う(確認済み)。`admin` は予約名で使えない(VirtualBox で確認済み: "Username is reserved by the system")
 - 既定のカーネルは Desktop では hwe(確認済み)
 - GDM の自動ログイン設定は 26.04(gdm3 50.x)でも `/etc/gdm3/custom.conf` の `[daemon]`(確認済み、ソース)。PreSession などのスクリプトは 26.04 で廃止
 - 26.04 は GNOME 50、Wayland のみ(確認済み、リリースノート)
-- 未確認: late-commands の時点で `/cdrom` がマウントされているか / 26.04 ISO の grub.cfg の linux 行の形 / コミュニティで報告のある「shutdown が効かない」「ufw の debconf 設定が効かない」(ここでは使っていない)/ Desktop で使えないキーの公式一覧
+- late-commands の時点で `/cdrom` はマウントされていて、同梱スクリプトをコピーできた(VirtualBox で確認済み)
+- 26.04.1 ISO の grub.cfg は `linux /casper/vmlinuz ... --- quiet splash` の形で、build-usb.sh の書き換えが効いた(確認済み)
+- `ssh.install-server: true` でインストール中に openssh-server が入った(VirtualBox で確認済み)
+- 未確認: コミュニティで報告のある「shutdown が効かない」「ufw の debconf 設定が効かない」(ここでは使っていない)/ Desktop で使えないキーの公式一覧
 
 ### デスクトップ共有(gnome-remote-desktop 50.x)
 - grdctl はユーザーのセッションの D-Bus が要る(確認済み、ソース)。インストール時には使えないので first-login で実行する
@@ -46,21 +52,23 @@
 - TLS 証明書は grdctl もデーモンも作らない(確認済み)。first-login が openssl で作る。GNOME 設定のトグルだけは自動で作る
 - 認証情報はログインキーリング(libsecret)にしか保存されない(確認済み)。自動ログインではキーリングが開かない問題は upstream で直る見込みがない(issue #27)
 - `gnome-keyring-daemon --unlock` に空入力を渡しても空パスワードのキーリングは作られない(確認済み、ソース)
-- 空パスワードのキーリングは平文の `login.keyring` として保存される(確認済み、ソース)。80-agent-session.sh はその形式のファイルを最初から置く。**未確認: これで自動ログイン後に使えるか。** だめなら manual-steps.md の手順 3
+- 空パスワードのキーリングは平文の `login.keyring` として保存される(確認済み、ソース)。80-agent-session.sh はその形式のファイルを最初から置く。**これで自動ログイン後に grdctl set-credentials が通り、再起動後も RDP の認証が通った(VirtualBox で確認済み)**
 - 画面がロックされると RDP が切れる(確認済み、upstream の文書)。first-login で自動ロックとアイドルを止める
 - view-only が既定で true なので `disable-view-only` が要る(確認済み)
 - 指定ポートが使用中だと、10 個先まで空いているポートへずれる(negotiate-port、確認済み)。`disable-port-negotiation` で 3389 に固定する
 - デスクトップ共有とリモートログインを両方有効にすると 3390 に移る(確認済み、Ubuntu 公式文書)
-- 未確認: モニターなし(ダミープラグ)で動くか。`screen-share-mode=extend` で仮想モニターを作れるが、ダミープラグが不要になるかは不明
+- agent の初回ログインで gnome-initial-setup の案内が前面に出る。`~/.config/gnome-initial-setup-done` と `~/.config/gnome-initial-setup/upgrade-<版>-done` を置くと出ない(26.04 の systemd user unit の条件で確認済み)
+- 未確認: モニターなし(ダミープラグ)で動くか(VirtualBox には仮想ディスプレイがある)。`screen-share-mode=extend` で仮想モニターを作れるが、ダミープラグが不要になるかは不明
 
 ### Orca・Claude Code・Codex・Node.js
 - Orca 1.4.237(2026-10-21)。.deb の URL は `releases/download/v<ver>/orca-ide_<ver>_amd64.deb`、SHA256 は GitHub API の digest(確認済み)。GUI 本体は `/opt/Orca/orca-ide`、`/usr/bin/orca-ide` は CLI 用のシム(確認済み、.deb を展開)
 - Orca の .deb 版は自分では更新を適用しないが、更新の通知は出る。止める設定・環境変数はソースに見当たらない(確認済み、v1.4.237 のソース)
-- 未確認: `/opt/Orca/orca-ide` で GUI が起動するか / 依存パッケージが 26.04 で解決するか(索引では揃っている)
+- `/opt/Orca/orca-ide` の autostart で GUI が起動し、Wayland ネイティブ(`--ozone-platform=wayland`)で動く。依存パッケージも解決した。Orca は Claude と Codex を検出した(VirtualBox で確認済み)
+- Orca は `~/.codex/config.toml` に hooks の設定を追記する。こちらが置いた `check_for_update_on_startup = false` は先頭に残る(確認済み)
 - Claude Code は公式 apt リポジトリ(`downloads.claude.ai/claude-code/apt/stable`)から 2.1.308-1 を入れ、apt-mark hold する。パッケージマネージャー経由では自動更新しない(確認済み、公式文書)。署名鍵の fingerprint は 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
 - Codex 0.164.0(npm)。自分で黙って更新はせず、起動時の確認は `~/.codex/config.toml` の `check_for_update_on_startup = false` で止まる(確認済み)。`codex login --device-auth` が現行の名前(確認済み、beta 扱い)
 - Node.js は公式 tar.xz の v24.22.1 を /opt に展開する。v24 は 2026-10-20 に Maintenance LTS、v26 は 2026-10-28 に Active LTS になる予定。26.04 標準の nodejs は 22 系(universe)
-- 未確認: GDM 自動ログインがパスワードをロックした agent で通るか(10-users.sh はパスワードを設定しない)
+- パスワードを設定していない(ロック状態の)agent で GDM の自動ログインが通る(VirtualBox で確認済み)
 
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)

@@ -7,7 +7,7 @@ autoinstall とスクリプトで自動化できない作業と、自動化が�
 Linux か WSL で行う。xorriso と python3-yaml が要る。
 
 1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
-   - `admin.password_hash` は `mkpasswd -m sha-512` で作る
+   - `sysadmin.password_hash` は `mkpasswd -m sha-512` で作る
 2. Ubuntu Desktop 26.04 LTS の ISO を用意し、次を実行する
    ```
    scripts/build-usb.sh ubuntu-26.04-desktop-amd64.iso agent-host.iso
@@ -15,6 +15,8 @@ Linux か WSL で行う。xorriso と python3-yaml が要る。
 3. できた `agent-host.iso` を USB メモリに書き込む(Rufus なら「DD イメージ」モード)
 
 できた ISO と USB メモリには、パスワードハッシュと RDP のパスワードが入る。使い終わったら消す。
+
+**注意:** この USB から起動すると、確認なしでディスク全体を消してインストールが始まる。対象以外の PC に挿したまま起動しない。インストールが終わって再起動したら、すぐに USB を抜く。
 
 ## 1. BIOS
 

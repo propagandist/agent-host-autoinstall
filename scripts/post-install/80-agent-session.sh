@@ -13,8 +13,8 @@ done_mark="$state_dir/first-login.done"
 # 自動ログインではキーリングが開かず、RDP の認証情報が読めない(SPEC.md §8)。
 # マスターパスワードが空のキーリングは平文の形式で保存される(gnome-keyring のソースで確認済み)ので、
 # その形式のファイルを最初から置いておく。既にキーリングがあるときは触らない。
-# 未確認: このファイルを置くだけで自動ログイン後にロックされずに使えるか(KVM で確認する。
-#         だめなら docs/manual-steps.md の手順でパスワードを空にする)
+# このファイルを置くだけで、自動ログイン後に grdctl set-credentials が通る(VirtualBox で確認済み)。
+# 効かない環境では docs/manual-steps.md の手順でパスワードを空にする
 keyrings="$AGENT_HOME/.local/share/keyrings"
 if [ ! -f "$keyrings/login.keyring" ]; then
     write_agent_file 600 "$keyrings/login.keyring" <<'EOF'
@@ -30,6 +30,19 @@ fi
 if [ ! -f "$keyrings/default" ]; then
     printf 'login' | write_agent_file 600 "$keyrings/default"
 fi
+
+# --- 初回の案内(gnome-initial-setup)を出さない ---
+# 出ると画面の前面に残り、RDP で入ったときに邪魔になる(VirtualBox で確認済み)。
+# systemd user unit の条件(26.04 で確認済み):
+#   --existing-user は ~/.config/gnome-initial-setup-done が無いと動く
+#   --upgrade-user は ~/.config/gnome-initial-setup/upgrade-<版>-done が無いと動く
+# shellcheck source=/dev/null disable=SC2153  # VERSION_ID は /etc/os-release で定義される
+version_id="$(. /etc/os-release && echo "$VERSION_ID")"
+for mark in gnome-initial-setup-done "gnome-initial-setup/upgrade-$version_id-done"; do
+    if [ ! -f "$AGENT_HOME/.config/$mark" ]; then
+        printf 'yes' | write_agent_file 644 "$AGENT_HOME/.config/$mark"
+    fi
+done
 
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then

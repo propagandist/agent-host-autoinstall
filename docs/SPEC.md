@@ -28,14 +28,14 @@
   → デスクトップ共有(RDP :3389)が待ち受け開始
   → Orca が autostart で起動
 社内LANの RDP クライアント → :3389 → agent のデスクトップを操作
-管理者 → SSH → admin ユーザー
+管理者 → SSH → sysadmin ユーザー
 ```
 
 ## 4. ユーザー
 
 | ユーザー | 用途 | sudo | ログイン |
 |---|---|---|---|
-| `admin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
+| `sysadmin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
 | `agent` | Orca / Claude Code / Codex の実行 | なし | GDM 自動ログイン |
 
 `agent` に個人の秘密情報は置かない。
@@ -45,7 +45,7 @@
 ### 5.1 OS インストール(autoinstall)
 - ロケール `ja_JP.UTF-8`、キーボード `jp`、タイムゾーン `Asia/Tokyo`
 - ストレージは LVM、ディスク全体を使用(暗号化はオプション。§8 参照)
-- `admin` ユーザーと SSH 公開鍵を登録
+- `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
 
 ### 5.2 インストール後の構成(late-commands / スクリプト)
