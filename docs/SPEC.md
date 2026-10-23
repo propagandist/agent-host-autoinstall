@@ -43,7 +43,7 @@
 ## 5. 機能要件
 
 ### 5.1 OS インストール(autoinstall)
-- ロケール `ja_JP.UTF-8`、キーボード `jp`、タイムゾーン `Asia/Tokyo`
+- ロケール `ja_JP.UTF-8`、キーボード `jp`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc と日本語フォントは、この指定でインストーラーが入れる)
 - ストレージは LVM、ディスク全体を使用(暗号化はオプション。§8 参照)
 - `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
@@ -60,9 +60,10 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
   - `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'`
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
-- unattended-upgrades:セキュリティ更新のみ、自動再起動しない
+- unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
 - 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
+- Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
 - npm パッケージと Orca はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
