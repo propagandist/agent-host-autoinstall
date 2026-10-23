@@ -43,7 +43,8 @@
 ## 5. 機能要件
 
 ### 5.1 OS インストール(autoinstall)
-- ロケール `ja_JP.UTF-8`、キーボード `jp`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc と日本語フォントは、この指定でインストーラーが入れる)
+- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc と日本語フォントは、ロケールの指定でインストーラーが入れる)
+- キーボード配列は env.yaml の `keyboard_layout`(`us` / `jp`)で台ごとに決める。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるので、RDP で使う人のキーボードに合わせる
 - ストレージは LVM、ディスク全体を使用(暗号化はオプション。§8 参照)
 - `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
@@ -55,6 +56,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - `agent` の GNOME 設定(初回ログイン時に適用):
+  - 入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-jp')]` にし、切り替えに Ctrl+Space を足す(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい)
   - `org.gnome.desktop.session idle-delay 0`
   - `org.gnome.desktop.screensaver lock-enabled false`
   - `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'`
