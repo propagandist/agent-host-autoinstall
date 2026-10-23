@@ -1,0 +1,19 @@
+[Unit]
+Description=agent-host の構成(post-install を番号順に実行)
+Wants=network-online.target
+After=network-online.target
+# 構成が終わってから GDM を起動し、agent の自動ログインへ進む
+Before=display-manager.service
+# 一度成功したら次の起動からは動かない。再実行は sudo /opt/agent-host/provision.sh
+ConditionPathExists=!/var/lib/agent-host/provisioned
+
+[Service]
+Type=oneshot
+ExecStart=/opt/agent-host/provision.sh
+RemainAfterExit=yes
+TimeoutStartSec=0
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

@@ -15,8 +15,13 @@ autoinstall/
   env.example.yaml          # 環境固有値のサンプル(コミットする)
   env.yaml                  # 実値(.gitignore 対象)
 scripts/
-  build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml を生成し、メディアに配置
-  post-install/             # late-commands から呼ぶスクリプト(番号順に実行)
+  build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
+  render-autoinstall.py     # build-usb.sh から呼ぶ。autoinstall.yaml と env.sh を生成
+  setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
+  provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
+  systemd/                  # agent-host-provision.service
+  lib/common.sh             # post-install の共通関数
+  post-install/             # 初回起動時に root で実行するスクリプト(番号順)
     10-users.sh
     20-autologin.sh
     30-power.sh
@@ -24,7 +29,8 @@ scripts/
     50-updates.sh
     60-devtools.sh
     70-orca.sh
-  first-login/              # agent の初回ログイン時に一度だけ実行(gsettings など)
+    80-agent-session.sh     # キーリング、RDP 認証情報の受け渡し、first-login の自動起動
+  first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
 docs/
   SPEC.md                   # 仕様
   HANDOVER.md               # 経緯と次の作業
