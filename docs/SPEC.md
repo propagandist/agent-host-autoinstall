@@ -28,14 +28,14 @@
   → デスクトップ共有(RDP :3389)が待ち受け開始
   → Orca が autostart で起動
 社内LANの RDP クライアント → :3389 → agent のデスクトップを操作
-管理者 → SSH → admin ユーザー
+管理者 → SSH → sysadmin ユーザー
 ```
 
 ## 4. ユーザー
 
 | ユーザー | 用途 | sudo | ログイン |
 |---|---|---|---|
-| `admin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
+| `sysadmin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
 | `agent` | Orca / Claude Code / Codex の実行 | なし | GDM 自動ログイン |
 
 `agent` に個人の秘密情報は置かない。
@@ -45,10 +45,12 @@
 ### 5.1 OS インストール(autoinstall)
 - ロケール `ja_JP.UTF-8`、キーボード `jp`、タイムゾーン `Asia/Tokyo`
 - ストレージは LVM、ディスク全体を使用(暗号化はオプション。§8 参照)
-- `admin` ユーザーと SSH 公開鍵を登録
+- `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
 
 ### 5.2 インストール後の構成(late-commands / スクリプト)
+late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回起動時の構成サービス(`agent-host-provision.service`)を有効にするだけにする。構成そのものは、初回起動時にこのサービスが `post-install/` を番号順に実行する(GDM の起動前)。インストール中の chroot では ufw などが動かないため。`agent` のセッションが要る設定(gsettings、grdctl)は first-login で行う。
+
 - `agent` ユーザー作成(sudo なし)
 - GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
@@ -71,7 +73,7 @@
 5. Codex のログイン(`codex login --device-auth`。事前に ChatGPT のセキュリティ設定でデバイスコード認証を有効化)
 6. Orca 初回起動、`~/.claude` / `~/.codex` 設定の取り込み、自動更新をオフ
 
-2〜3 は可能なら `grdctl` 等でスクリプト化を検討する(§9)。
+2〜3 はスクリプト化した(2 は空パスワードのキーリングを最初から置く、3 は first-login で `grdctl` を実行する)。ただし実機では未確認なので、効かなかったときの手作業を docs/manual-steps.md に残す。
 
 ## 6. 非機能要件
 - スクリプトは冪等(何度流しても同じ結果)
@@ -100,6 +102,8 @@
 | 社外からは VPN 経由 | 3389 をインターネットに開けない |
 
 ## 9. 未確定事項(実装時に確認)
+
+調べた結果と、まだ確認できていない点は HANDOVER.md「§9 の調査結果」に書く。
 - Ubuntu Desktop 26.04 の autoinstall で、上記要件がすべて表現できるか(Server 版との差分)
 - 26.04 で「自動ログイン + 空パスワードキーリング + デスクトップ共有」が再起動後に確実に有効になるか
 - デスクトップ共有の有効化と RDP 認証情報の設定を `grdctl` でスクリプト化できるか

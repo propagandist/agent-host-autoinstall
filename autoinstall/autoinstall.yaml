@@ -1,0 +1,34 @@
+# Ubuntu Desktop 26.04 LTS 用の autoinstall 設定
+#
+# 環境固有値(identity.hostname / identity.password / ssh.authorized-keys)は
+# scripts/build-usb.sh が env.yaml の値で置き換える。ここには実値を書かない。
+#
+# 置き場所: ISO の直下 /autoinstall.yaml(インストーラーは /cdrom/autoinstall.yaml を読む)。
+# 確認画面を出さずに進めるには、カーネル引数 autoinstall が要る(build-usb.sh が grub.cfg に足す)。
+autoinstall:
+  version: 1
+  locale: ja_JP.UTF-8
+  keyboard:
+    layout: jp
+  timezone: Asia/Tokyo
+  # ディスク全体を LVM で使う(既定では最大のディスク)。暗号化はしない(SPEC.md §8)
+  storage:
+    layout:
+      name: lvm
+  identity:
+    hostname: SET_BY_BUILD
+    realname: sysadmin
+    username: sysadmin
+    password: SET_BY_BUILD
+  # Desktop ISO には openssh-server が入っていないので、インストール中にネットワークから取得する
+  ssh:
+    install-server: true
+    authorized-keys: []
+    allow-pw: false
+  # late-commands は薄く: 同梱スクリプトを /opt/agent-host に置き、初回起動時の構成サービスを有効にするだけ。
+  # 構成そのものは初回起動時に agent-host-provision.service が post-install/ を番号順に実行する。
+  # late-commands の時点で /cdrom はマウントされている(26.04.1、VirtualBox で確認済み)
+  late-commands:
+    - cp -a /cdrom/agent-host /target/opt/agent-host
+    - curtin in-target --target=/target -- bash /opt/agent-host/setup-provision.sh
+  shutdown: reboot
