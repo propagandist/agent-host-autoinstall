@@ -56,7 +56,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - `agent` の GNOME 設定(初回ログイン時に適用):
-  - 入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-jp')]` にし、切り替えに Ctrl+Space を足す(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい)
+  - 入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい)
   - `org.gnome.desktop.session idle-delay 0`
   - `org.gnome.desktop.screensaver lock-enabled false`
   - `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'`

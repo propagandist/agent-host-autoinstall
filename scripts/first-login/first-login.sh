@@ -21,10 +21,12 @@ gsettings set org.gnome.desktop.screensaver lock-enabled false
 gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
 
 # --- キーボードと日本語入力 ---
-# 配列はインストール時の指定(env.yaml の keyboard_layout → /etc/default/keyboard)に合わせ、Mozc と組にする
+# 配列はインストール時の指定(env.yaml の keyboard_layout → /etc/default/keyboard)に合わせ、Mozc と組にする。
+# Mozc は mozc-on(切り替えた時点でひらがな)を使う。mozc-jp は直接入力で始まり、ひらがなにするには
+# 半角/全角キーが要るので、101 キーボードでは日本語を打てなかった(VirtualBox + RDP で確認済み)
 # shellcheck source=/dev/null
 layout="$(. /etc/default/keyboard && echo "${XKBLAYOUT%%,*}")"
-gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout'), ('ibus', 'mozc-jp')]"
+gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout'), ('ibus', 'mozc-on')]"
 # 101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすいので、Ctrl+Space でも切り替えられるようにする
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source "['<Super>space', '<Control>space']"
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward "['<Shift><Super>space', '<Shift><Control>space']"
