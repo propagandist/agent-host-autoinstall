@@ -45,7 +45,8 @@
 ### 5.1 OS インストール(autoinstall)
 - ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc と日本語フォントは、ロケールの指定でインストーラーが入れる)
 - キーボード配列は env.yaml の `keyboard_layout`(`us` / `jp`)で台ごとに決める。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるので、RDP で使う人のキーボードに合わせる
-- ストレージは LVM、ディスク全体を使用(暗号化はオプション。§8 参照)
+- ストレージは LVM、ディスク全体を使用(`sizing-policy: all`。既定の scaled はボリュームグループの半分ほどを空けて残す。暗号化はオプション。§8 参照)
+- ネットワークは env.yaml の `network` で、DHCP か固定 IP(アドレス、ゲートウェイ、DNS、検索ドメイン)を台ごとに決める。インストール中もこの設定で通信し、インストール後は NetworkManager が管理する
 - `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
 
@@ -61,13 +62,18 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
   - `org.gnome.desktop.session idle-delay 0`
   - `org.gnome.desktop.screensaver lock-enabled false`
   - `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'`
+  - `org.gnome.mutter check-alive-timeout 0`(忙しいアプリに「応答していません」を出さない)
+- `agent` では更新の通知(update-notifier)を出さない。apport(クラッシュ報告)は無効にする。どちらも誰も見ていない画面に残るため
+- `agent` の git:名前とメールアドレス(env.yaml の `git_user_name` / `git_user_email`)と `init.defaultBranch main`
+- 時刻同期:chrony。env.yaml の `ntp_servers` を同期先に足す(空なら Ubuntu の既定と DHCP で配られたサーバー)
+- inotify の上限:`max_user_watches=524288`、`max_user_instances=1024`(worktree を並べてファイル監視を動かすため)
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
-- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)
+- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、build-essential、python3-venv、python3-pip、ripgrep、jq、unzip
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
-- npm パッケージと Orca はバージョンを固定する(勝手に上がらないように)
+- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に

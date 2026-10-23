@@ -19,6 +19,8 @@ echo "[agent-host] first-login 開始: $(date -Is)"
 gsettings set org.gnome.desktop.session idle-delay 0
 gsettings set org.gnome.desktop.screensaver lock-enabled false
 gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
+# 忙しいアプリに「応答していません」を出さない(誰も見ていない画面に残る)
+gsettings set org.gnome.mutter check-alive-timeout 0
 
 # --- キーボードと日本語入力 ---
 # 配列はインストール時の指定(env.yaml の keyboard_layout → /etc/default/keyboard)に合わせ、Mozc と組にする。

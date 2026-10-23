@@ -97,6 +97,24 @@ PY
 fi
 log "ホームのフォルダー名を英語にした"
 
+# --- git ---
+# 名前とメールがないと、エージェントの git commit が「Please tell me who you are」で失敗する
+agent_git() { runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" git config --global "$@"; }
+agent_git user.name "$AH_GIT_USER_NAME"
+agent_git user.email "$AH_GIT_USER_EMAIL"
+agent_git init.defaultBranch main
+log "agent の git の名前・メール・既定ブランチを設定した"
+
+# --- 更新の通知を出さない ---
+# agent には sudo がなく更新できないうえ、誰も見ていない画面に残る。更新は unattended-upgrades と sysadmin が行う
+write_agent_file 644 "$AGENT_HOME/.config/autostart/update-notifier.desktop" <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Update Notifier
+Exec=update-notifier
+Hidden=true
+EOF
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
     # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)

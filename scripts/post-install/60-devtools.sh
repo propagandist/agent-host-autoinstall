@@ -14,8 +14,25 @@ CODEX_VERSION=0.164.0
 # (パッケージマネージャー経由の導入では Claude Code は自動更新しない。公式ドキュメントで確認済み)
 CLAUDE_CODE_VERSION=2.1.308-1
 CLAUDE_CODE_KEY_FPR=31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
+# GitHub CLI: 公式 apt リポジトリには最新版しかないので、リリースの .deb を SHA256 で照合して入れ、hold する
+# (SHA256 はリリースの gh_<ver>_checksums.txt)
+GH_VERSION=2.103.2
+GH_SHA256=30463d8e1fdce73f178f76b0082b7ab0657b0740b87274890e831def647ca979
 
-apt-get install -y git curl ca-certificates gnupg xz-utils openssl
+# エージェントがよく使う道具(ビルド、Python の仮想環境、検索)
+apt-get install -y git curl ca-certificates gnupg xz-utils openssl \
+    build-essential python3-venv python3-pip ripgrep jq unzip
+
+# --- GitHub CLI ---
+if [ "$(dpkg-query -W -f='${Version}' gh 2>/dev/null || true)" != "$GH_VERSION" ]; then
+    deb="$AH_CACHE/gh_${GH_VERSION}_linux_amd64.deb"
+    download_verified \
+        "https://github.com/cli/cli/releases/download/v$GH_VERSION/gh_${GH_VERSION}_linux_amd64.deb" \
+        "$GH_SHA256" "$deb"
+    apt-get install -y --allow-downgrades --allow-change-held-packages "$deb"
+fi
+apt-mark hold gh
+log "GitHub CLI $GH_VERSION を入れて hold した"
 
 # --- Node.js ---
 node_dir="/opt/node-v$NODE_VERSION-linux-x64"

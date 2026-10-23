@@ -1,6 +1,6 @@
 # Ubuntu Desktop 26.04 LTS 用の autoinstall 設定
 #
-# 環境固有値(keyboard.layout / identity.hostname / identity.password / ssh.authorized-keys)は
+# 環境固有値(keyboard.layout / network / identity.hostname / identity.password / ssh.authorized-keys)は
 # scripts/build-usb.sh が env.yaml の値で置き換える。ここには実値を書かない。
 #
 # 置き場所: ISO の直下 /autoinstall.yaml(インストーラーは /cdrom/autoinstall.yaml を読む)。
@@ -13,9 +13,13 @@ autoinstall:
     layout: SET_BY_BUILD
   timezone: Asia/Tokyo
   # ディスク全体を LVM で使う(既定では最大のディスク)。暗号化はしない(SPEC.md §8)
+  # sizing-policy の既定 scaled はボリュームグループの半分ほどを空けて残すので、all で全部をルートに使う
   storage:
     layout:
       name: lvm
+      sizing-policy: all
+  # ネットワーク(netplan)は build-usb.sh が env.yaml の network から入れる
+  network: SET_BY_BUILD
   identity:
     hostname: SET_BY_BUILD
     realname: sysadmin

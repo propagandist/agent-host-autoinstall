@@ -8,6 +8,8 @@ Linux か WSL で行う。xorriso と python3-yaml が要る。
 
 1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
    - `keyboard_layout` は RDP で使う人のキーボードに合わせる(101/104 の英字配列なら `us`、106/109 なら `jp`)
+   - `network` は固定 IP なら `mode: static` とアドレス・ゲートウェイ・DNS を書く。有線 LAN が 2 つ以上ある機種では `interface` に名前(`enp3s0` など)を書く
+   - `ntp_servers` は、社内から ntp.ubuntu.com に届かないときだけ書く
    - `sysadmin.password_hash` は `mkpasswd -m sha-512` で作る
 2. Ubuntu Desktop 26.04 LTS の ISO を用意し、次を実行する
    ```
@@ -22,7 +24,7 @@ Linux か WSL で行う。xorriso と python3-yaml が要る。
 ## 1. BIOS
 
 - Restore on AC Power Loss(名称は機種による)を **Power On** にする
-- HDMI ダミープラグを挿す
+- HDMI ダミープラグを挿す。デスクトップ共有は実際の画面をそのまま映すので、RDP の解像度はプラグの解像度になる(手元からは変えられない)。1920×1080 のプラグを選ぶ(4K だと文字がとても小さい)
 
 ## 2. インストール
 
@@ -70,3 +72,15 @@ RDP で agent のデスクトップに入り、ターミナルで `claude` を�
 1. Orca は自動起動している。初回の案内に従う
 2. `~/.claude` / `~/.codex` の設定を取り込む
 3. 自動更新の設定があればオフにする。.deb 版は更新を自分では適用しないが、更新の通知は出る。通知を止める設定は見つかっていない(HANDOVER.md)
+
+## 8. 定期的な再起動(運用)
+
+unattended-upgrades はセキュリティ更新を自動で入れるが、自動では再起動しない(作業中のエージェントを止めないため)。カーネルなどの更新は再起動するまで反映されないので、月 1 回、エージェントが作業していない時間に sysadmin で再起動する。
+
+```
+ssh sysadmin@<ホスト>
+[ -f /var/run/reboot-required ] && cat /var/run/reboot-required.pkgs   # 再起動待ちの更新
+sudo systemctl reboot
+```
+
+再起動後は何もしなくても RDP で接続できる状態に戻る(受け入れテスト 4)。

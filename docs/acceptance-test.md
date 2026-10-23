@@ -29,9 +29,15 @@ sudo ss -tlnp | grep 33
 | スリープの無効化 | `systemctl is-enabled sleep.target` | `masked` |
 | SSH | `sudo sshd -T \| grep -E 'passwordauthentication\|permitrootlogin'` | どちらも `no` |
 | ufw | `sudo ufw status` | 22/tcp と 3389/tcp が lan_cidrs からだけ ALLOW |
-| バージョンの固定 | `apt-mark showhold` | `claude-code` と `orca-ide` |
+| バージョンの固定 | `apt-mark showhold` | `claude-code`、`gh`、`orca-ide` |
 | 既定のブラウザ | `sudo -u agent DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u agent)/bus xdg-settings get default-web-browser` | `google-chrome.desktop` |
 | Chrome の自動更新 | `sudo unattended-upgrade --dry-run --debug 2>&1 \| grep -i 'Google LLC'` | 許可元に `o=Google LLC,a=stable` がある |
 | ホームのフォルダー名 | `sudo ls /home/agent` | Desktop・Downloads などの英語名だけで、日本語名のフォルダーがない |
+| ディスク | `df -h /; sudo vgs` | ルートがボリュームグループのほぼ全部を使っている(VFree がほぼ 0) |
+| ネットワーク | `ip -4 addr; ip route; resolvectl status \| grep -A2 'DNS Servers'` | env.yaml の network どおり(static ならアドレス・ゲートウェイ・DNS) |
+| 時刻同期 | `chronyc -N sources` | 同期している(`^*`)。ntp_servers を書いたらそれが並ぶ |
+| agent の git | `sudo -u agent git config --global --list` | user.name・user.email・init.defaultbranch=main |
+| inotify | `sysctl fs.inotify.max_user_watches` | 524288 |
+| 確認画面を出さない | `grep ^enabled /etc/default/apport; sudo ls /home/agent/.config/autostart` | enabled=0。autostart に update-notifier.desktop(Hidden=true) |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |
 | agent に sudo がない | `id agent` | sudo グループに入っていない |

@@ -30,6 +30,38 @@ def require(env, path):
     return value
 
 
+def render_network(net):
+    """env.yaml の network から netplan の設定(autoinstall の network キー)を作る。"""
+    mode = net.get("mode")
+    iface = str(net.get("interface") or "en*")
+    # Desktop なので NetworkManager に任せる(GNOME の設定画面から見える)
+    eth = {"match": {"name": iface}}
+    if mode == "dhcp":
+        eth["dhcp4"] = True
+    elif mode == "static":
+        for key in ("address", "gateway", "dns"):
+            if not net.get(key):
+                fail(f"network.mode が static のときは network.{key} が要る")
+        try:
+            ipaddress.ip_interface(str(net["address"]))
+            ipaddress.ip_address(str(net["gateway"]))
+            for d in net["dns"]:
+                ipaddress.ip_address(str(d))
+        except ValueError as e:
+            fail(f"network の値が読めない: {e}")
+        if "/" not in str(net["address"]):
+            fail("network.address はプレフィックス付き(192.0.2.10/24 の形)にする")
+        eth["dhcp4"] = False
+        eth["addresses"] = [str(net["address"])]
+        eth["routes"] = [{"to": "default", "via": str(net["gateway"])}]
+        eth["nameservers"] = {"addresses": [str(d) for d in net["dns"]]}
+        if net.get("search"):
+            eth["nameservers"]["search"] = [str(s) for s in net["search"]]
+    else:
+        fail("network.mode は dhcp か static にする")
+    return {"version": 2, "renderer": "NetworkManager", "ethernets": {"lan": eth}}
+
+
 def main():
     if len(sys.argv) != 4:
         fail("使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml> <出力ディレクトリ>")
@@ -47,6 +79,10 @@ def main():
     cidrs = require(env, "lan_cidrs")
     rdp_user = require(env, "rdp.username")
     rdp_password = require(env, "rdp.password")
+    git_user_name = require(env, "git_user_name")
+    git_user_email = require(env, "git_user_email")
+    network = render_network(require(env, "network"))
+    ntp_servers = env.get("ntp_servers") or []
 
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
@@ -60,6 +96,7 @@ def main():
 
     ai = doc["autoinstall"]
     ai["keyboard"]["layout"] = str(keyboard_layout)
+    ai["network"] = network
     ai["identity"]["hostname"] = str(hostname)
     ai["identity"]["password"] = str(password_hash)
     ai["ssh"]["authorized-keys"] = [str(k) for k in keys]
@@ -74,6 +111,9 @@ def main():
         f"AH_LAN_CIDRS={shlex.quote(' '.join(str(c) for c in cidrs))}",
         f"AH_RDP_USER={shlex.quote(str(rdp_user))}",
         f"AH_RDP_PASSWORD={shlex.quote(str(rdp_password))}",
+        f"AH_NTP_SERVERS={shlex.quote(' '.join(str(s) for s in ntp_servers))}",
+        f"AH_GIT_USER_NAME={shlex.quote(str(git_user_name))}",
+        f"AH_GIT_USER_EMAIL={shlex.quote(str(git_user_email))}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
