@@ -62,8 +62,8 @@ RDP で agent のデスクトップに入り、ターミナルで `claude` を�
 
 ## 6. Codex のログイン
 
-1. 事前に ChatGPT のセキュリティ設定(Workspace なら管理者の権限設定)でデバイスコード認証を有効にする。有効でないと、エラーにならずに止まって見える
-2. ターミナルで `codex login --device-auth` を実行し、表示されたコードを手元の PC のブラウザで入力する
+1. 事前に ChatGPT の設定 → セキュリティで「Codex、Excel、PowerPoint、Word のデバイスコードによるサインイン」を有効にする(Workspace なら管理者の権限設定)。有効でないと、`codex login --device-auth` は「ChatGPT のセキュリティ設定で…デバイスコードによるサインインを有効にしてから…もう一度実行してください」と出して止まる
+2. ターミナルで `codex login --device-auth` を実行し、表示された URL とコードを手元の PC のブラウザで入力する(VirtualBox + RDP で確認済み)
 
 ## 7. Orca の初回起動
 

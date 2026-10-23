@@ -32,5 +32,6 @@ sudo ss -tlnp | grep 33
 | バージョンの固定 | `apt-mark showhold` | `claude-code` と `orca-ide` |
 | 既定のブラウザ | `sudo -u agent DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u agent)/bus xdg-settings get default-web-browser` | `google-chrome.desktop` |
 | Chrome の自動更新 | `sudo unattended-upgrade --dry-run --debug 2>&1 \| grep -i 'Google LLC'` | 許可元に `o=Google LLC,a=stable` がある |
+| ホームのフォルダー名 | `sudo ls /home/agent` | Desktop・Downloads などの英語名だけで、日本語名のフォルダーがない |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |
 | agent に sudo がない | `id agent` | sudo グループに入っていない |

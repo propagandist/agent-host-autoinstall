@@ -55,6 +55,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - `agent` ユーザー作成(sudo なし)
 - GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
+- `agent` のホームのフォルダー名(デスクトップ、ダウンロードなど)は英語名(Desktop、Downloads など)にする
 - `agent` の GNOME 設定(初回ログイン時に適用):
   - 入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい)
   - `org.gnome.desktop.session idle-delay 0`
