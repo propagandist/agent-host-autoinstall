@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# unattended-upgrades をセキュリティ更新のみ・自動再起動なしにする。
+# unattended-upgrades をセキュリティ更新と Google Chrome のみ・自動再起動なしにする。
 # apt-mark hold したパッケージ(claude-code, orca-ide)は更新されない。
+# Chrome は Google のリポジトリに最新版しかなく固定できないので、自動で上げる(75-chrome.sh)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
@@ -19,7 +20,8 @@ cat >/etc/apt/apt.conf.d/52agent-host-unattended-upgrades <<'EOF'
 #clear Unattended-Upgrade::Origins-Pattern;
 Unattended-Upgrade::Allowed-Origins {
     "${distro_id}:${distro_codename}-security";
+    "Google LLC:stable";
 };
 Unattended-Upgrade::Automatic-Reboot "false";
 EOF
-log "unattended-upgrades をセキュリティ更新のみ・自動再起動なしにした"
+log "unattended-upgrades をセキュリティ更新と Chrome のみ・自動再起動なしにした"
