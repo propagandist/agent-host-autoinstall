@@ -98,6 +98,13 @@ else
 fi
 check "agent は sudo できない" bash -c "sudo -n -l -U $AGENT_USER 2>&1 | grep -q 'not allowed'"
 eq "agent のホームは 700" "$(stat -c %a "$AGENT_HOME")" 700
+admin_home="$(getent passwd sysadmin | cut -d: -f6)"
+if [ -f "$AH_ROOT/sysadmin_authorized_keys" ]; then
+    check "sysadmin の SSH の鍵が env.yaml と同じ" cmp -s "$AH_ROOT/sysadmin_authorized_keys" "$admin_home/.ssh/authorized_keys"
+fi
+if [ -n "${AH_SYSADMIN_PASSWORD_HASH:-}" ]; then
+    check "sysadmin のパスワードが env.yaml と同じ" test "$(getent shadow sysadmin | cut -d: -f2)" = "$AH_SYSADMIN_PASSWORD_HASH"
+fi
 
 section "自動ログインとセッション"
 check "GDM の自動ログインが agent" bash -c "grep -qx 'AutomaticLoginEnable=true' /etc/gdm3/custom.conf && grep -qx 'AutomaticLogin=$AGENT_USER' /etc/gdm3/custom.conf"
@@ -109,6 +116,8 @@ eq "画面のロックが無効" "$(gset org.gnome.desktop.screensaver lock-enab
 eq "アイドルで画面を消さない" "$(gset org.gnome.desktop.session idle-delay)" "uint32 0"
 check "空パスワードのログインキーリングがある" test -f "$AGENT_HOME/.local/share/keyrings/login.keyring"
 check "first-login が済んでいる" test -f "$AGENT_HOME/.config/agent-host/first-login.done"
+check "RDP の認証情報を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-rdp-credentials.desktop"
+check "渡した RDP の認証情報がキーリングに入った(rdp.env が残っていない)" test ! -e "$AGENT_HOME/.config/agent-host/rdp.env"
 
 section "RDP(GNOME のデスクトップ共有)"
 grd="$(as_agent grdctl status 2>&1 || true)"

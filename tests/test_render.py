@@ -94,6 +94,10 @@ class TestValid(Case):
         self.assertEqual(ai["identity"]["hostname"], "agent-host-test")
         self.assertEqual(ai["identity"]["password"], "$6$salt$hash")
         self.assertEqual(ai["ssh"]["authorized-keys"], ["ssh-ed25519 AAAAtest sysadmin@test"])
+        # sysadmin の鍵とパスワードは just update でも反映する(Issue #2)
+        with open(os.path.join(out, "sysadmin_authorized_keys"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "ssh-ed25519 AAAAtest sysadmin@test\n")
+        self.assertEqual(env["AH_SYSADMIN_PASSWORD_HASH"], "$6$salt$hash")
         self.assertEqual(ai["network"]["ethernets"]["lan"], {"match": {"name": "en*"}, "dhcp4": True})
         self.assertNotIn("proxy", ai)
         self.assertEqual(ai["drivers"], {"install": True})  # NVIDIA などのドライバーをインストールの中で入れる
@@ -295,7 +299,7 @@ class TestStage(Case):
         self.assertEqual(r.returncode, 0, r.stderr)
         stage = os.path.join(out, "agent-host")
         self.assertTrue(os.path.isfile(os.path.join(out, "autoinstall.yaml")))
-        for name in ("provision.sh", "setup-provision.sh", "verify.sh", "env.sh", "agent_authorized_keys", "BUILD-INFO",
+        for name in ("provision.sh", "setup-provision.sh", "verify.sh", "env.sh", "agent_authorized_keys", "sysadmin_authorized_keys", "BUILD-INFO",
                      "lib/common.sh", "systemd/agent-host-provision.service", "notify/agent-notify",
                      "migrate/agent-host-backup", "migrate/agent-host-restore"):
             with self.subTest(name=name):
@@ -304,6 +308,7 @@ class TestStage(Case):
         mode = lambda p: os.stat(os.path.join(stage, p)).st_mode & 0o777  # noqa: E731
         self.assertEqual(mode("env.sh"), 0o600)
         self.assertEqual(mode("agent_authorized_keys"), 0o600)
+        self.assertEqual(mode("sysadmin_authorized_keys"), 0o600)
         self.assertEqual(mode("BUILD-INFO"), 0o644)
         self.assertEqual(mode("provision.sh"), 0o755)
         self.assertEqual(mode("notify/agent-notify"), 0o755)

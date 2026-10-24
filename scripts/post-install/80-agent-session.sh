@@ -218,14 +218,24 @@ if systemctl is-active --quiet "user@$agent_uid.service"; then
     fi
 fi
 
+# --- RDP の認証情報 ---
+# env.yaml の rdp が前に渡したものと違えば渡しなおす(初回は first-login が、以後はログインのたびの自動起動が入れる)。
+# agent がログイン中なら、その場でセッションに入れる(キーリングが開いているので入る)
+if queue_rdp_credentials; then
+    log "RDP の認証情報を渡した"
+    if [ -f "$done_mark" ] && [ -S "/run/user/$agent_uid/bus" ] &&
+        loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
+        if agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$agent_uid" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$agent_uid/bus" "$AH_ROOT/first-login/rdp-credentials.sh"; then
+            log "ログイン中の $AGENT_USER のセッションに RDP の認証情報を入れた"
+        else
+            log "注意: RDP の認証情報をその場では入れられなかった。次のログインで入る"
+        fi
+    fi
+fi
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
-    # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)
-    {
-        printf 'RDP_USER=%q\n' "$AH_RDP_USER"
-        printf 'RDP_PASSWORD=%q\n' "$AH_RDP_PASSWORD"
-    } | write_agent_file 600 "$state_dir/rdp.env"
-
     write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-first-login.desktop" <<EOF
 [Desktop Entry]
 Type=Application

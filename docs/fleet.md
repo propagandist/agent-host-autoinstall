@@ -146,9 +146,9 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 1. `.sops.yaml` から公開鍵を外し、上と同じように `sops updatekeys` する
 2. その人が知っている秘密情報を替える(過去のコミットは、その人の鍵で復号できるため)
    - RDP のパスワード: `rdp.password` を替えて、すべてのホストに `just update`
-   - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(sudo のパスワードは、ホストで `sudo passwd sysadmin` でも替える)
+   - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(ホストのパスワードもこの値に置き換わる)
    - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替える
-   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`
+   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
 
 ## 9. 記録の決まり
 

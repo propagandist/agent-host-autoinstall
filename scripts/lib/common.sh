@@ -97,6 +97,32 @@ npm_global() {
     log "$pkg $version を入れた"
 }
 
+# RDP の認証情報(env.yaml の rdp)を agent のセッションに渡す。ログインのたびの自動起動
+# (first-login/rdp-credentials.sh)がキーリングに入れ、渡したファイルを消す。
+# 前に渡したものと同じなら何もせず 1 を返す(--force で必ず渡す)。替えたら just update で入れ替わる(Issue #3)。
+# 渡したものの印(ハッシュ)は root だけが読める場所に置く。load_env のあとで呼ぶ
+queue_rdp_credentials() {
+    local mark=/var/lib/agent-host/rdp-credentials.sha256 want
+    want="$(printf '%s\n%s\n' "$AH_RDP_USER" "$AH_RDP_PASSWORD" | sha256sum | cut -d' ' -f1)"
+    write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-rdp-credentials.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=agent-host RDP credentials
+Exec=$AH_ROOT/first-login/rdp-credentials.sh
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+EOF
+    if [ "${1:-}" != --force ] && [ "$(cat "$mark" 2>/dev/null)" = "$want" ]; then
+        return 1
+    fi
+    {
+        printf 'RDP_USER=%q\n' "$AH_RDP_USER"
+        printf 'RDP_PASSWORD=%q\n' "$AH_RDP_PASSWORD"
+    } | write_agent_file 600 "$AGENT_HOME/.config/agent-host/rdp.env"
+    install -d -m 755 /var/lib/agent-host
+    (umask 077 && printf '%s\n' "$want" >"$mark")
+}
+
 # 標準入力の内容を agent のホーム配下のファイルに書く。途中のディレクトリも含めて、すべて agent の権限で行う
 # (root で書くと、agent が置いたリンクをたどってホームの外に書けてしまう。Issue #1)。
 # 同じディレクトリに一時ファイルを作ってから置き換えるので、末端がリンクでもリンク先は変えない

@@ -1018,6 +1018,8 @@ just update <ホスト>    # env.yaml から設定を作りなおし、スクリ
 \begin{itemize}
   \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
   \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
+  \item sysadmin の SSH の鍵とパスワードは、env.yaml の \code{sysadmin} に置き換わる(手で足した鍵や \code{passwd} で替えたパスワードは戻る)。鍵を替えるときは、今つないでいる鍵を外さない順で行う
+  \item RDP の認証情報(\code{rdp})を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる
   \item 反映したら \code{just verify <ホスト>} で、固定の版と設定が仕様どおりかを確かめる
   \item agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
   \item Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる

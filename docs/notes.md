@@ -270,6 +270,13 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - このリポジトリでは対応のための設定を足さない。LAN で使うなら env.yaml の `dev_ports` に 6768 を足せば `lan_cidrs` からだけ開く。Relay はポートを開けずに使える
 - スマホから agent のターミナルにコマンドを送れるので、スマホの管理(画面のロック、無くしたときにペアリングを外す)を手順に書いた
 
+### レビューの指摘への対応(2026-10-25、VirtualBox で確認)
+
+- #1: agent のホームの中は、すべて agent の権限(`agent_run` = runuser)で書く。write_agent_file は同じディレクトリの一時ファイルから `mv -T` で置き換える(末端のリンクは置き換わるだけで、途中のディレクトリのリンクは agent の権限で止まる)。tests/test_agent_home.py で、末端と途中のディレクトリのリンクでホームの外が変わらないことを確かめる(Docker の中)。動いている VM に just update して verify が通った
+- #2: sysadmin の鍵(`/opt/agent-host/sysadmin_authorized_keys` → `~sysadmin/.ssh/authorized_keys`。インストーラーもここに書いていた)とパスワード(`usermod -p`)を just update のたびに env.yaml に合わせる。VM で、鍵を 1 本足すと入れ、外すと `Permission denied (publickey)` になること、パスワードのハッシュを替えると新しいパスワードで sudo でき、古いものでは通らないことを確かめた
+- #3: RDP の認証情報は、渡したもののハッシュを `/var/lib/agent-host/rdp-credentials.sha256`(root だけ)に置き、env.yaml と違えば `rdp.env` を置きなおす。キーリングに入れるのは `first-login/rdp-credentials.sh`(ログインのたびの自動起動)。agent がログイン中なら just update がその場でセッションのバスを通して呼ぶ。VM で、パスワードを替えると新しいもので verify-rdp が通り、古いものでは通らない(終了コード 134)ことを確かめた。動いている gnome-remote-desktop は、再起動なしで新しい認証情報を使った
+- 未確認: agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで #1 と同じ問題を起こすか
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
