@@ -607,35 +607,29 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 
 \begin{figure}[htbp]
 \centering
-\begin{tikzpicture}[node distance=2mm,
-  pstep/.style={box,minimum width=32mm,minimum height=6mm,font=\scriptsize\gtfamily,inner sep=2pt}]
-  \node[pstep] (a1) {05 プロキシ・CA};
-  \node[pstep,below=of a1] (a2) {10 agent を作る};
-  \node[pstep,below=of a2] (a3) {20 自動ログイン・見張り};
-  \node[pstep,below=of a3] (a4) {30 スリープ無効};
-  \node[pstep,below=of a4] (a5) {35 時刻・上限・apport};
-  \node[pstep,below=of a5] (a6) {36 最小化・最適化};
-  \node[pstep,right=8mm of a1] (b1) {40 SSH ・ ufw};
-  \node[pstep,below=of b1] (b2) {50 自動更新};
-  \node[pstep,right=8mm of b1] (c1) {60 開発の道具};
-  \node[pstep,below=of c1] (c2) {62 追加のエージェント};
-  \node[pstep,below=of c2] (c2b) {63 クラウドの CLI};
-  \node[pstep,below=of c2b] (c3) {65 rootless Docker};
-  \node[pstep,below=of c3] (c4) {70 Orca};
-  \node[pstep,below=of c4] (c5) {72 エディター};
-  \node[pstep,below=of c5] (c6) {75 Chrome ・ 76 デスクトップ};
-  \node[pstep,right=8mm of c1] (d1) {80 agent のセッション};
-  \node[pstep,below=of d1] (d2) {84 通知・ディスク監視};
-  \node[pstep,below=of d2] (d3) {86 移行の道具};
-  \begin{scope}[on background layer]
-    \node[group,fill=accentlight,fit=(a1)(a6),label={[font=\headstyle\small,text=accent]above:OS の土台}] (ga) {};
-    \node[group,fill=accentlight,fit=(b1)(b2),label={[font=\headstyle\small,text=accent]above:ネットワーク}] (gb) {};
-    \node[group,fill=accentlight,fit=(c1)(c6),label={[font=\headstyle\small,text=accent]above:道具とアプリ}] (gc) {};
-    \node[group,fill=accentlight,fit=(d1)(d3),label={[font=\headstyle\small,text=accent]above:agent の仕上げ}] (gd) {};
-  \end{scope}
-  \draw[flow] (ga.east) -- (gb.west|-ga.east);
-  \draw[flow] (gb.east) -- (gc.west|-gb.east);
-  \draw[flow] (gc.east) -- (gd.west|-gc.east);
+% 箱はすべて同じ大きさで格子に置く。列はいちばん長い列(道具とアプリ)の高さにそろえ、矢印を同じ高さに並べる
+\begin{tikzpicture}[
+  pstep/.style={box,minimum width=31mm,text width=29mm,minimum height=5.6mm,font=\scriptsize\gtfamily,inner sep=1.5pt},
+  x=38mm,y=-7.2mm]
+  \foreach \c/\head/\items in {%
+    0/OS の土台/{05 プロキシ・CA,10 agent を作る,20 自動ログイン・見張り,30 スリープ無効,35 時刻・上限・apport,36 最小化・最適化,37 GPU の符号化},%
+    1/ネットワーク/{40 SSH ・ ufw,50 自動更新},%
+    2/道具とアプリ/{60 開発の道具,62 追加のエージェント,63 クラウドの CLI,65 rootless Docker,70 Orca,72 エディター,75 Chrome,76 デスクトップ},%
+    3/仕上げ/{80 agent のセッション,84 通知・ディスク監視,85 UPS,86 移行の道具}} {
+    \foreach \t [count=\r from 0] in \items {
+      \node[pstep] (s\c-\r) at (\c,\r) {\t};
+    }
+    % 列の上端と、いちばん長い列(8 段)の下端を囲む
+    \coordinate (top\c) at (\c,0);
+    \coordinate (bot\c) at (\c,7);
+    \begin{scope}[on background layer]
+      \node[group,fill=accentlight,minimum width=35mm,inner sep=0pt,fit={([yshift=4.6mm]top\c) ([yshift=-4.6mm]bot\c)},
+            label={[font=\headstyle\small,text=accent]above:\head}] (g\c) {};
+    \end{scope}
+  }
+  \foreach \a/\b in {0/1,1/2,2/3} {
+    \draw[flow] (g\a.east) -- (g\b.west);
+  }
 \end{tikzpicture}
 \caption{構成スクリプトの順番(番号はファイル名の先頭)}
 \end{figure}
