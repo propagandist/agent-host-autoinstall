@@ -145,17 +145,20 @@
   \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
   \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
     \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
-      inner xsep=5pt,inner ysep=3pt] (chip) at (prev) {\t};
+      inner xsep=5pt,inner ysep=3pt,text height=0.9em,text depth=0.3em] (chip) at (prev) {\t};
+    % 文字の高さと深さを固定して、日本語やかっこがあっても枠の高さをそろえる
     \coordinate (prev) at ([xshift=2mm]chip.east);
   }
   \draw[covercyan!50,line width=0.4pt] ([xshift=2.2cm,yshift=3.2cm]current page.south west)
     -- ([xshift=-2.2cm,yshift=3.2cm]current page.south east);
-  \node[anchor=north west,font=\gtfamily\small,text=white!65!coverbg,align=left]
-    at ([xshift=2.2cm,yshift=2.9cm]current page.south west)
-    {版: \guideversion\\VirtualBox で検証した内容に基づく。リポジトリの文書とスクリプトを正とする。};
-  \node[anchor=north east,font=\headstyle\normalsize,text=white,align=right]
-    at ([xshift=-2.2cm,yshift=2.9cm]current page.south east)
-    {\guideholder\ifdefempty{\guideholderurl}{}{\\[1pt]{\mdseries\small\color{covercyan}\guideholderurlshort}}};
+  % 版(左)と発行者(右)は、文字の並ぶ線(ベースライン)をそろえる
+  \node[anchor=base west,inner sep=0pt,font=\sffamily\gtfamily\small,text=white!70!coverbg]
+    at ([xshift=2.2cm,yshift=2.4cm]current page.south west) {\guideversion};
+  \node[anchor=base east,inner sep=0pt,font=\headstyle\normalsize,text=white]
+    at ([xshift=-2.2cm,yshift=2.4cm]current page.south east) (holder) {\guideholder};
+  \ifdefempty{\guideholderurl}{}{%
+    \node[anchor=north east,inner sep=0pt,font=\sffamily\small,text=covercyan]
+      at ([yshift=-2.5mm]holder.south east) {\guideholderurlshort};}
 \end{tikzpicture}
 \end{titlepage}
 
@@ -201,7 +204,8 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \item 遠隔操作: GNOME の「デスクトップ共有」(RDP、ポート 3389)。物理の画面のセッションをそのまま共有する
   \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
   \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
-  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、Google Chrome、エディター(選択)
+  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome、
+        エディター(選択。拡張機能も入る)、クラウドの CLI(選択。AWS・Google Cloud・Azure)
   \item 通知: Slack と IP Messenger(承認待ち・エラー・完了)
 \end{itemize}
 
@@ -284,7 +288,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \section{入っている主なアプリケーション}\label{sec:apps}
 %======================================================================
 構成が終わったホストに入っている主なものと、このホストでの使い方。
-版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents} と \code{editors} で選んだときだけ入る。
+版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds} で選んだときだけ入る。
 
 {\small
 \begin{longtable}{@{}p{0.25\linewidth}p{0.42\linewidth}p{0.27\linewidth}@{}}
@@ -570,7 +574,8 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
   \node[pstep,below=of b1] (b2) {50 自動更新};
   \node[pstep,right=8mm of b1] (c1) {60 開発の道具};
   \node[pstep,below=of c1] (c2) {62 追加のエージェント};
-  \node[pstep,below=of c2] (c3) {65 rootless Docker};
+  \node[pstep,below=of c2] (c2b) {63 クラウドの CLI};
+  \node[pstep,below=of c2b] (c3) {65 rootless Docker};
   \node[pstep,below=of c3] (c4) {70 Orca};
   \node[pstep,below=of c4] (c5) {72 エディター};
   \node[pstep,below=of c5] (c6) {75 Chrome ・ 76 デスクトップ};
@@ -609,7 +614,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
 \code{70-orca.sh} & Orca と、その自動起動 \\
-\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
+\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
 \code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
@@ -699,6 +704,7 @@ ChatGPT 側でデバイスコードによるサインインが有効でないと
 \subsection{Orca の初回の設定}
 \begin{checklist}
   \item 初回の案内に従い、既定のエージェントを選ぶ。\textbf{Yolo モード(確認なしでコマンドを実行)は最初からオン}なので、使い方の方針に合わせて決める
+  \item 案内に従い、\code{~/.claude} と \code{~/.codex} の設定を取り込む
   \item Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数でも止めている)
   \item Settings → Notifications の「Update available」をオフにする
 \end{checklist}
@@ -709,6 +715,7 @@ opencode auth login     # OpenCode: 使うモデルの API キーや OAuth を�
 copilot                 # Copilot CLI: 起動して /login → デバイスコード
 agy                     # Antigravity CLI: 表示された URL を開き、得たコードを貼り付ける
 \end{term}
+Antigravity CLI のテレメトリは、アカウントの設定(\code{/config})で切り替える。
 
 \subsection{GitHub・Gitea の認証(push する場合)}
 GitHub は gh で認証する。
@@ -775,10 +782,21 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 \end{enumerate}
 
 \subsection{ファイルのやり取り}
-\begin{itemize}
-  \item SFTP: env.yaml に公開鍵を書いた人は、WinSCP\footnote{\url{https://winscp.net/}} などでホスト、ポート 22、ユーザー \code{agent}、秘密鍵で入る。作業の置き場所は \code{/home/agent/work}。シェルには入れない
-  \item 小さなファイルは RDP のクリップボードでも渡せる(未検証)
-\end{itemize}
+env.yaml の \code{agent_ssh_authorized_keys} に公開鍵を書いた人は、SFTP で \code{agent} に入れる(シェルには入れない)。
+作業の置き場所は \code{/home/agent/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
+\begin{checklist}
+  \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{agent}
+  \item 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は、PuTTY の形式(\code{.ppk})への変換を勧められるので、変換して保存する
+  \item 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、下のコマンドの結果と同じか確かめてから受け入れる
+\end{checklist}
+\begin{host}
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub   # ホスト鍵の指紋
+\end{host}
+\begin{hint}
+macOS や Linux からは、FileZilla か、端末の \code{sftp agent@<ホスト>} を使う。
+FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
+小さなファイルは RDP のクリップボードでも渡せる(未検証)。
+\end{hint}
 
 \subsection{自動化が効かなかったときだけ}
 \paragraph{ログインキーリング}
@@ -1034,7 +1052,8 @@ unset PW
 \code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
-リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは次のとおり(Docker が要る)。
+リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。
+just を使わないときは、スクリプトを直接実行する。
 \begin{local}
 scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
 \end{local}
@@ -1047,7 +1066,9 @@ VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確か�
   \item HDMI のダミープラグでの RDP、BIOS の停電復帰、社内 LAN の外からの到達(テスト 7)
   \item 実際のプロキシ・TLS を検査するプロキシの下での動作
   \item Slack への送信、Claude Code の Remote Control
-  \item Zed の動作(GPU が要る)、RDP のクリップボードでのファイルのコピー
+  \item クラウドの CLI の実際のログイン、社内の CA の証明書を使う Gitea への接続
+  \item Zed での日本語入力、VS Code の日本語の表示(設定は入れた)、RDP のクリップボードでのファイルのコピー
+  \item systemd-oomd がメモリ不足のときに Orca ごと止めないか
 \end{itemize}
 最新の状況は \code{docs/HANDOVER.md} を見る。
 
