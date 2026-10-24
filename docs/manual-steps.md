@@ -59,6 +59,8 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 ```
 just status <ホスト>   # 構成・RDP・セッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>     # 構成・first-login・セッションの見張りの記録
+just verify <ホスト>   # 仕様どおりかを約 100 項目で確かめる(✗ の行を直す。何も変えない)
+just verify-rdp <ホスト>   # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
 ```
 
 構成が失敗したときは、原因を直してから `just update <ホスト>`(構成を再実行する)。
@@ -205,6 +207,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
+- 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
 - どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
 - agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
@@ -225,7 +228,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
    just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
    just ssh <ホスト>      # sudo systemctl reboot
    ```
-6. 受け入れテストの 4・5 を行う
+6. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
 
 **書き出したファイルにはログインの情報が入る。暗号化された場所に移し、取り込んだら消す。**
 

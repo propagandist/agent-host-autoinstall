@@ -195,6 +195,15 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 確かめたこと: リポジトリの外の common.yaml + hosts/x.yaml で check-env・iso・update が通る。書き間違い・暗号化のまま・hostname がないときは止まる。別のホストの env.yaml では update が止まる。examples/fleet をコピーし、sops 3.13.3 と age 1.3.2 で common.yaml の秘密情報を暗号化した構成リポジトリから、just check・update・status・facts が通り、復号したファイルが残らない
 - 手順は docs/fleet.md、ひな形は examples/fleet/
 
+### 機械的な検証(2026-10-24 追加、VirtualBox で確認)
+
+- `just verify` は `scripts/verify.sh` を SSH で流し、sudo で読むだけの検査をする。固定の版は、ホストの `/opt/agent-host/post-install/*.sh` の `NAME=値` と `NAME=( ... )` を読んで比べる(版を二重に持たない)。動いている VM で 106 項目が通り、gh の hold を外す・画面のロックを有効にすると、その 2 項目が ✗ になり終了コード 1 になった
+- `apt-mark showhold | grep -qx` は `set -o pipefail` のもとで、grep が先に終わると apt-mark が SIGPIPE になり、hold されていても失敗と判定した。一覧を変数に取ってから探す
+- agent のセッションの gsettings と `grdctl status` は、root から `runuser -u agent` に `XDG_RUNTIME_DIR` と `DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus` を渡すと読める。`grdctl status` は `Unit status`・`Status`・`Port`・`View-only`・`Negotiate port`・`Username: (hidden)` の行で判定する
+- IBus はセッションのバスではなく、`~/.config/ibus/bus/<machine-id>-unix-wayland-0` に書かれた `IBUS_ADDRESS` で話す。そのファイルを読み込んで `ibus list-engine` すると `mozc-on`・`mozc-off`・`mozc-jp` が出る
+- FreeRDP 3(Ubuntu 26.04 の freerdp3-x11)の `+auth-only` は、画面なしで NLA の認証だけをする。成功すると「Authentication only, exit status 1」を出して終了コード 0、パスワードが違うと終了コード 134、つながらないと「exit status 0」で終了コード 141 だった。`just verify-rdp` は終了コード 0 とこの行の両方で判定する。Docker の中からは、手元の PC の 127.0.0.1 を `host.docker.internal` で見る
+- `just test` の stage.sh の試験(ファイルの権限)は Windows の python では通らないので、Linux(Docker)で動かす(in-ubuntu.sh の `<要るコマンド>` を `-` にすると、手元に python3 があっても Linux で動かす)
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)

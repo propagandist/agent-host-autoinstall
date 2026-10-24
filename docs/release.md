@@ -29,6 +29,14 @@ git-flow のタグに `v` を付ける(手元の設定で、リポジトリに�
 git config gitflow.prefix.versiontag v
 ```
 
+`just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。
+
+- `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 と 3389 は、手元の PC の 127.0.0.1:2222 と 127.0.0.1:13389 に転送する)
+- 試験用の鍵を作り(`ssh-keygen -t ed25519 -f build/test/id_ed25519 -N ""`)、公開鍵を `sysadmin.ssh_authorized_keys` に入れる
+- sudo のパスワードは、実行したときに聞かれる(環境変数 `AGENT_HOST_SUDO_PASSWORD` でも渡せる)
+- `editors`・`agents`・`clouds` などは、確かめたいものをすべて選んでおく
+- VM の名前・CPU・メモリなどは環境変数で変えられる(`scripts/local/vm-test.sh` の先頭)。Windows で Hyper-V(Docker Desktop)と共存させると、CPU 2 つ以上でゲストが止まった(docs/notes.md)ので、既定は CPU 1
+
 ## 手順
 
 例は v0.1.0。
@@ -47,9 +55,13 @@ git config gitflow.prefix.versiontag v
    - コミットする
 4. リリースの前の確認
    ```sh
-   just release-check    # コミット済みか、CHANGELOG の節、lint、PDF の作成
+   just release-check    # コミット済みか、CHANGELOG の節、lint、just test、PDF の作成
    ```
-5. release ブランチから作った ISO で、VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
+5. release ブランチのスクリプトで VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
+   ```sh
+   just vm-test          # 入れなおし → verify・verify-rdp → 電源を切って戻るか → セッションが落ちて戻るか
+   ```
+   通ったら、残りの人が確かめるもの(RDP の画面と日本語入力、エージェントが動くこと、切断しても続くこと)を RDP で行う
 6. 仕上げる(main へのマージ、タグ、develop への戻し)
    ```sh
    git flow release finish -m "v0.1.0" 0.1.0
@@ -77,7 +89,7 @@ git config gitflow.prefix.versiontag v
    ```sh
    just release-check    # hotfix ブランチでも使える
    ```
-   VM で確かめられることは VM で、実機でしか起きない問題は、その実機に `just update` して直ったことを確かめる
+   VM で確かめられることは VM で(`just vm-test`)、実機でしか起きない問題は、その実機に `just update` して直ったことを確かめる(`just verify <ホスト>`)
 4. 仕上げる(main と develop へのマージ、タグ)。タグの push で Actions が Release と PDF を作る
    ```sh
    git flow hotfix finish -m "v0.1.1" 0.1.1

@@ -91,6 +91,7 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
    ```
    just update agent-host-01                 # 名前で引けないときは: just update agent-host-01 192.0.2.10
    just status agent-host-01                 # 作った版に、いまの構成の版が出る
+   just verify agent-host-01                 # 仕様どおりかを確かめる(✗ がないこと)
    ```
 4. `docs/hosts/<ホスト>.md` の変更の記録に、理由と手でしたことを書く
 
@@ -106,9 +107,11 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    just check-all
    ```
    止まったら、CHANGELOG に従って `common.yaml` や `hosts/` を直す
-3. 1 台で試す。反映し、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う
+3. 1 台で試す。反映し、`just verify` と、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う
    ```
    just update agent-host-01
+   just verify agent-host-01
+   just verify-rdp agent-host-01
    ```
 4. 問題がなければ、残りのホストに反映する。台帳の「道具の版」を直す
 5. submodule の更新と台帳を、1 つのコミットにして push する
@@ -125,7 +128,7 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    just restore agent-host-01 <暗号化された場所>/agent-host-01-<日付>.tar.zst
    just ssh agent-host-01            # sudo systemctl reboot
    ```
-4. 受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
+4. `just verify` と受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
 
 ホスト鍵と RDP の証明書も移るので、手元の known_hosts と RDP の「今後確認しない」は、そのまま使える。
 

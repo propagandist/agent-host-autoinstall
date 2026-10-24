@@ -36,7 +36,7 @@ cp -a "$render/ca" "$stage/ca"
 rm -rf "$render"
 
 # 2. スクリプトをそろえる
-cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" \
+cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" "$repo/scripts/verify.sh" \
     "$repo/scripts/lib" "$repo/scripts/post-install" "$repo/scripts/first-login" \
     "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$repo/scripts/watchdog" "$stage/"
 find "$stage" -name '__pycache__' -prune -exec rm -rf {} +

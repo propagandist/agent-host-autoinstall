@@ -652,11 +652,13 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \begin{local}
 just status <ホスト>    # 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
+just verify <ホスト>    # 仕様どおりかを約 100 項目で確かめる(読むだけ。sudo のパスワードを聞かれる)
+just verify-rdp <ホスト> # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
 \end{local}
 
 \begin{confirm}
 \code{just status} で「構成: 済み」「RDP: 待ち受け中」「agent のセッション: seat0」が出て、
-失敗した unit がないこと。
+失敗した unit がないこと。\code{just verify} の最後が「○ 項目のうち ○ 項目が通った」で、✗ がないこと。
 \end{confirm}
 
 構成が失敗したときは、原因を直してから \code{just update <ホスト>} で再実行する。
@@ -851,7 +853,7 @@ first-login の記録に \code{set-credentials} の失敗が出ていたら、�
 \endhead
 1 & 無人でインストールできる & 確認画面なしで終わり、\code{agent} で自動ログインする & \okng \\
 2 & 手作業を終えられる & 各ログインが終わる & \okng \\
-3 & 停電から自動で復帰する & 電源ケーブルを抜き差しすると、何もしなくても起動し自動ログインする & \okng \\
+3 & 電源が切れても自動で戻る & 電源ケーブルを抜き差しすると、何もしなくても起動し自動ログインする & \okng \\
 4 & 再起動後、何もせずに RDP がつながる & Orca が起動済みの画面が出る。\key{Ctrl}+\key{Space} で日本語を打て、記号がキーの刻印どおりに出る & \okng \\
 5 & エージェントが動く & Orca から Claude Code と Codex で、簡単なタスクがそれぞれ終わる & \okng \\
 6 & 切断しても作業が続く & RDP を切断し 10 分後に再接続しても、ロックされずタスクが続いている & \okng \\
@@ -863,7 +865,9 @@ first-login の記録に \code{set-credentials} の失敗が出ていたら、�
 \noindent 実施日: \rule{30mm}{0.4pt}\qquad ホスト: \rule{40mm}{0.4pt}\qquad 実施者: \rule{35mm}{0.4pt}
 
 \medskip
-構成の確認はホストで行う。
+構成の確認は、まず手元の PC で \code{just verify <ホスト>} を行う(下の確認を含む約 100 項目。✗ の行だけを詳しく見ればよい)。
+1・3・4(認証まで)・8 は、VM なら \code{just vm-test} が人手なしで行う(\code{docs/acceptance-test.md})。
+手で見るときはホストで行う。
 \begin{host}
 df -h /; sudo vgs                      # ルートがディスクのほぼ全部
 ip -4 addr; ip route                   # env.yaml の network どおり
@@ -903,6 +907,7 @@ just update <ホスト>    # env.yaml から設定を作りなおし、スクリ
 \begin{itemize}
   \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
   \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
+  \item 反映したら \code{just verify <ホスト>} で、固定の版と設定が仕様どおりかを確かめる
   \item agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
   \item Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
 \end{itemize}
@@ -944,7 +949,7 @@ just backup <ホスト>    # build/backups/<ホスト>-<日時>.tar.zst に書�
 just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
 just ssh <ホスト>       # sudo systemctl reboot
 \end{local}
-  \item 受け入れテストの 4・5 を行う
+  \item \code{just verify <ホスト>} と、受け入れテストの 4・5 を行う
 \end{enumerate}
 
 \begin{caution}
@@ -1090,6 +1095,7 @@ test -f /var/lib/agent-host/provisioned && echo 構成済み
 ss -tln | grep 3389
 sudo journalctl -u agent-host-provision.service
 sudo cat /home/agent/.local/state/agent-host/first-login.log
+sudo /opt/agent-host/verify.sh     # 仕様どおりかを確かめる(just verify と同じ)
 \end{host}
 
 \subsection{設定やスクリプトを変えたとき}

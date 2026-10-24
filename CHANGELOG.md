@@ -10,6 +10,20 @@
 
 ## [未リリース]
 
+### env.yaml の変更
+- なし
+
+### 追加
+- 機械で確かめる仕組み(docs/acceptance-test.md「機械で確かめる」)
+  - `just test`: env.yaml の検査(知らないキー、SOPS のまま、書き忘れ、値の形、組み合わせ)、重ね方、env.sh と /opt/agent-host に置くものの形の試験(tests/)
+  - `just verify <ホスト>`: ホストが仕様どおりかを約 100 項目で確かめる(読むだけ)。固定した版は、そのホストの post-install/ の値と比べる。ホストの上では `sudo /opt/agent-host/verify.sh`
+  - `just verify-rdp <ホスト>[:ポート]`: env.yaml の rdp で RDP の認証(NLA)が通るか(FreeRDP の +auth-only。画面は開かない)
+  - `just vm-test`: VirtualBox の VM に入れなおし、検査、電源を切ったあと、セッションが落ちたあとの戻りを通しで確かめる
+- `just release-check` で `just test` も行う
+
+### 変更
+- リリースのワークフローの actions/checkout を v5 にした(Node.js 20 の廃止の警告への対応)
+
 ## [0.1.0] - 2026-10-24 — 最初の版
 
 ### env.yaml の変更

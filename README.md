@@ -52,6 +52,7 @@ just fetch-iso          # Ubuntu の ISO を取得して SHA256 を照合する
 just iso                # build/agent-host.iso を作る → USB に書き込む
 # 入れる先の PC を USB から起動 → 確認なしでインストール → 初回の起動で構成 → 自動ログイン
 just status <ホスト>    # 作った版、構成、RDP、セッションの状態を見る
+just verify <ホスト>    # 仕様どおりに構成されたかを約 100 項目で確かめる(読むだけ)
 just rdp <ホスト>       # RDP の接続ファイルを作る
 ```
 
@@ -83,7 +84,7 @@ just rdp <ホスト>       # RDP の接続ファイルを作る
 |---|---|
 | 詳細な設定手順書(PDF) | 準備から運用まで。[Releases](https://github.com/propagandist/agent-host-autoinstall/releases) から取得できる(原稿は [docs/setup-guide.tex](docs/setup-guide.tex)、`just guide` で作れる) |
 | [docs/manual-steps.md](docs/manual-steps.md) | USB の作り方と、インストールのあとの手作業 |
-| [docs/acceptance-test.md](docs/acceptance-test.md) | 受け入れテスト |
+| [docs/acceptance-test.md](docs/acceptance-test.md) | 受け入れテスト(機械で確かめる `just verify`・`just vm-test` と、人が確かめるもの) |
 | [docs/fleet.md](docs/fleet.md) | 2台目からの管理(ホストごとの設定を別の非公開リポジトリで持つ。ひな形は [examples/fleet/](examples/fleet/)) |
 | [docs/SPEC.md](docs/SPEC.md) | 仕様(目的、要件、設計上の決定) |
 | [docs/notes.md](docs/notes.md) | 技術メモ(検証した環境、調査と検証の記録、確認できていないこと) |
@@ -94,6 +95,7 @@ just rdp <ホスト>       # RDP の接続ファイルを作る
 - Ubuntu Desktop 26.04 LTS の autoinstall(subiquity)と、ISO の作り直しに xorriso
 - 構成のスクリプトは Bash、`env.yaml` の検査と変換は Python
 - 手元の作業は [just](https://just.systems/)。Linux の道具は Docker の中でも動く
+- 検証は Python の unittest(`env.yaml` の検査)、Bash の検査スクリプト(ホストの構成)、FreeRDP(RDP の認証)、VirtualBox(入れなおしからの通し)
 - GDM の自動ログイン、GNOME Remote Desktop(`grdctl`)、systemd のサービスとタイマー、ufw、rootless Docker
 - 秘密情報の管理(2台目から)は SOPS と age
 - 手順書は LuaLaTeX(Docker の TeX Live)、リリースは GitHub Actions
