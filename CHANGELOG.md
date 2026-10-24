@@ -12,6 +12,7 @@
 
 ### env.yaml の変更
 - `ups` を足した(UPS を NUT で見る。書かなければ使わない。項目は autoinstall/env.example.yaml)
+- 検査を強めた(#8)。これまで通っていた env.yaml が `just check-env` で止まることがある: 項目の型(並びの項目に文字列、文字列の項目に引用符のない数や true/false)、hostname(英数字と - の 63 文字以内。ドメインは付けない)、`sysadmin.password_hash`(`$6$`・`$5$`・`$y$`・`$2b$` などの形)、SSH の公開鍵の形、`dev_ports` の範囲の順、`notify.ipmsg_broadcast`(IPv4 だけ)
 
 ### 追加
 - 機械で確かめる仕組み(docs/acceptance-test.md「機械で確かめる」)
