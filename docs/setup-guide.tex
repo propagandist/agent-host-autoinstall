@@ -309,7 +309,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \endhead
 \code{05-proxy-ca.sh} & 社内のプロキシと CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
 \code{10-users.sh} & \code{agent} を作る(sudo なし、パスワードなし、ホームは 700) \\
-\code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf) \\
+\code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf)。GNOME のセッションが落ちたら GDM を再起動して戻す見張り(1 分ごと) \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
 \code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。不要な snap と kdump を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
@@ -535,7 +535,8 @@ unset PW
 \midrule
 \endhead
 RDP がつながらない & \code{ss -tlnp | grep 33} で待ち受けを見る。first-login の記録を見る。画面がロックされていないか。リモートログインを有効にしていないか(3390 に移る) \\
-構成サービスが失敗した & \code{journalctl -u agent-host-provision.service} で止まったスクリプトを見て、直して \code{provision.sh} を再実行する \\
+ログイン画面のまま & GNOME のセッションが落ちた。見張りが 2〜3 分で GDM を再起動して戻し、通知する。\code{journalctl -u agent-host-session-watchdog} で確かめる \\
+構成サービスが失敗した &\code{journalctl -u agent-host-provision.service} で止まったスクリプトを見て、直して \code{provision.sh} を再実行する \\
 エージェントが apt を試して失敗する & \code{agent} には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
 mise のコマンドが見つからない & 再ログイン(再起動)で環境が入る。\code{systemctl --user show-environment} で PATH を確かめる \\
 Docker のイメージが取れない & \code{docker login} をしたか。プロキシの下なら env.yaml の \code{proxy} \\
