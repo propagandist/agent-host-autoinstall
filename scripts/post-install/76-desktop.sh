@@ -12,6 +12,13 @@ CLIPBOARD_INDICATOR_UUID=clipboard-indicator@tudmotu.com
 CLIPBOARD_INDICATOR_VERSION_TAG=70694   # 拡張機能の版 71
 CLIPBOARD_INDICATOR_SHA256=687cb404f9540958ddb0c1de638970572cef73f22f016e5d6c6d6f5d4cd55f97
 
+# --- 日本語の言語サポート: 日本語入力(Mozc)と言語パック(Ubuntu の公式パッケージ。OS の更新に任せる) ---
+# インストーラーはロケールに合わせて入れることがあるが、入らなかったこともある(VirtualBox の入れなおしで
+# fonts-noto-cjk だけが入り、ibus-mozc と language-pack-ja が無く、日本語を打てなかった)。当てにせず入れる。
+# 入力ソース(mozc-on)の設定は first-login で行う
+apt-get install -y ibus-mozc mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk
+log "日本語入力(Mozc)と日本語の言語パックを入れた"
+
 # --- 端末: Xfce Terminal(Ubuntu の公式パッケージ。OS の更新に任せる) ---
 # GPU を使わず軽い(VirtualBox で 1 つあたり約 27MB。Ghostty は約 148MB、Alacritty は約 73MB)。
 # 右クリックで貼り付けと選択でコピーは、セッションが要る xfconf で設定するので first-login で行う
