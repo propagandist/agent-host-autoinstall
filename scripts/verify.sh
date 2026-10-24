@@ -77,6 +77,11 @@ gset() { as_agent gsettings get "$@" 2>/dev/null || true; }
 
 section "構成"
 check "構成が完了している(/var/lib/agent-host/provisioned)" test -f /var/lib/agent-host/provisioned
+check "前回の構成の実行が最後まで終わった(provision-incomplete がない)" test ! -e /var/lib/agent-host/provision-incomplete
+if [ -f "$AH_ROOT/BUILD-INFO" ]; then
+    eq "置いた版の適用に成功している(BUILD-INFO.ok と同じ)" \
+        "$(cmp -s "$AH_ROOT/BUILD-INFO" /var/lib/agent-host/BUILD-INFO.ok && echo 同じ || echo 違う)" 同じ
+fi
 if [ -f "$AH_ROOT/BUILD-INFO" ]; then
     # shellcheck source=/dev/null
     tool="$(. "$AH_ROOT/BUILD-INFO" && echo "$tool")"

@@ -40,9 +40,14 @@ status)
     ssh "${ssh_opts[@]}" "$target" '
         if [ -f /opt/agent-host/BUILD-INFO ]; then
             . /opt/agent-host/BUILD-INFO
-            echo "作った版: 道具 $tool${config:+、構成 $config}($built)"
-        else echo "作った版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
-        if [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
+            echo "置いた版: 道具 $tool${config:+、構成 $config}($built)"
+        else echo "置いた版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
+        if [ -f /var/lib/agent-host/BUILD-INFO.ok ]; then
+            ( . /var/lib/agent-host/BUILD-INFO.ok; echo "最後に適用に成功した版: 道具 $tool${config:+、構成 $config}($built)" )
+        fi
+        if [ -f /var/lib/agent-host/provision-incomplete ]; then
+            echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で見て、直してから just update)"
+        elif [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
         else echo "構成: 未完了(サービスは $(systemctl is-active agent-host-provision.service))"; fi
         echo "RDP: $(ss -tln | grep -q ":3389 " && echo "待ち受け中" || echo "止まっている")"
         loginctl list-sessions --no-legend | awk '\''$3 == "agent" && $6 == "user" {print "agent のセッション: " $4 " " $7}'\''

@@ -26,6 +26,10 @@ fi
 mkdir -p /var/lib/agent-host /var/cache/agent-host
 started=/var/lib/agent-host/provision-started
 touch "$started"
+# 実行中の印。最後まで成功したら消す。失敗・中断すると残り、just status と verify が「前回の実行が終わっていない」と出す
+# (provisioned は「初回の構成が済んだ」の意味のまま。just update の失敗で消すと、起動のたびに構成が走り GDM が遅れる。Issue #10)
+incomplete=/var/lib/agent-host/provision-incomplete
+touch "$incomplete"
 
 # 自動更新(unattended-upgrades)などが dpkg を使っている間は、ロックが空くまで最大 30 分待つ。
 # 入れた直後のホストや just update のときに、ロックが取れずに構成が止まった(VirtualBox で確認)
@@ -46,4 +50,9 @@ apt-get clean
 find /var/cache/agent-host -type f ! -newer "$started" -delete
 
 touch /var/lib/agent-host/provisioned
+# 最後まで成功した版を残す(BUILD-INFO は置いた版、BUILD-INFO.ok は適用に成功した版)
+if [ -f "$ah_root/BUILD-INFO" ]; then
+    install -m 644 "$ah_root/BUILD-INFO" /var/lib/agent-host/BUILD-INFO.ok
+fi
+rm -f "$incomplete"
 echo "[agent-host] 構成が完了した"

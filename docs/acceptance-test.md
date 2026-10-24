@@ -42,7 +42,7 @@ sudo ss -tlnp | grep 33
 
 | 確認すること | コマンド | 期待する結果 |
 |---|---|---|
-| 作った版 | 手元の PC で `just status <ホスト>` | 「作った版」に、ISO を作った道具の版(と構成の版)が出る |
+| 置いた版 | 手元の PC で `just status <ホスト>` | 「置いた版」と「最後に適用に成功した版」に、ISO を作った道具の版(と構成の版)が出る。「構成: 済み」で、「前回の実行が最後まで終わっていない」が出ない |
 | 構成サービスが成功した | `systemctl status agent-host-provision.service` | `active (exited)` |
 | 自動ログインの設定 | `grep -A3 '^\[daemon\]' /etc/gdm3/custom.conf` | `AutomaticLoginEnable=true` と `AutomaticLogin=agent` |
 | スリープの無効化 | `systemctl is-enabled sleep.target` | `masked` |

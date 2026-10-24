@@ -245,7 +245,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 - RDP の認証情報(env.yaml の `rdp`)を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる(古いものは使えなくなる)
 - NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
-- どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
+- どの版の道具(と構成)を置いたかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「置いた版」に出る。構成が最後まで成功した版は `/var/lib/agent-host/BUILD-INFO.ok` に残り、「最後に適用に成功した版」に出る。just update が途中で失敗すると「構成: 前回の実行が最後まで終わっていない」と出るので、`just logs` で原因を見て、直してから just update する。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
 - agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
 
