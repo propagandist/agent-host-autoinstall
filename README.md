@@ -1,7 +1,9 @@
 # agent-host-autoinstall
 
-社内のオンプレPCを、常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)として、autoinstall で自動構成するための設定とスクリプト一式。
+手元に置く物理 PC を、常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)として、autoinstall で自動構成するための設定とスクリプト一式。
 USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後も人手を介さず RDP で接続できる状態に戻ることを目指す。
+
+日本語の環境向け(ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc。文書も日本語)。
 
 ## できること
 
@@ -16,12 +18,12 @@ USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後�
 
 ## 現状
 
-VirtualBox の仮想マシンで、無人インストールから RDP の接続と受け入れテストまで確かめた。実機ではまだ確かめていない。未確認の点は [docs/HANDOVER.md](docs/HANDOVER.md) を参照。
+VirtualBox の仮想マシンで、無人インストールから RDP の接続と受け入れテストまで確かめた。実機ではまだ確かめていない。未確認の点は [docs/notes.md](docs/notes.md) の「確認できていないこと」を参照。実機で問題が見つかったら、修正の版(hotfix)で直す。
 
 ## 前提
 
-- 空パスワードのログインキーリングと自動ログインは、社内LANに限ったホストで、秘密情報を置かない専用ユーザー `agent` が使うことを前提に許している
-- SSH(22)と RDP(3389)はインターネットに開けない。社外からは VPN 経由とする
+- 空パスワードのログインキーリングと自動ログインは、LAN に限ったホストで、秘密情報を置かない専用ユーザー `agent` が使うことを前提に許している
+- SSH(22)と RDP(3389)はインターネットに開けない。LAN の外からは VPN 経由とする
 
 理由は [docs/SPEC.md](docs/SPEC.md) §8 を参照。
 
@@ -30,7 +32,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
 | ファイル | 内容 |
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | 仕様(目的、対象環境、要件、設計上の決定、未確定事項) |
-| [docs/HANDOVER.md](docs/HANDOVER.md) | これまでの経緯と次にやること |
+| [docs/notes.md](docs/notes.md) | 技術メモ(検証した環境、設計で決めたこと、調査と検証の記録、確認できていないこと) |
 | [docs/setup-guide.tex](docs/setup-guide.tex) | 詳細な設定手順書(準備から運用まで)。PDF は `just guide`(Docker の TeX Live)で作る |
 | [docs/manual-steps.md](docs/manual-steps.md) | USB の作り方と、手作業の手順 |
 | [docs/acceptance-test.md](docs/acceptance-test.md) | 受け入れテスト |

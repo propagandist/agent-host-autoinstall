@@ -1,37 +1,33 @@
-# HANDOVER.md
+# 技術メモ
 
-## これまでの経緯(設計段階で決めたこと)
+このリポジトリを作るときに調べたこと・確かめたことの記録。仕様は [SPEC.md](SPEC.md)、手順は [manual-steps.md](manual-steps.md) と手順書(setup-guide.tex)にある。
+版を上げるときや、挙動が想定と違うときに、ここで理由と確かめた範囲を見る。
 
-1. オンプレPCへの Ubuntu 自動構成は、公式の autoinstall を使う。Server 専用ではなく Desktop でも使える
-2. 常時稼働させたいが、AI エージェントを動かすためにデスクトップが必要 → Desktop 版に常時稼働の設定を足す方針
+## 検証した環境
+
+- VirtualBox 7.2.6 の VM(UEFI、メモリ 4GB)。ホストは Windows 10 で、Hyper-V(Docker Desktop)と共存させたため VirtualBox は NEM モードで動き、CPU 2 つ以上ではゲストのカーネルが止まった。そのため CPU 1 で試した
+- ISO は ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った。USB からの起動から構成の完了まで約 47〜67 分、再起動から RDP の待ち受けまで約 80 秒
+- RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
+- shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
+- 実機ではまだ確かめていない(下の「確認できていないこと」)
+
+## 設計で決めたこと
+
+1. 物理 PC への Ubuntu の自動構成は、公式の autoinstall を使う。Server 専用ではなく Desktop でも使える
+2. 常時稼働させたいが、AI エージェントを動かすためにデスクトップが必要 → Desktop 版に常時稼働の設定を足す
 3. エージェントの作業環境は Orca(stablyai/orca。Claude Code や Codex を git worktree ごとに並列実行する ADE)。Codex も併用する
-4. 遠隔操作は当初 xrdp を検討したが、以下の理由で GNOME 標準の「デスクトップ共有」(RDP)に変更
+4. 遠隔操作は xrdp ではなく、GNOME 標準の「デスクトップ共有」(RDP)にする
    - Ubuntu 26.04 LTS は Wayland のみで、xrdp が使えない
    - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない
    - デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立する
-5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない問題がある → `agent` ユーザーのキーリングを空パスワードにする(専用ユーザー・秘密情報なしが前提)
+5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(専用ユーザー・秘密情報なしが前提)
+6. post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)
 
 詳細は SPEC.md §8 を参照。
 
-## 現状(2026-10-24)
+## 調査と検証の記録
 
-- §9 を調査し(結果は下)、autoinstall.yaml・env.example.yaml・scripts/・justfile・docs/manual-steps.md・docs/acceptance-test.md・docs/setup-guide.tex(PDF の手順書)・docs/release.md(リリースの手順)を一通り作った
-- 2026-10-24 に、すべての修正を含めた ISO で VirtualBox に新しく入れなおし、受け入れテスト 1〜6・8 の範囲を確かめた(下の「次にやること」の 1)。残りは実機での確認(テスト 7 など)と、最初のリリース(v0.1.0)
-- shellcheck(0.11.0、Docker の ubuntu:26.04)は指摘なし
-- **VirtualBox で一通り動いた(2026-10-23)。** ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った ISO で、確認画面なしにインストール → 初回起動の構成 → agent の自動ログイン → first-login → RDP の待ち受けまで、手を触れずに通った。再起動と強制電源オフ後も、何もせずに RDP の認証が通る(受け入れテスト 1・3・4 の範囲。結果は docs/acceptance-test.md)
-  - 環境: Windows 10 + VirtualBox 7.2.6。Hyper-V(Docker Desktop)が有効なため VirtualBox は NEM モードで動き、CPU 2 つ以上ではゲストのカーネルが止まった。CPU 1・メモリ 4GB で試した(インストールに約 47 分)
-  - 2026-10-24 に作業者が mstsc(101 キーボード)で入り、受け入れテスト 2・4・5・6 を確かめた(結果は docs/acceptance-test.md)。テスト 7 は実機で行う
-- 実装の都合で SPEC.md から変えた点: post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)。SPEC.md §5.2 に反映済み
-
-## 次にやること(この順で)
-
-- (2026-10-24 変更)リリースは VM での受け入れテストが通れば出す。実機での確認は必須にしない(作業者の判断)。実機で問題が出たら hotfix で直す(docs/release.md「実機で問題が出たとき」)。最初は docs/release.md の手順で v0.1.0(pre-release)として出す(1.0 はしばらく運用してから)。手順書の PDF を GitHub Release に付ける Actions も、そのときが初めての実行になる
-1. ~~すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on~~ 済み(2026-10-24、feature/release-flow の ISO)。USB からの起動から構成の完了まで約 67 分、再起動から RDP の待ち受けまで約 80 秒。ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた。構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていたので、36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
-2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md。リリースのあとでよい。問題が出たら hotfix)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
-3. 下の「未確認」を潰す
-4. (2026-10-24 決定)v0.1.0 のあと、実機の構成を管理する非公開のリポジトリを社内の Gitea に作る。このリポジトリを submodule でリリースのタグに固定し、ホストごとの env.yaml(hosts/<ホスト>.yaml)、台帳、ホストごとの受け入れテストと変更の記録を置く。env.yaml の秘密情報(パスワードのハッシュ、RDP のパスワード、Webhook の URL)は SOPS と age で値だけ暗号化し、`just iso` / `just update` のときだけ一時ファイルに戻して消す。移行の書き出し(`just backup`)は入れない。道具の側は先に整えた(env.yaml の重ね合わせ、BUILD-INFO、just facts。手順は docs/fleet.md、ひな形は examples/fleet/)。社内の Gitea にリポジトリを作り、ひな形をコピーするところから始める
-
-## §9 の調査結果(2026-10-23)
+SPEC.md §9 の未確定事項から始めた調査と、機能を足したときに確かめたこと。見出しの日付は調べた日
 
 確度: 確認済み = 公式文書かソースで確かめた / 推定 = 記述から導いた / 未確認 = 実機で試していない、または一次情報がない
 
@@ -76,7 +72,7 @@
 ### SSH・日本語入力・Chrome(2026-10-23 追加)
 - SSH: sysadmin で鍵認証により接続できる。パスワード認証・root ログインは無効(VirtualBox で確認済み)。agent は SSH 鍵を持たない
 - 日本語入力: locale ja_JP.UTF-8 と keyboard jp の指定で、インストーラーが ibus-mozc・language-pack-ja・Noto CJK を入れ、agent の入力ソースは `[('xkb', 'jp'), ('ibus', 'mozc-jp')]` になる(VirtualBox で確認済み)。RDP 越しに Ctrl+Space で切り替えて日本語を打てる(VirtualBox + 101 キーボード + mstsc で確認済み)
-- キーボード配列は env.yaml の `keyboard_layout` で決める(作業者の手元は 101 キーボード)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
+- キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
 - インストーラーが入れる `mozc-jp` は、切り替えた直後が直接入力で、ひらがなにするには半角/全角キーが要る。101 キーボードでは切り替えはできても日本語を打てなかった。`mozc-on`(切り替えた時点でひらがな)にして打てた(確認済み)
 - 動いている VM の配列を `localectl set-x11-keymap` で変えようとしたら、sudo でも "Access denied" になった。`/etc/default/keyboard` を直接書き換えて代えた(原因は未調査)
 - Google Chrome は 75-chrome.sh が公式 apt リポジトリから入れ、agent の `~/.config/mimeapps.list` で既定のブラウザにする(VirtualBox で確認済み。156.0.8078.47)
@@ -89,7 +85,7 @@
 
 ### 初期設定の見直し(2026-10-24 追加)
 - autoinstall の LVM は既定(sizing-policy: scaled)だとボリュームグループの半分ほどしかルートに使わない(VirtualBox で 37GB 中 18.5GB。公式リファレンスで確認済み)。`sizing-policy: all` にした(新規インストールで、ルートがディスクのほぼ全部になることを確認済み)
-- ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(VirtualBox の新規インストールで、固定 IP がインストール後も NetworkManager で同じ設定になることを確認済み。実機の社内ネットワークでは未確認)
+- ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(VirtualBox の新規インストールで、固定 IP がインストール後も NetworkManager で同じ設定になることを確認済み。実機の LAN では未確認)
 - 26.04 の時刻同期は chrony(systemd-timesyncd は入っていない)。同期先は `/etc/chrony/sources.d/*.sources`、DHCP で配られた NTP も使う。35-system.sh が `ntp_servers` を `agent-host.sources` に書く(VirtualBox で確認済み)
 - agent の git 設定、GitHub CLI(リリースの .deb を SHA256 照合、2.103.2。apt リポジトリは最新版しか置かない)、build-essential 等、inotify の上限、apport の無効化、update-notifier の停止、`check-alive-timeout 0` を足した(動いている VM に反映して確認済み)
 - 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
@@ -97,7 +93,7 @@
 
 ### Docker(2026-10-24 追加)
 - 公式 apt リポジトリ(26.04 resolute 対応、過去の版も残る)から docker-ce 29.9.2 ほか 5 つ(合わせて 6 つ)を版指定で入れて hold する。署名鍵の fingerprint は 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
-- agent は rootless Docker。docker グループは実質 root になるので使わない(作業者の判断)。root のデーモンは止め、agent に linger を付けて `dockerd-rootless-setuptool.sh install` を agent で実行する。`DOCKER_HOST` は `~/.config/environment.d/60-docker.conf`
+- agent は rootless Docker。docker グループは実質 root になるので使わない。root のデーモンは止め、agent に linger を付けて `dockerd-rootless-setuptool.sh install` を agent で実行する。`DOCKER_HOST` は `~/.config/environment.d/60-docker.conf`
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
 
@@ -122,6 +118,10 @@
 - IP Messenger への通知は、VM(NAT)から Windows の IP Messenger(v5 系)に UTF-8・暗号化なし・NOADDLISTOPT で届き、日本語も文字化けしなかった(2026-10-24 確認済み)
 - 未確認: Slack への実際の送信、プロキシの下での動作、Remote Control
 
+### 新規インストールでの確認(2026-10-24)
+- すべての修正を含めた ISO で VM に新しく入れなおし、ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた
+- 構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていた。36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
+
 ### 最小化・最適化・使い勝手・移行(2026-10-24、VirtualBox で確認)
 - 動いているシステムのサービスは 34 → 23、外から待ち受けるのは 22 と 3389 だけになった。agent の常駐から evolution、localsearch、Xwayland などが消えた
 - kdump は `crashkernel=…,4G-32G:512M,32G-64G:1024M` で予約していた。消すと VM で約 500MB、32GB の機種では約 1GB 空く
@@ -132,7 +132,7 @@
 - VS Code のデスクトップファイルは `com.microsoft.VSCode.desktop`。Ctrl+Alt+T は `xdg-terminal-exec`(既定は Ptyxis)と `org.gnome.desktop.default-applications.terminal` を見る
 - IP Messenger: VM(NAT)からホストの IP Messenger に BR_ENTRY を送ると ANSENTRY が返り、名前(ユーザー名・ホスト名・ニックネーム)で探して送れた。NAT はブロードキャストを外に出さないので、VM では `ipmsg_broadcast` にホストの IP を入れて試した。実機の LAN では既定の 255.255.255.255 で探す(未確認)
 - 移行: 書き出し → 消す → 取り込みで、~/work と ~/.codex の中身が戻った(node_modules は除かれる)。sysadmin の sudo はパスワードが要り、標準入力を受け渡しに使うので、パスワードを標準入力の先頭の 1 行で `sudo -S` に渡す
-- 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。作業者が RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
+- 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
 - Caps Lock: RDP(mstsc)で手元とホストの状態がずれた。原因は未調査(gnome-remote-desktop 50 にはロックキーの同期の修正が入っている。IBus が先に受け取っている可能性)。caps:none で使わないことにした
 - mstsc の色 32 ビットは遅いという報告(gnome-remote-desktop #333、同じ 26.04)があるので、.rdp のひな形は 24 ビットにした
 - RDP の extend モード(仮想の画面を足し、大きさを手元に合わせる)は、VirtualBox(GPU なし)で仮想の画面を足した直後に GNOME Shell が signal 11 で異常終了した。採用せず mirror-primary のまま。実機での動作は未確認
@@ -140,15 +140,15 @@
 
 ### 手順書の PDF(2026-10-24)
 - 表紙、ヘッダー・フッター(版は日付と `git describe`)、色付きの囲み(注意・ヒント・確認)、どこで打つかのラベル付きのコマンドの枠、TikZ の図 4 つ、印を付けるチェックリストにした
-- tcolorbox などが手元の TeX Live 2022 になかったため、`just guide` は docs/guide.Dockerfile(Ubuntu 26.04 の TeX Live 2025)のイメージを作り、その中で作る。イメージは約 1GB、初回の作成は数分
+- tcolorbox などが古い TeX Live(2022)にないため、`just guide` は docs/guide.Dockerfile(Ubuntu 26.04 の TeX Live 2025)のイメージを作り、その中で作る。イメージは約 1GB、初回の作成は数分
 - tcolorbox の環境名 `check` は既にある命令とぶつかるので `confirm`、TikZ の style 名 `step` も既にあるキーなので `pstep` にした
 - 表紙の絵は Gemini(gemini-3-pro-image)で作った docs/cover.jpg。作りなおすときは .env に GEMINI_API_KEY を書き、`python3 scripts/local/gen-cover.py build/cover.jpg 3` で候補を作って選ぶ。横長だと下半分が空き、縦長で「余白を空けて」と頼むと色の違う帯ができたので、「継ぎ目のない 1 枚の絵」と書いた。Gemini で作った絵には見えない透かし(SynthID)が入る
 
 ### Gitea(2026-10-24 追加、VirtualBox で確認)
 - Gitea CLI の tea 0.16.0 をいつも入れる(dl.gitea.com の単体のバイナリを SHA256 で照合。/opt/tea-<版>/tea)。env.yaml の gitea_url を書くと、agent の environment.d に GITEA_SERVER_URL を置き(tea login add の既定の接続先)、エージェント向けの説明にも載せる
-- 手元の Docker の Gitea 28.2.0 に VM から接続し、`tea login add --token … --git-credentials` → HTTPS の clone・push(tea が git の credential helper になる)→ `tea issues create` が通った
+- Docker で立てた Gitea 28.2.0 に VM から接続し、`tea login add --token … --git-credentials` → HTTPS の clone・push(tea が git の credential helper になる)→ `tea issues create` が通った
 - トークンの権限は repository と issue の書き込み、user の読み取りで足りる。`tea repo create` だけは write:user が要った
-- 社内の Gitea が社内の CA の証明書を使うときは、env.yaml の ca_certs に入れれば tea(Go)もシステムの証明書として信頼する(未確認)
+- Gitea が独自の CA の証明書を使うときは、env.yaml の ca_certs に入れれば tea(Go)もシステムの証明書として信頼する(未確認)
 
 ### クラウドの CLI(2026-10-24 追加、VirtualBox で確認)
 - env.yaml の clouds で AWS CLI v2(2.38.5)、Google Cloud CLI(590.0.1)、Azure CLI(2.91.0)を選んで入れる(63-clouds.sh)。3 つで約 1.8GB(/opt/aws-cli 275MB、/usr/lib/google-cloud-sdk 846MB、/opt/az 647MB)。初回の構成で約 6 分、2 回目は入れなおさない
@@ -196,10 +196,20 @@
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)
 
-### 社外アクセスの VPN 方式
-- 未着手。社内既定の方針に合わせる(SPEC.md §9)
+## 確認できていないこと
 
-## 注意点
+実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
+
+- HDMI のダミープラグでの RDP(モニターなし)、BIOS の停電復帰、lan_cidrs の外から 22・3389 に届かないこと(受け入れテスト 7)
+- 電源のプロファイル performance(VM にはない)、RDP の extend モード(VM では GNOME Shell が異常終了した)
+- 実際の HTTP プロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
+- Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
+- IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
+- RDP のクリップボードでのファイルのコピー、Zed での日本語入力
+- systemd-oomd がメモリ不足のときに Orca ごと止めないか
+- 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
+
+## 運用上の注意
 
 - Codex のログインはデバイスコード認証(`codex login --device-auth`)。ChatGPT 側の設定で事前に有効化しておかないと、エラーにならず止まって見える
 - Codex の認証情報は `~/.codex/auth.json` に平文で保存される。`agent` のホームの権限を絞る
@@ -208,4 +218,3 @@
 - build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh`(root のみ読める)には秘密情報が入る
 - デスクトップ共有とリモートログインを両方有効にすると、デスクトップ共有が 3390 番に移る。リモートログインは有効にしない
 - いちばん崩れやすいのは受け入れテスト4(再起動後、何もせずに RDP がつながるか)。ここを最優先で検証する
-- リポジトリを Public にするときは、GitHub の secret scanning と push protection を有効にする。公開前に `git log --all --format='%ae %ce' | sort -u` を実行し、作成者のメールアドレスが noreply だけであることを確かめなおす。main と develop の強制 push と削除を禁止する保護も、そのときに入れる(Private のままでは今の契約で設定できない)

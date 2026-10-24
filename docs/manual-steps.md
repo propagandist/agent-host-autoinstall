@@ -21,11 +21,11 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
 1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
    - `keyboard_layout` は RDP で使う人のキーボードに合わせる(101/104 の英字配列なら `us`、106/109 なら `jp`)
    - `network` は固定 IP なら `mode: static` とアドレス・ゲートウェイ・DNS を書く。有線 LAN が 2 つ以上ある機種では `interface` に名前(`enp3s0` など)を書く
-   - `ntp_servers` は、社内から ntp.ubuntu.com に届かないときだけ書く
-   - `proxy` と `ca_certs` は、社内にプロキシや独自の CA 証明書があるときだけ書く
+   - `ntp_servers` は、その LAN から ntp.ubuntu.com に届かないときだけ書く
+   - `proxy` と `ca_certs` は、HTTP プロキシや独自の CA 証明書がある環境だけ書く
    - `editors` は入れたいエディター(vscode / neovim / zed)。VS Code は拡張機能も入り(足すなら `vscode_extensions`)、表示が日本語になる。Zed の拡張機能(足すなら `zed_extensions`)は Zed を初めて起動したときに入る
    - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
-   - `gitea_url` は社内の Gitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
+   - `gitea_url` はGitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
    - `agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
    - `sysadmin.password_hash` は `mkpasswd -m sha-512`(または `openssl passwd -6`)で作る
 2. 検査して ISO を作る
@@ -82,18 +82,18 @@ first-login が成功していれば不要。失敗していたら、agent の�
 ## 5. RDP でつなぐ
 
 ```
-just rdp <ホスト>      # build/<ホスト>.rdp を作る。ダブルクリックで接続する
+just rdp <ホスト>      # build/<ホスト>.rdp を作る(Windows のリモート デスクトップ接続用)
 ```
 
-ユーザーとパスワードは env.yaml の `rdp` の値。
+ユーザーとパスワードは env.yaml の `rdp` の値。RDP のクライアントは何でもよい(Windows の mstsc、Linux の Remmina・FreeRDP、macOS の Windows App など)。`just rdp` の接続ファイルは mstsc 向けで、次の設定になっている(ほかのクライアントでも同じにするとよい)。
 
 - Windows キーを常にホストへ送る(Super+Space などが使える)。クリップボードを共有する。色は 24 ビット(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)
-- 初回の証明書の警告で「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
+- 初回の証明書の警告で、mstsc なら「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
 - **デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける**
 
 使い勝手:
 
-- 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(PrintScreen は手元の Windows に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+- 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
 - 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
 - Caps Lock はホストでは何もしない(RDP で手元と状態がずれるため)。大文字は Shift で打つ
@@ -114,7 +114,7 @@ just rdp <ホスト>      # build/<ホスト>.rdp を作る。ダブルクリッ
 1. Orca は自動起動している。初回の案内に従う。Yolo モード(確認なしでコマンドを実行)は最初からオンなので、使い方の方針に合わせて決める
 2. `~/.claude` / `~/.codex` の設定を取り込む
 3. Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数 ORCA_TELEMETRY_DISABLED=1 でも止めているが、設定にも残す)
-4. Settings → Notifications の「Update available」をオフにする。.deb 版は自分では更新しない。更新の確認の通信そのものは止められない(HANDOVER.md)
+4. Settings → Notifications の「Update available」をオフにする。.deb 版は自分では更新しない。更新の確認の通信そのものは止められない(notes.md)
 
 ## 9. 追加のエージェントのログイン(env.yaml の agents で選んだものだけ)
 
@@ -147,7 +147,7 @@ tea whoami
 
 ### Docker Hub
 
-社内から 1 つの IP でまとめて外に出ると、ログインなしの Docker Hub からの取得は 6 時間に 100 回までで、エージェントが使うとすぐ当たる。`docker login` する(アクセストークンを使う)。
+1 つのグローバル IP をまとめて外に出る環境では、ログインなしの Docker Hub からの取得は 6 時間に 100 回までで、エージェントが使うとすぐ当たる。`docker login` する(アクセストークンを使う)。
 
 ### クラウドの CLI のログイン(env.yaml の clouds で選んだものだけ)
 

@@ -6,7 +6,7 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 load_env
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # VS Code: Microsoft の公式 apt リポジトリ(過去の版も残る)から版を指定して入れ、hold する
 VSCODE_VERSION=1.143.1-1792691907
 MICROSOFT_KEY_FPR=BC528686B50D79E339D3721CEB3E94ADBE1229CF

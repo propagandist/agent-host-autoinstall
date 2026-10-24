@@ -5,7 +5,7 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # 公式リポジトリには過去の版も残るので、版を指定して入れ、apt-mark hold する
 DOCKER_VERSION="5:29.9.2-1~ubuntu.26.04~resolute"
 CONTAINERD_VERSION="2.4.2-3~ubuntu.26.04~resolute"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 社内のプロキシと CA 証明書(env.yaml の proxy / ca_certs)を OS 全体に設定する。どちらも空なら何もしない。
+# HTTP プロキシと独自の CA 証明書(env.yaml の proxy / ca_certs)を OS 全体に設定する。どちらも空なら何もしない。
 # 未確認: 実際のプロキシ・TLS を検査するプロキシの下での動作(VirtualBox では空の場合だけ確認)
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -18,7 +18,7 @@ rm -rf "$ca_dir"
 if compgen -G "$AH_ROOT/ca/*.crt" >/dev/null; then
     install -d -m 755 "$ca_dir"
     install -m 644 "$AH_ROOT"/ca/*.crt "$ca_dir/"
-    log "社内の CA 証明書を足した"
+    log "独自の CA 証明書を足した"
 fi
 update-ca-certificates --fresh >/dev/null
 

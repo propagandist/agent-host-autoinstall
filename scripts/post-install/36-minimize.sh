@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # 常時稼働のエージェントホストに要らないサービスを止め、資源の使い方を詰める。
 # 止めたものは mask するので、ほかのパッケージから起こされない。戻すときは systemctl unmask。
-# どれを止めるかは、VirtualBox で動いているサービスを洗い出して決めた(HANDOVER.md)。
+# どれを止めるかは、VirtualBox で動いているサービスを洗い出して決めた(docs/notes.md)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
@@ -128,7 +128,7 @@ if command -v powerprofilesctl >/dev/null; then
     powerprofilesctl set performance || log "注意: 電源のプロファイルを performance にできなかった"
 fi
 
-# 15. RDP の画面の符号化を Intel の内蔵 GPU に任せる(VA-API。GPU がなければ使われないだけ)
+# 15. Intel の内蔵 GPU があれば、RDP の画面の符号化を任せる(VA-API。なければ使われないだけ)
 apt-get install -y intel-media-va-driver
 
 # 16. 正しく終了しなかったあとの GRUB の待ちを 30 秒から 5 秒に(停電からの復帰を早くする)

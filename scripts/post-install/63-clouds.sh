@@ -8,7 +8,7 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 load_env
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # AWS CLI v2: 公式の zip。SHA256 は、AWS の PGP 署名(.sig)が正しいことを確かめたうえで自分で計算した値
 AWSCLI_VERSION=2.38.5
 AWSCLI_SHA256=5def7d1b7e55d892f9a381bb2cb2081a685712464be0d36d5d706af0ac48d0d3
