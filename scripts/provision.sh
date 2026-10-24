@@ -19,6 +19,11 @@ mkdir -p /var/lib/agent-host /var/cache/agent-host
 started=/var/lib/agent-host/provision-started
 touch "$started"
 
+# 自動更新(unattended-upgrades)などが dpkg を使っている間は、ロックが空くまで最大 30 分待つ。
+# 入れた直後のホストや just update のときに、ロックが取れずに構成が止まった(VirtualBox で確認)
+printf '%s\n' '# agent-host-autoinstall が置いた設定: dpkg のロックが空くまで待つ(provision.sh)' \
+    'DPkg::Lock::Timeout "1800";' >/etc/apt/apt.conf.d/90-agent-host-lock-timeout
+
 apt-get update
 for script in "$ah_root"/post-install/[0-9]*.sh; do
     echo "[agent-host] 実行: $(basename "$script")"

@@ -119,6 +119,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 未確認: Slack への実際の送信、プロキシの下での動作、Remote Control
 
 ### 新規インストールでの確認(2026-10-24)
+- 入れた直後に just update すると、unattended-upgrades が dpkg のロックを握っていて、構成が "Could not get lock /var/lib/dpkg/lock-frontend" で止まった。provision.sh が /etc/apt/apt.conf.d/90-agent-host-lock-timeout に DPkg::Lock::Timeout "1800" を置き、ロックが空くまで待つようにした
 - すべての修正を含めた ISO で VM に新しく入れなおし、ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた
 - 構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていた。36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
 
