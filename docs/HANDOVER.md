@@ -156,6 +156,14 @@
 - ログイン(SSO・ブラウザ)は試していない(実際のアカウントが要る)。未確認
 - Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる(エージェント向けの説明に書いた)
 
+### VS Code の拡張機能(2026-10-24 追加、VirtualBox で確認)
+- 72-editors.sh の先頭で ID を固定し、agent として `code --install-extension` で入れる。版は Marketplace の正式版(プレリリースでない)で、linux-x64 と VS Code 1.143 に合う最新を選んだ
+- settings.json に extensions.autoUpdate / autoCheckUpdates = false と redhat.telemetry.enabled = false(YAML の拡張機能が初回に聞いてくる)を、足りないときだけ足す(JSON として読めないときは触らない)
+- 容量: 3 つのクラウドを選んで 26 個・約 2.7GB。大きいのは Codex(openai.chatgpt)1.1GB、Cloud Code 300MB、Claude Code 290MB、Gemini Code Assist 240MB(Cloud Code が必ず一緒に入れる)
+- Azure Tools(ms-vscode.vscode-node-azure-pack)は 12 個のまとめで Windows AI Studio や Jupyter まで入り約 600MB 増えたので、土台の Azure Resources だけにした
+- 依存やまとめで入る拡張機能の版は固定できない(入れたときの最新)。外した拡張機能のフォルダーは VS Code を次に起動したときに消える
+- agent の LANG は ja_JP.UTF-8 なので、日本語の表示は設定なしで効く(画面での確認は未)
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)

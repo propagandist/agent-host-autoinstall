@@ -316,7 +316,7 @@ Gitea CLI & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証
 git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具 & エージェントがそのまま使う \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}エディター(選択)} \\
-Visual Studio Code & 定番の GUI エディター & \code{code}。Dock から \\
+Visual Studio Code & 定番の GUI エディター。日本語の表示、Claude Code、Codex、Python、ESLint、Prettier、YAML、Docker、GitHub Pull Requests などの拡張機能も入る & \code{code}。Dock から \\
 Neovim & 端末で使うエディター & \code{nvim} \\
 Zed & 軽くて速い GUI エディター(GPU が要る) & \code{zed}。Dock から \\
 \addlinespace
@@ -431,6 +431,7 @@ cp autoinstall/env.example.yaml autoinstall/env.yaml
 \code{ntp_servers} & 足す NTP サーバー。空なら Ubuntu の既定と DHCP で配られたもの \\
 \code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
 \code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
+\code{vscode_extensions} & VS Code に足す拡張機能(\code{発行者.名前} か \code{発行者.名前@版})。基本の拡張機能と、\code{clouds} に合わせたクラウドの拡張機能は書かなくても入る \\
 \code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
 \code{clouds} & クラウドの CLI: \code{aws}、\code{gcp}、\code{azure}(合わせて約 1.8GB) \\
 \code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
@@ -607,7 +608,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
 \code{70-orca.sh} & Orca と、その自動起動 \\
-\code{72-editors.sh} & 選んだエディター \\
+\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、本体と拡張機能の自動更新を止める \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
 \code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
@@ -945,6 +946,7 @@ Azure CLI & 2.91.0 & Microsoft の apt、hold \\
 Docker & 29.9.2 ほか & 公式 apt、hold \\
 Orca & 1.4.237 & リリースの .deb(SHA256)、hold \\
 VS Code & 1.143.1 & Microsoft の apt、hold \\
+VS Code の拡張機能 & 72-editors.sh の先頭 & Marketplace(版を指定。依存で入るものは入れたときの最新) \\
 Zed & 1.25.3 & リリースの tar(SHA256) \\
 Google Chrome & 固定しない & Google の apt、自動更新 \\
 Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
