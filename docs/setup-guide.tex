@@ -9,7 +9,9 @@
 \usepackage{amssymb}
 \usepackage[most]{tcolorbox}
 \usepackage{tikz}
-\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric,fadings}
+\usepackage{graphicx}
+\graphicspath{{docs/}}
 \usepackage{fancyhdr}
 \usepackage[pdfusetitle]{hyperref}
 
@@ -26,6 +28,8 @@
 \definecolor{hostcol}{HTML}{6A3D9A}      % ホスト(sysadmin)
 \definecolor{termcol}{HTML}{2E7D32}      % RDP の端末(agent)
 \definecolor{filecol}{HTML}{6B7280}      % ファイルの中身
+\definecolor{coverbg}{HTML}{0D102F}      % 表紙の地(絵の端の色)
+\definecolor{covercyan}{HTML}{6FD3F0}
 \hypersetup{colorlinks=true,linkcolor=accent,urlcolor=hintcol}
 
 \newcommand{\headstyle}{\sffamily\gtfamily\bfseries}
@@ -113,28 +117,36 @@
 % 表紙
 %======================================================================
 \begin{titlepage}
+% 表紙の絵は Gemini で作った(scripts/local/gen-cover.py)。文字は TeX で重ねる
 \begin{tikzpicture}[remember picture,overlay]
-  \fill[accent] (current page.north west) rectangle ([yshift=-11cm]current page.north east);
-  \fill[accent!70] ([yshift=-11cm]current page.north west) rectangle ([yshift=-11.4cm]current page.north east);
-  \node[anchor=north west,text=white!75!accent,font=\headstyle\large]
-    at ([xshift=2.2cm,yshift=-3.0cm]current page.north west) {agent-host-autoinstall};
-  \node[anchor=north west,text=white,font=\headstyle\fontsize{30}{38}\selectfont]
+  \fill[coverbg] (current page.south west) rectangle (current page.north east);
+  % 縦長の絵(3:4)をページ全体に敷く(左右の端は少し切れる)
+  \node[inner sep=0pt] at (current page.center) {\includegraphics[height=\paperheight]{cover.jpg}};
+  % 下の文字の後ろを少し暗くする
+  \fill[coverbg,path fading=north,fill opacity=0.85] (current page.south west) rectangle ([yshift=7.5cm]current page.south east);
+  % 題名(絵の上の暗い壁に重ねる)
+  \node[anchor=north west,text=covercyan,font=\headstyle\large]
+    at ([xshift=2.2cm,yshift=-2.6cm]current page.north west) {agent-host-autoinstall};
+  \fill[covercyan] ([xshift=2.2cm,yshift=-3.65cm]current page.north west) rectangle +(1.6cm,0.08cm);
+  \node[anchor=north west,text=white,font=\headstyle\fontsize{32}{42}\selectfont]
     at ([xshift=2.2cm,yshift=-4.2cm]current page.north west) {常時稼働 AI エージェントホスト};
-  \node[anchor=north west,text=white,font=\headstyle\fontsize{24}{30}\selectfont]
-    at ([xshift=2.2cm,yshift=-6.2cm]current page.north west) {設定手順書};
-  \node[anchor=north west,text=white!80!accent,font=\gtfamily\normalsize,align=left]
-    at ([xshift=2.2cm,yshift=-8.2cm]current page.north west)
-    {Ubuntu Desktop 26.04 LTS ／ Orca ／ Claude Code ／ Codex ／ GNOME デスクトップ共有(RDP)};
-  % 構成の要点
-  \begin{scope}[shift={([xshift=2.2cm,yshift=-15.5cm]current page.north west)}]
-    \node[soft,minimum width=34mm] (pc) at (0,0) {手元の PC\\[-1pt]{\scriptsize RDP ・ SSH ・ just}};
-    \node[soft,minimum width=60mm] (host) at (8.2,0) {エージェントホスト\\[-1pt]{\scriptsize 自動ログイン ・ Orca ・ 見張り}};
-    \draw[flow] (pc) -- node[lbl,above] {社内 LAN} (host);
-    \node[ext,minimum width=60mm] (svc) at (8.2,-2.4) {Claude ・ ChatGPT ・ GitHub ・ Slack};
-    \draw[flow,draw=filecol] (host) -- (svc);
-  \end{scope}
-  \node[anchor=south west,font=\gtfamily\small,text=gray,align=left]
-    at ([xshift=2.2cm,yshift=2.4cm]current page.south west)
+  \node[anchor=north west,text=white!85!covercyan,font=\headstyle\fontsize{22}{28}\selectfont]
+    at ([xshift=2.2cm,yshift=-6.0cm]current page.north west) {設定手順書};
+  % 下の段
+  \node[anchor=north west,text=white!85!coverbg,font=\gtfamily\normalsize,align=left]
+    at ([xshift=2.2cm,yshift=6.4cm]current page.south west)
+    {USB メモリ 1 本から、再起動や停電のあとも人手なしで RDP に戻る、\\
+     AI コーディングエージェントのための常時稼働ホストを作る。};
+  \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
+  \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
+    \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
+      inner xsep=5pt,inner ysep=3pt] (chip) at (prev) {\t};
+    \coordinate (prev) at ([xshift=2mm]chip.east);
+  }
+  \draw[covercyan!50,line width=0.4pt] ([xshift=2.2cm,yshift=3.2cm]current page.south west)
+    -- ([xshift=-2.2cm,yshift=3.2cm]current page.south east);
+  \node[anchor=north west,font=\gtfamily\small,text=white!65!coverbg,align=left]
+    at ([xshift=2.2cm,yshift=2.9cm]current page.south west)
     {版: \guideversion\\VirtualBox で検証した内容に基づく。リポジトリの文書とスクリプトを正とする。};
 \end{tikzpicture}
 \end{titlepage}
