@@ -32,9 +32,15 @@ lint:
     scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py")]'
     @echo "検査は問題ない"
 
-# 詳細な設定手順書の PDF を build/setup-guide/ に作る(LuaLaTeX が要る)
+# 詳細な設定手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live で作る。初回はイメージの作成に数分かかる)
 guide:
-    latexmk -lualatex -interaction=nonstopmode -halt-on-error -outdir=build/setup-guide docs/setup-guide.tex
+    mkdir -p build/setup-guide
+    printf '%s{%s 版(%s)}\n' '\newcommand{\guideversion}' "$(date +%Y-%m-%d)" "$(git describe --always --dirty 2>/dev/null || echo 不明)" > build/setup-guide/guide-version.tex
+    docker build -q -t agent-host-guide -f docs/guide.Dockerfile docs > /dev/null
+    case "$(uname -s)" in MINGW*|MSYS*) repo="$(pwd -W)"; user=() ;; *) repo="$(pwd)"; user=(--user "$(id -u):$(id -g)") ;; esac; \
+    MSYS_NO_PATHCONV=1 docker run --rm "${user[@]}" -v "$repo:/repo" -w /repo -e TEXINPUTS=/repo/build/setup-guide: agent-host-guide \
+        latexmk -lualatex -interaction=nonstopmode -halt-on-error -outdir=build/setup-guide docs/setup-guide.tex > build/setup-guide/latexmk.out \
+        || { tail -30 build/setup-guide/latexmk.out; exit 1; }
     @echo "作成した: build/setup-guide/setup-guide.pdf"
 
 # ホスト用の RDP の接続ファイルを build/<ホスト>.rdp に作る

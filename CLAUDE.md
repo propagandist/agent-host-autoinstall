@@ -53,7 +53,8 @@ docs/
   SPEC.md                   # 仕様
   HANDOVER.md               # 経緯と次の作業
   agent-host.rdp.example    # Windows のリモート デスクトップ接続の設定のひな形
-  setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。PDF は build/setup-guide/ に出す)
+  setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。just guide が Docker で PDF を build/setup-guide/ に出す)
+  guide.Dockerfile          # 手順書を作る TeX Live のイメージ
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順
 ```

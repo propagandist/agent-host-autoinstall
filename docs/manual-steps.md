@@ -7,7 +7,7 @@ autoinstall とスクリプトで自動化できない作業と、自動化が�
 
 - [just](https://just.systems/)
 - Windows なら Git Bash(`C:/Program Files/Git/bin/bash.exe`)と Docker Desktop。Linux なら xorriso・python3-yaml・shellcheck があれば Docker は要らない
-- 手順書の PDF を作るなら LuaLaTeX(TeX Live)
+- 手順書の PDF を作るなら Docker(`just guide` が TeX Live のイメージを作って使う)
 - このリポジトリの直下で `just` を実行すると、レシピの一覧が出る
 
 試験用の VM などで SSH のポートや鍵を変えるときは、環境変数で渡す。
