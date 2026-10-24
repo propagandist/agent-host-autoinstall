@@ -27,7 +27,9 @@
 
 - (2026-10-24 追加)最初のリリースは、実機での受け入れテスト(下の 2)が通ってから docs/release.md の手順で v0.1.0(pre-release)として出す(作業者の判断。1.0 はしばらく運用してから)。手順書の PDF を GitHub Release に付ける Actions も、そのときが初めての実行になる
 1. ~~すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on~~ 済み(2026-10-24、feature/release-flow の ISO)。USB からの起動から構成の完了まで約 67 分、再起動から RDP の待ち受けまで約 80 秒。ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた。構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていたので、36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
-2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7). (2026-10-24 決定)v0.1.0 のあと、実機の構成を管理する非公開のリポジトリを社内の Gitea に作る。このリポジトリを submodule でリリースのタグに固定し、ホストごとの env.yaml(hosts/<ホスト>.yaml)、台帳、ホストごとの受け入れテストと変更の記録を置く。env.yaml の秘密情報(パスワードのハッシュ、RDP のパスワード、Webhook の URL)は SOPS と age で値だけ暗号化し、`just iso` / `just update` のときだけ一時ファイルに戻して消す。移行の書き出し(`just backup`)は入れない。このリポジトリ側は、env.yaml の場所を引数で受け取れるので、ほとんど変えなくてよい
+2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
+3. 下の「未確認」を潰す
+4. (2026-10-24 決定)v0.1.0 のあと、実機の構成を管理する非公開のリポジトリを社内の Gitea に作る。このリポジトリを submodule でリリースのタグに固定し、ホストごとの env.yaml(hosts/<ホスト>.yaml)、台帳、ホストごとの受け入れテストと変更の記録を置く。env.yaml の秘密情報(パスワードのハッシュ、RDP のパスワード、Webhook の URL)は SOPS と age で値だけ暗号化し、`just iso` / `just update` のときだけ一時ファイルに戻して消す。移行の書き出し(`just backup`)は入れない。このリポジトリ側は、env.yaml の場所を引数で受け取れるので、ほとんど変えなくてよい
 
 ## §9 の調査結果(2026-10-23)
 
