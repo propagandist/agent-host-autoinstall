@@ -10,7 +10,7 @@
 
 ## [未リリース]
 
-## [0.1.0] - 2026-10-24
+## [0.1.0] - 2026-10-24 — 最初の版
 
 ### env.yaml の変更
 - 最初の版なので、なし(項目は autoinstall/env.example.yaml)
@@ -29,6 +29,7 @@
 - 承認待ち・エラー・完了を Slack と IP Messenger(名前で探す)に通知。ディスクの残りの監視
 - 環境を入れ替えるときの書き出しと取り込み(agent-host-backup、agent-host-restore)
 - 実機の構成を別のリポジトリで管理するための仕組み(docs/fleet.md、ひな形 examples/fleet/)。env.yaml を重ねて使う(共通 + ホスト)、知らないキーをエラーにする、リポジトリの外の env.yaml を扱う、作った版をホストの BUILD-INFO に残して just status に出す、台帳のための just facts
+- ライセンスは Apache License 2.0(著作権者の表示は NOTICE)
 - 手元の作業をまとめた justfile(ISO の作成、検査、状態・記録・更新・移行、RDP の接続ファイル、手順書の PDF)
 - 技術メモ(docs/notes.md): 検証した環境、設計で決めたこと、調査と検証の記録、確認できていないこと
 - 詳細な設定手順書(docs/setup-guide.tex)。表紙、色付きの囲み、図、チェックリスト付きの PDF を Docker の TeX Live で作る
