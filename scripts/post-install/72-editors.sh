@@ -40,8 +40,47 @@ VSCODE_EXT_TERRAFORM=HashiCorp.terraform@2.40.0
 # Zed: リリースの tar を SHA256(GitHub API の digest)で照合して /opt に置く
 ZED_VERSION=1.25.3
 ZED_SHA256=35f9115acd8b4c3bea6ed20f7c9b6ec8f1d2c2dd5a1cc438d552167b5ed4b342
+# Zed の拡張機能(zed.dev の ID。版は指定できない)。Python(basedpyright と Ruff)・JavaScript・TypeScript・YAML・JSON・Markdown・Go・Rust・Bash、
+# ESLint・Prettier・EditorConfig には Zed が最初から対応している。Claude Code と Codex はエージェントの画面から使える
+ZED_EXTENSIONS=(toml dockerfile docker-compose html make sql env git-firefly)
 
 selected() { [[ " ${AH_EDITORS:-} " == *" $1 "* ]]; }
+cloud_selected() { [[ " ${AH_CLOUDS:-} " == *" $1 "* ]]; }
+
+# agent のエディターの設定(JSON)に、足りない項目だけ足す。値が {} の項目は中の足りないキーだけ足す。
+# 人が変えた値は変えない。コメント入りなど JSON として読めないときは触らない
+merge_agent_json() {
+    local path="$1" wanted="$2"
+    if [ ! -f "$path" ]; then
+        printf '{}\n' | write_agent_file 644 "$path"
+    fi
+    python3 - "$path" "$wanted" <<'EOF'
+import json
+import sys
+
+path, wanted = sys.argv[1], json.loads(sys.argv[2])
+try:
+    with open(path, encoding="utf-8") as f:
+        settings = json.load(f)
+except ValueError:
+    print(f"{path} は JSON として読めないので触らない", file=sys.stderr)
+    sys.exit(0)
+changed = False
+for key, value in wanted.items():
+    if key not in settings:
+        settings[key] = value
+        changed = True
+    elif isinstance(value, dict) and isinstance(settings[key], dict):
+        for sub, v in value.items():
+            if sub not in settings[key]:
+                settings[key][sub] = v
+                changed = True
+if changed:
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(settings, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+EOF
+}
 
 # --- VS Code ---
 if selected vscode; then
@@ -66,42 +105,16 @@ if selected vscode; then
         apt-get install -y --allow-downgrades --allow-change-held-packages "code=$VSCODE_VERSION"
     fi
     apt-mark hold code
-    # 本体と拡張機能の自動更新、テレメトリを止める。既にある設定は、足りない項目だけ足す
-    # (コメント入りなど JSON として読めないときは触らない)
-    vscode_settings="$AGENT_HOME/.config/Code/User/settings.json"
-    if [ ! -f "$vscode_settings" ]; then
-        printf '{}\n' | write_agent_file 644 "$vscode_settings"
-    fi
-    python3 - "$vscode_settings" <<'EOF'
-import json
-import sys
-
-path = sys.argv[1]
-try:
-    with open(path, encoding="utf-8") as f:
-        settings = json.load(f)
-except ValueError:
-    sys.exit(0)
-wanted = {
-    "update.mode": "none",
-    "telemetry.telemetryLevel": "off",
-    "extensions.autoUpdate": False,
-    "extensions.autoCheckUpdates": False,
-    "redhat.telemetry.enabled": False,  # YAML の拡張機能が初回に聞いてくるのを止める
-}
-missing = {k: v for k, v in wanted.items() if k not in settings}
-if missing:
-    settings.update(missing)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(settings, f, indent=4, ensure_ascii=False)
-        f.write("\n")
-EOF
+    # 本体と拡張機能の自動更新、テレメトリを止める(redhat.telemetry.enabled は YAML の拡張機能が初回に聞いてくるもの)
+    merge_agent_json "$AGENT_HOME/.config/Code/User/settings.json" \
+        '{"update.mode": "none", "telemetry.telemetryLevel": "off",
+          "extensions.autoUpdate": false, "extensions.autoCheckUpdates": false,
+          "redhat.telemetry.enabled": false}'
     log "VS Code $VSCODE_VERSION を入れて hold した"
 
     # --- VS Code の拡張機能 ---
     # agent のホーム(~/.vscode/extensions)に、版を固定して入れる。選ばなくなったものは消さない
     exts=("${VSCODE_EXTENSIONS[@]}")
-    cloud_selected() { [[ " ${AH_CLOUDS:-} " == *" $1 "* ]]; }
     cloud_selected aws && exts+=("$VSCODE_EXT_AWS")
     cloud_selected gcp && exts+=("$VSCODE_EXT_GCP")
     cloud_selected azure && exts+=("$VSCODE_EXT_AZURE")
@@ -145,15 +158,21 @@ if selected zed; then
     install -m 644 "$zed_dir/zed.app/share/applications/dev.zed.Zed.desktop" /usr/share/applications/
     install -D -m 644 "$zed_dir/zed.app/share/icons/hicolor/512x512/apps/zed.png" \
         /usr/share/icons/hicolor/512x512/apps/zed.png
-    # 自動更新とテレメトリを止める(既にある設定には手を入れない)
-    zed_settings="$AGENT_HOME/.config/zed/settings.json"
-    if [ ! -f "$zed_settings" ]; then
-        write_agent_file 644 "$zed_settings" <<'EOF'
-{
-  "auto_update": false,
-  "telemetry": { "diagnostics": false, "metrics": false }
-}
-EOF
-    fi
-    log "Zed $ZED_VERSION を入れた"
+    # 拡張機能: Zed には版を指定して入れる方法がない。auto_install_extensions に書くと、次に Zed を起動したときに
+    # そのときの最新が入る。入ったあとは auto_update_extensions で更新を止める
+    zed_exts=("${ZED_EXTENSIONS[@]}")
+    [ -n "${AH_CLOUDS:-}" ] && zed_exts+=(terraform)
+    for ext in ${AH_ZED_EXTENSIONS:-}; do zed_exts+=("$ext"); done
+    zed_wanted="$(printf '%s\n' "${zed_exts[@]}" | python3 -c '
+import json, sys
+names = [n for n in sys.stdin.read().split() if n]
+print(json.dumps({
+    "auto_update": False,
+    "telemetry": {"diagnostics": False, "metrics": False},
+    "auto_install_extensions": {n: True for n in names},
+    "auto_update_extensions": {n: False for n in names},
+}))')"
+    # 本体の自動更新とテレメトリも止める
+    merge_agent_json "$AGENT_HOME/.config/zed/settings.json" "$zed_wanted"
+    log "Zed $ZED_VERSION を入れた(拡張機能 ${#zed_exts[@]} 個は次の起動で入る)"
 fi

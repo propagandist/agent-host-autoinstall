@@ -164,6 +164,12 @@
 - 依存やまとめで入る拡張機能の版は固定できない(入れたときの最新)。外した拡張機能のフォルダーは VS Code を次に起動したときに消える
 - agent の LANG は ja_JP.UTF-8 なので、日本語の表示は設定なしで効く(画面での確認は未)
 
+### Zed の拡張機能(2026-10-24 追加、VirtualBox で確認)
+- Zed には拡張機能を版を指定して入れるコマンドがない。settings.json の auto_install_extensions に書くと、Zed を起動したときに最新が入る。入ったあとは auto_update_extensions を false にして更新を止める
+- 設定は VS Code と同じく、足りない項目だけ足す(72-editors.sh の merge_agent_json。JSON として読めないときは触らない)
+- VM(GPU なし、llvmpipe のソフトウェア描画)で Zed を閉じてから起動しなおすと、約 2 分で 10 個(terraform と env.yaml の biome を含む)が入った。動いている Zed に設定を足しても入らない(起動時に読む)。Zed は 1 つしか動かないので、`zed` を実行しても動いている Zed に引き渡されて終わる
+- Ruff は Zed の Python に最初から入っているので、拡張機能としては入らない(一覧から外した)
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)

@@ -117,6 +117,12 @@ def main():
             fail(f"vscode_extensions の {x} は 発行者.名前 か 発行者.名前@版 の形にする")
     if vscode_extensions and "vscode" not in editors:
         fail("vscode_extensions を使うときは editors に vscode を入れる")
+    zed_extensions = [str(x) for x in (env.get("zed_extensions") or [])]
+    for x in zed_extensions:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9_-]*", x):
+            fail(f"zed_extensions の {x} は zed.dev の拡張機能の ID(英小文字・数字・-)にする")
+    if zed_extensions and "zed" not in editors:
+        fail("zed_extensions を使うときは editors に zed を入れる")
     clouds = env.get("clouds") or []
     for c in clouds:
         if c not in ("aws", "gcp", "azure"):
@@ -182,6 +188,7 @@ def main():
         f"AH_AGENTS={shlex.quote(' '.join(agents))}",
         f"AH_CLOUDS={shlex.quote(' '.join(clouds))}",
         f"AH_VSCODE_EXTENSIONS={shlex.quote(' '.join(vscode_extensions))}",
+        f"AH_ZED_EXTENSIONS={shlex.quote(' '.join(zed_extensions))}",
         f"AH_DESKTOP_COLOR={shlex.quote(desktop_color)}",
         f"AH_GITEA_URL={shlex.quote(gitea_url)}",
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
