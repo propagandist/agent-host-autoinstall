@@ -141,6 +141,46 @@ if selected vscode; then
     elif ! grep -q '"locale"' "$argv"; then
         sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
     fi
+    # 入っている Language Pack の一覧(~/.config/Code/languagepacks.json)は、VS Code が最初の起動の途中で作る。
+    # 表示言語は起動の最初に決まるので、そのままだと最初の起動だけ英語になる(VirtualBox で確認)。
+    # VS Code と同じ形で先に作っておく。hash は UUID と版をつなげた MD5(VS Code が作ったものと一致を確認)。
+    # 既にあれば触らない(以後は VS Code が保つ)
+    lp_json="$AGENT_HOME/.config/Code/languagepacks.json"
+    if [ ! -f "$lp_json" ]; then
+        runuser -u "$AGENT_USER" -- python3 - "$AGENT_HOME/.vscode/extensions" "$lp_json" <<'EOF'
+import glob
+import hashlib
+import json
+import os
+import sys
+
+ext_root, out = sys.argv[1], sys.argv[2]
+with open(os.path.join(ext_root, "extensions.json"), encoding="utf-8") as f:
+    installed = json.load(f)
+packs = {}
+for entry in installed:
+    ident = entry["identifier"]
+    if not ident["id"].lower().startswith("ms-ceintl.vscode-language-pack-"):
+        continue
+    location = entry["location"]["path"]
+    with open(os.path.join(location, "package.json"), encoding="utf-8") as f:
+        pkg = json.load(f)
+    for loc in pkg.get("contributes", {}).get("localizations", []):
+        lang = loc["languageId"].lower()
+        version = entry["version"]
+        packs[lang] = {
+            "hash": hashlib.md5((ident.get("uuid", "") + version).encode()).hexdigest(),
+            "extensions": [{"extensionIdentifier": {"id": ident["id"].lower(), "uuid": ident.get("uuid")},
+                            "version": version}],
+            "translations": {t["id"]: os.path.normpath(os.path.join(location, t["path"])) for t in loc.get("translations", [])},
+            "label": loc.get("localizedLanguageName") or loc.get("languageName") or lang,
+        }
+if packs:
+    os.makedirs(os.path.dirname(out), exist_ok=True)
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(packs, f, ensure_ascii=False)
+EOF
+    fi
 fi
 
 # --- Neovim(Ubuntu の公式パッケージ。OS の更新に任せる) ---
