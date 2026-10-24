@@ -304,7 +304,7 @@ uv & Python とパッケージ・仮想環境の管理 & \code{uv}、\code{uvx} 
 mise & 言語の版の切り替え(Go、Rust、Java など、sudo なしで入れる) & \code{mise use go@1.24} など \\
 Docker(rootless) & コンテナ。agent 専用で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
 GitHub CLI & GitHub の操作(PR、Issue、認証) & \code{gh} \\
-tea & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証にも使える & \code{tea} \\
+Gitea CLI & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証にも使える & \code{tea} \\
 git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具 & エージェントがそのまま使う \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}エディター(選択)} \\
@@ -592,7 +592,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。不要な snap と kdump を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
 \code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を社内 LAN だけに許可 \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
-\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、tea(Gitea CLI)、uv、mise \\
+\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
 \code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
 \code{70-orca.sh} & Orca と、その自動起動 \\
@@ -905,7 +905,7 @@ Claude Code & 2.1.308-1 & 公式 apt、hold \\
 Codex & 0.164.0 & npm \\
 CCManager & 4.4.9 & npm \\
 GitHub CLI & 2.103.2 & リリースの .deb(SHA256)、hold \\
-tea(Gitea CLI) & 0.16.0 & dl.gitea.com のバイナリ(SHA256) \\
+Gitea CLI & 0.16.0 & dl.gitea.com のバイナリ(SHA256) \\
 uv & 0.13.5 & リリースの tar(SHA256) \\
 mise & 2026.10.18 & リリースの tar(SHA256) \\
 OpenCode & 1.19.4 & npm \\

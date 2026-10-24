@@ -61,7 +61,7 @@ if [ ! -x "$tea_bin" ]; then
     install -D -m 755 "$AH_CACHE/tea-$TEA_VERSION-linux-amd64" "$tea_bin"
 fi
 ln -sfn "$tea_bin" /usr/local/bin/tea
-log "Gitea CLI(tea)$TEA_VERSION を入れた"
+log "Gitea CLI $TEA_VERSION を入れた"
 
 # --- Node.js ---
 node_dir="/opt/node-v$NODE_VERSION-linux-x64"
