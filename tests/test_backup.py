@@ -60,6 +60,12 @@ class TestBackupExcludes(unittest.TestCase):
         write(f"{HOME}/.config/orca/Cache/data_0")
         write(f"{HOME}/.config/orca/Partitions/p/Code Cache/js/index")
         write(f"{HOME}/.config/orca/Preferences", "{}\n")
+        # クラウドの CLI と Gitea CLI のログイン(Issue #7)
+        write(f"{HOME}/.aws/config")
+        write(f"{HOME}/.config/gcloud/credentials.db")
+        write(f"{HOME}/.config/gcloud/logs/2026.10.25/x.log")
+        write(f"{HOME}/.azure/msal_token_cache.json")
+        write(f"{HOME}/.config/tea/config.yml")
         run("chown", "-R", "agent:agent", HOME)
         out = tempfile.mkdtemp()
         cls.archive = os.path.join(out, "backup.tar.zst")
@@ -77,13 +83,16 @@ class TestBackupExcludes(unittest.TestCase):
         for path in (f"{WORK}/proj/dist/committed.txt", f"{WORK}/proj/dist/untracked.txt", f"{WORK}/proj/target",
                      f"{WORK}/proj/src/main.py", f"{WORK}/notes/dist/report.md",
                      f"{WORK}/proj/.git/refs/heads/dist", f"{WORK}/proj/.git/refs/heads/feature/target",
-                     f"{HOME}/.config/orca/Preferences"):
+                     f"{HOME}/.config/orca/Preferences", f"{HOME}/.aws/config",
+                     f"{HOME}/.config/gcloud/credentials.db", f"{HOME}/.azure/msal_token_cache.json",
+                     f"{HOME}/.config/tea/config.yml"):
             with self.subTest(path=path):
                 self.assertTrue(self.has(path), path)
 
     def test_rebuildable_are_excluded(self):
         for path in (f"{WORK}/proj/node_modules", f"{WORK}/proj/src/__pycache__", f"{WORK}/proj/.venv",
-                     f"{HOME}/.config/orca/Cache", f"{HOME}/.config/orca/Partitions/p/Code Cache"):
+                     f"{HOME}/.config/orca/Cache", f"{HOME}/.config/orca/Partitions/p/Code Cache",
+                     f"{HOME}/.config/gcloud/logs"):
             with self.subTest(path=path):
                 self.assertFalse(self.has(path), path)
 

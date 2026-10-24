@@ -28,6 +28,8 @@ paths=(
     "$home/.claude" "$home/.claude.json" "$home/.codex" "$home/.copilot" "$home/.gemini"
     "$home/.config/opencode" "$home/.local/share/opencode"
     "$home/.config/gh" "$home/.docker/config.json" "$home/.ssh" "$home/.gitconfig"
+    # Gitea CLI(tea)のログイン、クラウドの CLI のログインと設定、mise の全体の設定(Issue #7)
+    "$home/.config/tea" "$home/.aws" "$home/.config/gcloud" "$home/.azure" "$home/.config/mise"
     # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
     "$home/.config/orca" "$home/.orca"
     "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
@@ -40,8 +42,9 @@ paths=(
 #   - Orca(Electron)のキャッシュは、Orca の設定ディレクトリの中に固定したパターンで除く
 #   - ~/work の中は、依存のパッケージ・Python のバイトコード・仮想環境のディレクトリ(node_modules、__pycache__、.venv)を
 #     実際に探し、見つけたパスだけを除く。.git の中は見ない。dist・target・.cache などのビルドの出力は除かない
-orca_cache_excludes=(
+anchored_excludes=(
     "$home/.config/orca/*Cache" "$home/.config/orca/Crashpad" "$home/.config/orca/*Shared Dictionary"
+    "$home/.config/gcloud/logs"
 )
 
 existing=()
@@ -70,9 +73,9 @@ fi
     sed 's/^/excluded=/' "$work/exclude"
 } >"$work/agent-host-manifest.txt"
 
-# Orca のキャッシュはパターン(先頭から合わせる)、~/work の中は見つけたパスそのもの(ワイルドカードとして読まない)で除く
+# Orca のキャッシュと gcloud の記録はパターン(先頭から合わせる)、~/work の中は見つけたパスそのもの(ワイルドカードとして読まない)で除く
 exclude_args=(--anchored)
-for e in "${orca_cache_excludes[@]}"; do
+for e in "${anchored_excludes[@]}"; do
     exclude_args+=("--exclude=$e")
 done
 exclude_args+=(--no-wildcards "--exclude-from=$work/exclude")
