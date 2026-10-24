@@ -24,7 +24,8 @@
 
 ## 次にやること(この順で)
 
-1. すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on
+- (2026-10-24 追加)最初のリリースは、実機での受け入れテスト(下の 2)が通ってから docs/release.md の手順で v0.1.0(pre-release)として出す(作業者の判断。1.0 はしばらく運用してから)。手順書の PDF を GitHub Release に付ける Actions も、そのときが初めての実行になる
+1. ~~すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on~~ 済み(2026-10-24、feature/release-flow の ISO)。USB からの起動から構成の完了まで約 67 分、再起動から RDP の待ち受けまで約 80 秒。ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた。構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていたので、36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
 2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
 3. 下の「未確認」を潰す
 
@@ -139,6 +140,7 @@
 - 表紙、ヘッダー・フッター(版は日付と `git describe`)、色付きの囲み(注意・ヒント・確認)、どこで打つかのラベル付きのコマンドの枠、TikZ の図 4 つ、印を付けるチェックリストにした
 - tcolorbox などが手元の TeX Live 2022 になかったため、`just guide` は docs/guide.Dockerfile(Ubuntu 26.04 の TeX Live 2025)のイメージを作り、その中で作る。イメージは約 1GB、初回の作成は数分
 - tcolorbox の環境名 `check` は既にある命令とぶつかるので `confirm`、TikZ の style 名 `step` も既にあるキーなので `pstep` にした
+- 表紙の絵は Gemini(gemini-3-pro-image)で作った docs/cover.jpg。作りなおすときは .env に GEMINI_API_KEY を書き、`python3 scripts/local/gen-cover.py build/cover.jpg 3` で候補を作って選ぶ。横長だと下半分が空き、縦長で「余白を空けて」と頼むと色の違う帯ができたので、「継ぎ目のない 1 枚の絵」と書いた。Gemini で作った絵には見えない透かし(SynthID)が入る
 
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため

@@ -6,3 +6,4 @@ build/
 
 # Python のキャッシュ(試験で agent-notify を読み込むとできる)
 __pycache__/
+.env

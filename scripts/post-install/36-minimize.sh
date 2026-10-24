@@ -12,6 +12,8 @@ mask_units() {
     for unit in "$@"; do
         if systemctl list-unit-files "$unit" --no-legend 2>/dev/null | grep -q .; then
             systemctl mask --now "$unit" >/dev/null 2>&1 || systemctl mask "$unit" >/dev/null
+            # 動いている途中で止めた unit は failed の印が残り、systemctl --failed に出続けるので消す
+            systemctl reset-failed "$unit" >/dev/null 2>&1 || true
         fi
     done
 }
@@ -75,8 +77,9 @@ if dpkg-query -W -f='${Status}' kdump-tools 2>/dev/null | grep -q 'install ok in
 fi
 
 # 9. そのほか(journald と記録が二重の rsyslog、NetworkManager では使わない networkd-dispatcher、
-#    インストールが終われば要らない cloud-init、有効なだけの openvpn・sssd)
-mask_units rsyslog.service networkd-dispatcher.service openvpn.service sssd.service
+#    インストールが終われば要らない cloud-init、有効なだけの openvpn・sssd)。
+#    syslog.socket は rsyslog を起こそうとして失敗し続けるので一緒に止める
+mask_units rsyslog.service syslog.socket networkd-dispatcher.service openvpn.service sssd.service
 touch /etc/cloud/cloud-init.disabled
 
 # 10. zram(メモリの半分を圧縮したスワップにする。ファイルのスワップは優先度の低い予備として残す)

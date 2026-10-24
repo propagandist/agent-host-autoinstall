@@ -11,6 +11,8 @@
 ```
 README.md                   # 概要と文書の案内
 justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行)。just で一覧
+CHANGELOG.md                # 変更の記録(版ごと)
+.github/workflows/release.yml # タグの push で手順書の PDF を作り GitHub Release に付ける
 autoinstall/
   autoinstall.yaml          # 本体(環境固有値はプレースホルダ)
   env.example.yaml          # 環境固有値のサンプル(コミットする)
@@ -19,7 +21,7 @@ build/                      # ISO のダウンロード先と build-usb.sh の�
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
   stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
-  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、host.sh: ホストの操作)
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、host.sh: ホストの操作、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る)
   render-autoinstall.py     # build-usb.sh から呼ぶ。autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
@@ -55,8 +57,10 @@ docs/
   agent-host.rdp.example    # Windows のリモート デスクトップ接続の設定のひな形
   setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。just guide が Docker で PDF を build/setup-guide/ に出す)
   guide.Dockerfile          # 手順書を作る TeX Live のイメージ
+  cover.jpg                 # 手順書の表紙の絵(gen-cover.py で作ったもの)
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順
+  release.md                # リリースの手順(GitFlow の release、版の付け方、成果物)
 ```
 
 構成は実装の都合で変えてよいが、変えたら SPEC.md と整合させること。
