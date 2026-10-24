@@ -199,6 +199,14 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)
 
+### Orca Mobile(2026-10-24 調査、v1.4.237 のソース)
+
+- スマホのアプリからデスクトップの Orca につなぐ。つなぎ方は LAN(`ws://<ホスト>:6768` に直接。アカウントは不要)と Orca Relay(ベータ。両方が Orca のサーバーへ外向きにつなぎ、サーバーが中継する。デスクトップで Orca のアカウントにサインインが要り、アカウントによっては使えない)
+- LAN でも、スマホとの通信はエンドツーエンドで暗号化する作り(`src/main/runtime/rpc/e2ee-channel.ts`)。ペアリングは QR コード
+- 待ち受けは普段 127.0.0.1:6768(VirtualBox の ss でも確認)。ペアリングの操作をすると 0.0.0.0 に広げ、一度つないだ端末があれば次の起動からは最初から広げる(`runtime-rpc-pairing-types.ts`、`runtime-rpc-network-exposure.ts`)。自動ログインで起動した Orca にも、そのままつながるはず(未確認)
+- このリポジトリでは対応のための設定を足さない。LAN で使うなら env.yaml の `dev_ports` に 6768 を足せば `lan_cidrs` からだけ開く。Relay はポートを開けずに使える
+- スマホから agent のターミナルにコマンドを送れるので、スマホの管理(画面のロック、無くしたときにペアリングを外す)を手順に書いた
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -206,7 +214,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - HDMI のダミープラグでの RDP(モニターなし)、BIOS の停電復帰、lan_cidrs の外から 22・3389 に届かないこと(受け入れテスト 7)
 - 電源のプロファイル performance(VM にはない)、RDP の extend モード(VM では GNOME Shell が異常終了した)
 - 実際の HTTP プロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
-- Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
+- Slack への送信、Claude Code の Remote Control、Orca Mobile でのペアリング(LAN・Relay)、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - systemd-oomd がメモリ不足のときに Orca ごと止めないか

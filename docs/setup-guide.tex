@@ -683,7 +683,7 @@ RDP も待ち受ける(原因は未調査)。
   \item Docker Hub にログインする
   \item (選んだ場合)クラウドの CLI にログインする
   \item 通知が届くことを確かめる
-  \item (使う場合)スマホからの操作(Remote Control)
+  \item (使う場合)スマホからの操作(Remote Control、Orca Mobile)
 \end{checklist}
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
@@ -806,6 +806,27 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 \begin{enumerate}
   \item 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
   \item プッシュ通知: Claude アプリに同じアカウントでログインし、端末の \code{/config} で「Push when actions required」などをオンにする
+\end{enumerate}
+
+\subsection{スマホからの操作(Orca Mobile)}
+Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる。つなぎ方は Orca の「設定 > モバイル」で選ぶ。
+\begin{caution}
+スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。
+画面のロックをかけたスマホだけをペアリングし、無くしたら「設定 > モバイル」からその端末を外す。
+\end{caution}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\toprule\headrow
+つなぎ方 & 通り道 & このホストでの準備 \\
+\midrule
+LAN & スマホがホストの 6768 番に直接つなぐ(暗号化される)。アカウントは要らない &
+  env.yaml の \code{dev_ports} に \code{6768} を足して \code{just update}。LAN の外からは VPN か Tailscale など \\
+Orca Relay(ベータ) & Orca のサーバーが中継する。モバイル回線からも使える &
+  ポートは開けない。Orca のアカウントにサインインする。通信は Orca のサービスを通る \\
+\bottomrule
+\end{tabularx}}
+\begin{enumerate}
+  \item RDP で入り、Orca の「設定 > モバイル」で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
+  \item スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 \end{enumerate}
 
 \subsection{ファイルのやり取り}
