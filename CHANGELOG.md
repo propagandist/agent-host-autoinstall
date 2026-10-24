@@ -3,7 +3,7 @@
 版は [Semantic Versioning](https://semver.org/lang/ja/) で付ける。
 パッチは固定したバージョンの更新と修正、マイナーは機能や env.yaml の項目の追加、
 メジャーは env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない変更)。
-実機での受け入れテストが通るまでは 0.x とする。手順は [docs/release.md](docs/release.md)。
+リリースは実機での受け入れテストが通ってから出す。しばらく運用して問題がないと判断するまでは 0.x とする。手順は [docs/release.md](docs/release.md)。
 
 ## [未リリース]
 
