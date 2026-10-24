@@ -1,0 +1,52 @@
+# タグ(v0.1.0 など)の push で、詳細な設定手順書の PDF を作り、GitHub Release に付ける。
+# 手順は docs/release.md。ISO は env.yaml の秘密情報が入るので成果物にしない
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # git describe でタグを版にするため
+
+      - name: 手順書の PDF を作る
+        run: |
+          scripts/local/build-guide.sh
+          cp build/setup-guide/setup-guide.pdf "agent-host-setup-guide-${GITHUB_REF_NAME}.pdf"
+
+      - name: リリースノートを CHANGELOG.md から抜き出す
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          awk -v v="$v" '
+            index($0, "## [" v "]") == 1 { on = 1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md >release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "CHANGELOG.md に ## [$v] の節がない" >&2
+            exit 1
+          fi
+
+      - name: Release を作る
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 名前は「<版> — <位置づけ>」。位置づけは CHANGELOG の見出し「## [0.1.0] - <日付> — <位置づけ>」から取る
+          v="${GITHUB_REF_NAME#v}"
+          position="$(grep -m1 "^## \[$v\]" CHANGELOG.md | sed -n 's/^.* — //p')"
+          if [ -z "$position" ]; then
+            echo "CHANGELOG.md の ## [$v] の見出しに「 — <位置づけ>」がない" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" "agent-host-setup-guide-${GITHUB_REF_NAME}.pdf" \
+            --title "$GITHUB_REF_NAME — $position" --notes-file release-notes.md \
+            $(case "$GITHUB_REF_NAME" in v0.*) echo --prerelease ;; esac)

@@ -1,0 +1,2 @@
+# source の相対パスをスクリプトの場所から解決する
+source-path=SCRIPTDIR

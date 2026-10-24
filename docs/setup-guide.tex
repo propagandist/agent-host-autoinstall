@@ -1,0 +1,1182 @@
+% 常時稼働 AI エージェントホスト 設定手順書
+% ビルド: just guide(Docker の TeX Live で build/setup-guide/setup-guide.pdf を作る)
+\documentclass[a4paper,10pt]{ltjsarticle}
+\usepackage[margin=22mm,headheight=16pt,headsep=8mm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs,tabularx,longtable,colortbl}
+\usepackage{fancyvrb}
+\usepackage{enumitem}
+\usepackage{amssymb}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,fit,backgrounds,calc,shapes.geometric,fadings}
+\usepackage{graphicx}
+\graphicspath{{docs/}}
+\usepackage{fancyhdr}
+\usepackage{etoolbox}
+\usepackage[pdfusetitle]{hyperref}
+
+%----------------------------------------------------------------------
+% 色
+%----------------------------------------------------------------------
+\definecolor{accent}{HTML}{1F3A5F}       % 基本の色(紺)
+\definecolor{accentlight}{HTML}{E6ECF4}
+\definecolor{cautioncol}{HTML}{B3261E}   \definecolor{cautionbg}{HTML}{FDEDEB}
+\definecolor{hintcol}{HTML}{1565C0}      \definecolor{hintbg}{HTML}{E8F1FC}
+\definecolor{checkcol}{HTML}{2E7D32}     \definecolor{checkbg}{HTML}{EAF5EA}
+\definecolor{codebg}{HTML}{F4F5F7}
+\definecolor{localcol}{HTML}{1F3A5F}     % 手元の PC
+\definecolor{hostcol}{HTML}{6A3D9A}      % ホスト(sysadmin)
+\definecolor{termcol}{HTML}{2E7D32}      % RDP の端末(agent)
+\definecolor{filecol}{HTML}{6B7280}      % ファイルの中身
+\definecolor{coverbg}{HTML}{0D102F}      % 表紙の地(絵の端の色)
+\definecolor{covercyan}{HTML}{6FD3F0}
+\hypersetup{colorlinks=true,linkcolor=accent,urlcolor=hintcol}
+
+\newcommand{\headstyle}{\sffamily\gtfamily\bfseries}
+\renewcommand{\headfont}{\headstyle\color{accent}}
+
+% 版(just guide が build/setup-guide/guide-version.tex に日付とコミットを書く)
+\InputIfFileExists{guide-version.tex}{}{%
+  \newcommand{\guidedate}{(不明)}\newcommand{\guiderev}{(不明)}\newcommand{\guideversion}{版の情報なし}%
+  \newcommand{\guiderepo}{(なし)}\newcommand{\guidecopyright}{(なし)}\newcommand{\guideholder}{(なし)}%
+  \newcommand{\guideholderurl}{}\newcommand{\guideholderurlshort}{}}
+
+%----------------------------------------------------------------------
+% 文中のコマンド・パス・値(_ などをそのまま書ける)
+%----------------------------------------------------------------------
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+\newcommand{\key}[1]{\tcbox[on line,boxsep=0pt,left=3pt,right=3pt,top=1pt,bottom=1pt,
+  colback=white,colframe=gray!60,boxrule=0.4pt,arc=1.5pt]{\small\sffamily #1}}
+
+%----------------------------------------------------------------------
+% コマンドの枠(右上に、どこで打つかを書く)
+%----------------------------------------------------------------------
+\newtcolorbox{cmdframe}[2]{enhanced,breakable,colback=codebg,colframe=#1,boxrule=0.5pt,
+  leftrule=2.5pt,arc=1pt,left=6pt,right=6pt,top=5pt,bottom=3pt,before skip=6pt,after skip=8pt,
+  title={#2},fonttitle=\headstyle\scriptsize,coltitle=white,colbacktitle=#1,
+  attach boxed title to top right={yshift=-2.2mm,xshift=-3mm},
+  boxed title style={arc=1pt,boxrule=0pt,left=3pt,right=3pt,top=1pt,bottom=1pt}}
+\newenvironment{local}{\VerbatimEnvironment\begin{cmdframe}{localcol}{手元の PC}\begin{Verbatim}[fontsize=\small]}
+  {\end{Verbatim}\end{cmdframe}}
+\newenvironment{host}{\VerbatimEnvironment\begin{cmdframe}{hostcol}{ホスト(sysadmin)}\begin{Verbatim}[fontsize=\small]}
+  {\end{Verbatim}\end{cmdframe}}
+\newenvironment{term}{\VerbatimEnvironment\begin{cmdframe}{termcol}{RDP の端末(agent)}\begin{Verbatim}[fontsize=\small]}
+  {\end{Verbatim}\end{cmdframe}}
+\newenvironment{filebox}[1]{\VerbatimEnvironment\begin{cmdframe}{filecol}{#1}\begin{Verbatim}[fontsize=\small]}
+  {\end{Verbatim}\end{cmdframe}}
+
+%----------------------------------------------------------------------
+% 囲み(注意・ヒント・確認)
+%----------------------------------------------------------------------
+\tcbset{callout/.style n args={3}{enhanced,breakable,colback=#2,colframe=#1,boxrule=0pt,leftrule=3pt,
+  arc=0pt,outer arc=0pt,left=8pt,right=8pt,top=5pt,bottom=5pt,before skip=8pt,after skip=8pt,
+  before upper={{\headstyle\color{#1}#3}\quad}}}
+\newtcolorbox{caution}{callout={cautioncol}{cautionbg}{注意}}
+\newtcolorbox{hint}{callout={hintcol}{hintbg}{ヒント}}
+\newtcolorbox{confirm}{callout={checkcol}{checkbg}{確認}}
+
+%----------------------------------------------------------------------
+% 表とチェックリスト
+%----------------------------------------------------------------------
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newcommand{\headrow}{\rowcolor{accentlight}}
+\newlist{checklist}{itemize}{2}
+\setlist[checklist]{label=$\square$,leftmargin=2em,itemsep=2pt}
+\newcommand{\okng}{$\square$ OK\quad$\square$ NG}
+
+%----------------------------------------------------------------------
+% 図の部品
+%----------------------------------------------------------------------
+\tikzset{
+  box/.style={draw=accent,fill=white,rounded corners=2pt,align=center,font=\small\gtfamily,
+    inner sep=4pt,minimum height=7mm},
+  soft/.style={box,fill=accentlight},
+  once/.style={box,draw=hintcol,fill=hintbg,dashed},
+  ext/.style={box,draw=filecol,fill=codebg},
+  group/.style={draw=accent!60,rounded corners=4pt,inner sep=6pt},
+  flow/.style={-{Stealth[length=2.2mm]},thick,draw=accent},
+  lbl/.style={font=\scriptsize\gtfamily,fill=white,inner sep=1pt},
+}
+
+%----------------------------------------------------------------------
+% ヘッダーとフッター
+%----------------------------------------------------------------------
+\pagestyle{fancy}
+\renewcommand{\sectionmark}[1]{\markboth{\thesection\quad #1}{}}  % 章の名前を大文字にしない
+\fancyhf{}
+\fancyhead[L]{\small\color{gray}\leftmark}
+\fancyhead[R]{\small\color{gray}常時稼働 AI エージェントホスト 設定手順書}
+\fancyfoot[L]{\small\color{gray}\guideversion}
+\fancyfoot[R]{\small\headstyle\color{accent}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\headrule}{\color{accent!40}\hrule height\headrulewidth}
+\fancypagestyle{plain}{\fancyhf{}\fancyfoot[R]{\small\headstyle\color{accent}\thepage}\renewcommand{\headrulewidth}{0pt}}
+
+\title{常時稼働 AI エージェントホスト 設定手順書}
+\author{agent-host-autoinstall}
+
+\begin{document}
+
+%======================================================================
+% 表紙
+%======================================================================
+\begin{titlepage}
+% 表紙の絵は Gemini で作った(scripts/local/gen-cover.py)。文字は TeX で重ねる
+\begin{tikzpicture}[remember picture,overlay]
+  \fill[coverbg] (current page.south west) rectangle (current page.north east);
+  % 縦長の絵(3:4)をページ全体に敷く(左右の端は少し切れる)
+  \node[inner sep=0pt] at (current page.center) {\includegraphics[height=\paperheight]{cover.jpg}};
+  % 下の文字の後ろを少し暗くする
+  \fill[coverbg,path fading=north,fill opacity=0.85] (current page.south west) rectangle ([yshift=7.5cm]current page.south east);
+  % 題名(絵の上の暗い壁に重ねる)
+  \node[anchor=north west,text=covercyan,font=\headstyle\large]
+    at ([xshift=2.2cm,yshift=-2.6cm]current page.north west) {agent-host-autoinstall};
+  \fill[covercyan] ([xshift=2.2cm,yshift=-3.65cm]current page.north west) rectangle +(1.6cm,0.08cm);
+  \node[anchor=north west,text=white,font=\headstyle\fontsize{32}{42}\selectfont]
+    at ([xshift=2.2cm,yshift=-4.2cm]current page.north west) {常時稼働 AI エージェントホスト};
+  \node[anchor=north west,text=white!85!covercyan,font=\headstyle\fontsize{22}{28}\selectfont]
+    at ([xshift=2.2cm,yshift=-6.0cm]current page.north west) {設定手順書};
+  % 下の段
+  \node[anchor=north west,text=white!85!coverbg,font=\gtfamily\normalsize,align=left]
+    at ([xshift=2.2cm,yshift=6.4cm]current page.south west)
+    {AI コーディングエージェントを動かし続ける専用の PC を、USB メモリ 1 本で自動で組み立てる。\\
+     再起動のあとも、人の手を借りずにリモートデスクトップで使える状態に戻る。};
+  \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
+  \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
+    \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
+      inner xsep=5pt,inner ysep=3pt,text height=0.9em,text depth=0.3em] (chip) at (prev) {\t};
+    % 文字の高さと深さを固定して、日本語やかっこがあっても枠の高さをそろえる
+    \coordinate (prev) at ([xshift=2mm]chip.east);
+  }
+  \draw[covercyan!50,line width=0.4pt] ([xshift=2.2cm,yshift=3.2cm]current page.south west)
+    -- ([xshift=-2.2cm,yshift=3.2cm]current page.south east);
+  % 版(左)と発行者(右)は、文字の並ぶ線(ベースライン)をそろえる
+  \node[anchor=base west,inner sep=0pt,font=\sffamily\gtfamily\small,text=white!70!coverbg]
+    at ([xshift=2.2cm,yshift=2.4cm]current page.south west) {\guideversion};
+  \node[anchor=base east,inner sep=0pt,font=\headstyle\normalsize,text=white]
+    at ([xshift=-2.2cm,yshift=2.4cm]current page.south east) (holder) {\guideholder};
+  \ifdefempty{\guideholderurl}{}{%
+    \node[anchor=north east,inner sep=0pt,font=\sffamily\small,text=covercyan]
+      at ([yshift=-2.5mm]holder.south east) {\guideholderurlshort};}
+\end{tikzpicture}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+%======================================================================
+\section{はじめに}
+%======================================================================
+
+\subsection{この手順書の目的}
+手元に置く物理 PC を、AI コーディングエージェント(Claude Code、Codex ほか)を
+Orca で並列に動かす「常時稼働のエージェントホスト」にするための手順をまとめる。
+USB メモリ 1 本からほぼ無人でインストールでき、再起動やセッションの異常終了のあとも人手を介さずに、
+RDP で接続できる状態に戻ることを目指す。
+
+仕様は \code{docs/SPEC.md}、調べたこと・確かめたことと未確認の事項は \code{docs/notes.md} にある。
+この手順書と食い違ったときは、リポジトリの文書とスクリプトを正とする。
+
+\subsection{対象読者}
+このリポジトリを使って、AI エージェントのためのホストを用意・運用する人。
+Linux の基本的な操作(端末、SSH、apt)ができることを前提とする。
+
+\subsection{この手順書の読み方}
+コマンドの枠の右上に、どこで打つかを書いている。
+\begin{local}
+just status <ホスト>     # 手元の PC(リポジトリの直下)で打つ
+\end{local}
+\begin{host}
+sudo systemctl reboot    # just ssh などでホストに入り、sysadmin で打つ
+\end{host}
+\begin{term}
+gh auth status           # RDP で入った agent のデスクトップの端末で打つ
+\end{term}
+\begin{hint}
+\code{<ホスト>} はホスト名か IP アドレスに置き換える。囲みは、\textcolor{cautioncol}{\textbf{注意}}(誤ると戻せないこと)、
+\textcolor{hintcol}{\textbf{ヒント}}(知っておくと楽なこと)、\textcolor{checkcol}{\textbf{確認}}(確かめること)の 3 種類。
+\end{hint}
+
+\subsection{できあがる環境}
+\begin{itemize}
+  \item OS: Ubuntu Desktop 26.04 LTS(GNOME 50、Wayland のみ)
+  \item 遠隔操作: GNOME の「デスクトップ共有」(RDP、ポート 3389)。物理の画面のセッションをそのまま共有する
+  \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
+  \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
+  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome、
+        エディター(選択。拡張機能も入る)、クラウドの CLI(選択。AWS・Google Cloud・Azure)
+  \item 通知: Slack と IP Messenger(承認待ち・エラー・完了)
+\end{itemize}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=4mm and 8mm]
+  % 手元の PC
+  \node[box,minimum width=30mm] (rdpc) {RDP クライアント\\[-1pt]{\scriptsize mstsc・Remmina など}};
+  \node[box,minimum width=30mm,below=of rdpc] (sshc) {SSH ・ just\\[-1pt]{\scriptsize 管理・更新・移行}};
+  \node[box,minimum width=30mm,below=of sshc] (sftpc) {SFTP\\[-1pt]{\scriptsize WinSCP など}};
+  \begin{scope}[on background layer]
+    \node[group,fill=accentlight,fit=(rdpc)(sshc)(sftpc),label={[font=\headstyle\small,text=accent]above:手元の PC}] (pc) {};
+  \end{scope}
+  % ホスト
+  \node[box,right=34mm of rdpc,minimum width=36mm] (grd) {デスクトップ共有\\[-1pt]{\scriptsize :3389}};
+  \node[box,right=34mm of sshc,minimum width=36mm] (sshd) {sshd\\[-1pt]{\scriptsize :22(sysadmin ／ agent は SFTP)}};
+  \node[soft,right=6mm of grd,minimum width=40mm,minimum height=18mm] (session)
+    {agent の GNOME セッション\\[-1pt]{\scriptsize 自動ログイン}\\[-1pt]{\scriptsize Orca ・ Claude Code ・ Codex ・ Chrome}};
+  \node[box,below=of session,minimum width=40mm] (docker) {rootless Docker\\[-1pt]{\scriptsize mise ・ uv}};
+  \node[box,below=of docker,minimum width=40mm] (watch) {見張り・監視\\[-1pt]{\scriptsize セッション ・ ディスク}};
+  \begin{scope}[on background layer]
+    \node[group,fill=white,fit=(grd)(sshd)(session)(docker)(watch),
+      label={[font=\headstyle\small,text=accent]above:エージェントホスト(Ubuntu 26.04)}] (host) {};
+  \end{scope}
+  \draw[flow] (rdpc) -- node[lbl,above] {RDP} (grd);
+  \draw[flow] (sshc) -- node[lbl,above] {SSH} (sshd);
+  \draw[flow] (sftpc.east) -- node[lbl,below,sloped] {SFTP} (sshd.south west);
+  \draw[flow] (grd) -- (session);
+  % 外
+  \node[ext,below=12mm of watch,minimum width=40mm] (cloud) {Anthropic ・ OpenAI ・ GitHub\\[-1pt]{\scriptsize Docker Hub ・ Slack}};
+  \node[ext,left=8mm of cloud,minimum width=30mm] (ipmsg) {IP Messenger\\[-1pt]{\scriptsize LAN 内の PC}};
+  \draw[flow,draw=filecol] (watch) -- node[lbl,right] {HTTPS} (cloud);
+  \draw[flow,draw=filecol] (watch.south west) -- node[lbl,left] {UDP 2425} (ipmsg);
+\end{tikzpicture}
+\caption{全体の構成。LAN の中から RDP と SSH で使い、外へは HTTPS で出る}
+\end{figure}
+
+\subsection{ユーザー}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule\headrow
+ユーザー & 用途 & sudo & ログイン \\
+\midrule
+\code{sysadmin} & OS の管理・更新 & あり & SSH(鍵認証のみ)。コンソール \\
+\code{agent} & Orca とエージェントの実行 & なし & GDM の自動ログイン。SSH は SFTP 専用(鍵を登録した人だけ) \\
+\bottomrule
+\end{tabularx}}
+
+\code{admin} は Ubuntu の予約名でインストーラーに拒否されるため、管理ユーザーは \code{sysadmin} にしている。
+\code{agent} には個人の秘密情報を置かない。
+
+\subsection{起動の流れ}
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=5mm and 6mm]
+  \node[box] (power) {電源\\[-1pt]{\scriptsize 停電からの復帰も}};
+  \node[box,right=of power] (boot) {GRUB ・ systemd};
+  \node[once,right=of boot] (prov) {構成サービス\\[-1pt]{\scriptsize 初回だけ}};
+  \node[box,right=of prov] (gdm) {GDM\\[-1pt]{\scriptsize agent で自動ログイン}};
+  \node[soft,below=9mm of gdm] (gnome) {GNOME セッション\\[-1pt]{\scriptsize キーリングは自動で開く}};
+  \node[once,left=of gnome] (fl) {first-login\\[-1pt]{\scriptsize 初回だけ}};
+  \node[box,left=of fl] (rdp) {RDP 待ち受け\\[-1pt]{\scriptsize :3389}};
+  \node[box,left=of rdp] (orca) {Orca 起動};
+  \draw[flow] (power) -- (boot); \draw[flow] (boot) -- (prov); \draw[flow] (prov) -- (gdm);
+  \draw[flow] (gdm) -- (gnome); \draw[flow] (gnome) -- (fl); \draw[flow] (fl) -- (rdp); \draw[flow] (rdp) -- (orca);
+  \node[box,draw=cautioncol,fill=cautionbg,right=10mm of gnome] (watch) {見張り\\[-1pt]{\scriptsize 落ちたら GDM を再起動}};
+  \draw[flow,draw=cautioncol,dashed] (watch) |- node[lbl,pos=0.25,right] {約 2 分} (gdm);
+  \draw[flow,draw=cautioncol,dashed] (gnome) -- node[lbl,above] {落ちる} (watch);
+\end{tikzpicture}
+\caption{起動から RDP まで。点線の箱は初回だけ動く}
+\end{figure}
+
+\subsection{利用上の注意と免責}
+この構成は、利便性と引き換えに安全性を下げている部分がある。次を読み、自分の環境と組織の規程に合うかを判断したうえで使う。
+まずは仮想マシンで試すことを勧める。
+
+\begin{caution}
+\textbf{無保証で提供する。利用は自己責任とする。}この手順書とリポジトリの設定・スクリプトを使ったことで生じたデータの消失、
+セキュリティ上の問題、費用その他の損害について、作成者は責任を負わない(Apache License 2.0 の第 7 条・第 8 条)。
+\end{caution}
+
+\paragraph{守る前提}
+\begin{itemize}
+  \item \textbf{LAN の中だけで使う。}SSH(22)と RDP(3389)は \code{lan_cidrs} の範囲だけに許可する。インターネットに開けず、LAN の外からは VPN などを通す
+  \item \textbf{PC は関係者だけが触れる場所に置く。}自動ログインのため画面のロックを止めている。モニターとキーボードをつなげば、誰でも \code{agent} のデスクトップを操作できる
+  \item \textbf{\code{agent} に置く秘密は、各サービスのログインの情報だけにする。}ログインキーリングは空パスワードで、ディスクも暗号化しない。PC やディスクを持ち出されれば中身を読まれる
+\end{itemize}
+
+\paragraph{知っておくこと}
+\begin{itemize}
+  \item \textbf{エージェントは確認なしで動く。}Orca の確認なしでコマンドを実行するモードは最初からオン。sudo は渡さないが、作業のディレクトリのファイルの削除、ログイン済みのサービスへの push や送信、API の利用料の発生は起こりうる
+  \item \textbf{コードとデータは外部のサービスに送られる。}送ってよい情報かは、組織の規程や契約で確かめる
+  \item \textbf{版を固定したソフトには、セキュリティ更新が自動では入らない。}apt で hold したものと、Node.js・npm で入れたツールは、利用者が版を上げて反映する(\ref{sec:versions} 節)。OS のセキュリティ更新と Google Chrome は自動で入る
+  \item \textbf{ほかのソフトとサービスの規約・ライセンスは、利用者が同意するもの。}インストールのときに各社の配布元から取得する(再配布はしない)。契約が要るものもある
+  \item \textbf{止められない通信がある。}たとえば Orca の更新の確認は止める手段がない
+  \item \textbf{秘密情報が入るファイルがある。}ISO と USB、env.yaml、移行の書き出し、ホストの \code{/opt/agent-host/env.sh}。IP Messenger の通知は暗号化されない
+\end{itemize}
+
+%======================================================================
+\section{入っている主なアプリケーション}\label{sec:apps}
+%======================================================================
+構成が終わったホストに入っている主なものと、このホストでの使い方。
+版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds} で選んだときだけ入る。
+
+{\small
+\begin{longtable}{@{}p{0.25\linewidth}p{0.42\linewidth}p{0.27\linewidth}@{}}
+\toprule\headrow
+名前 & 何をするものか & 使い方 \\
+\midrule
+\endhead
+\multicolumn{3}{@{}l}{\headstyle\color{accent}AI エージェント} \\
+Orca & 複数のコーディングエージェントを、git の worktree ごとに並べて動かし、見比べる画面(ADE) & ログインすると自動で起動する。作業の中心 \\
+Claude Code & Anthropic のコーディングエージェント(端末で動く) & \code{claude}。Orca からも呼ぶ \\
+Codex & OpenAI のコーディングエージェント(端末で動く) & \code{codex}。Orca からも呼ぶ \\
+CCManager & 複数の Claude Code・Codex のセッションを、worktree ごとに切り替えて管理する端末の道具 & \code{ccmanager} \\
+OpenCode(選択) & 使うモデルを選べるオープンソースのコーディングエージェント & \code{opencode} \\
+GitHub Copilot CLI(選択) & GitHub のコーディングエージェント(端末で動く) & \code{copilot} \\
+Antigravity CLI(選択) & Google のコーディングエージェント(端末で動く) & \code{agy} \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}クラウドの CLI(選択)} \\
+AWS CLI & AWS の操作 & \code{aws} \\
+Google Cloud CLI & Google Cloud の操作 & \code{gcloud} \\
+Azure CLI & Azure の操作 & \code{az} \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}開発の道具} \\
+Node.js、npm & JavaScript の実行環境とパッケージ管理 & \code{node}、\code{npm}、\code{npx} \\
+uv & Python とパッケージ・仮想環境の管理 & \code{uv}、\code{uvx} \\
+mise & 言語の版の切り替え(Go、Rust、Java など、sudo なしで入れる) & \code{mise use go@1.24} など \\
+Docker(rootless) & コンテナ。agent 専用で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
+GitHub CLI & GitHub の操作(PR、Issue、認証) & \code{gh} \\
+Gitea CLI & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証にも使える & \code{tea} \\
+git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具 & エージェントがそのまま使う \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}エディター(選択)} \\
+Visual Studio Code & 定番の GUI エディター。日本語の表示、Claude Code、Codex、Python、ESLint、Prettier、YAML、Docker、GitHub Pull Requests などの拡張機能も入る & \code{code}。Dock から \\
+Neovim & 端末で使うエディター & \code{nvim} \\
+Zed & 軽くて速い GUI エディター(GPU が要る)。TOML、Docker、HTML、Make、SQL などの拡張機能は初めて起動したときに入る。Claude Code と Codex はエージェントの画面から使える & \code{zed}。Dock から \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}デスクトップ} \\
+Google Chrome & 既定のブラウザ。エージェントのログインや画面の確認に使う & Dock から \\
+Xfce Terminal & 軽い端末。右クリックで貼り付け、選択でコピー & \key{Ctrl}+\key{Alt}+\key{T} \\
+Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え \\
+Clipboard Indicator & クリップボードの履歴 & 上部のバーから選ぶ \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}遠隔操作・通知・運用} \\
+GNOME デスクトップ共有 & 画面を RDP で共有する(GNOME の標準の機能) & 手元の RDP クライアントで接続(\ref{sec:rdp} 節) \\
+OpenSSH & 管理用の SSH と、agent のファイルのやり取り(SFTP) & \code{just ssh}、WinSCP など \\
+agent-notify & 承認待ち・エラー・完了を Slack と IP Messenger に知らせる & エージェントが自動で呼ぶ \\
+見張りと監視 & セッションが落ちたら戻す。ディスクの残りを知らせる & 自動で動く \\
+agent-host-backup ほか & 環境を入れ替えるときの書き出しと取り込み & \code{just backup}、\code{just restore} \\
+\bottomrule
+\end{longtable}}
+
+%======================================================================
+\section{準備するもの}
+%======================================================================
+
+\subsection{ハードウェア}
+\begin{itemize}
+  \item x86\_64 の PC。メモリ 32GB 以上、NVMe SSD を推奨。ディスクは全体を消して使う
+  \item HDMI のダミープラグ。モニターなしでも描画させるため。
+        RDP の解像度はプラグの解像度になる(手元からは変えられない)ので、\textbf{1920×1080 のもの}を選ぶ
+  \item USB メモリ(8GB 以上)
+  \item 有線 LAN。インストール中にネットワークが要る(Desktop の ISO には openssh-server が入っていない)
+\end{itemize}
+
+\subsection{作業用の PC}
+手元の PC での作業は just\footnote{\url{https://just.systems/}}で行う。リポジトリの直下で \code{just} を実行すると、
+レシピの一覧が出る。Linux の道具(xorriso、shellcheck、TeX など)が手元になければ、Docker の Ubuntu 26.04 の中で動く。
+\begin{checklist}
+  \item just
+  \item Windows なら Git Bash(Git for Windows\footnote{\url{https://gitforwindows.org/}} に入っている。
+        \code{C:/Program Files/Git/bin/bash.exe})と Docker Desktop\footnote{\url{https://www.docker.com/products/docker-desktop/}}。
+        Linux なら \code{xorriso}・\code{python3-yaml}・\code{shellcheck} があれば Docker は要らない
+  \item USB への書き込みに、Windows なら Rufus\footnote{\url{https://rufus.ie/}}(DD イメージのモード)
+\end{checklist}
+just を使わないときのコマンドは、付録「just を使わない場合」にある。
+
+\begin{hint}
+試験用の VM などで SSH のポートや鍵を変えるときは、環境変数で渡す。
+\end{hint}
+\begin{local}
+export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
+\end{local}
+
+\subsection{ネットワークの情報}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule\headrow
+項目 & 内容 \\
+\midrule
+IP アドレス & 固定にする(または DHCP の予約)。プレフィックス付きで(例 \code{192.0.2.10/24}) \\
+ゲートウェイ・DNS & 固定 IP のときに要る \\
+LAN の範囲 & SSH・RDP を許可する範囲(CIDR)。これ以外からは拒否する \\
+プロキシ・CA 証明書 & HTTP プロキシや TLS を検査するプロキシがある環境だけ \\
+NTP サーバー & その LAN から ntp.ubuntu.com に届かない場合だけ \\
+\bottomrule
+\end{tabularx}}
+
+\subsection{アカウントと契約}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule\headrow
+用途 & 内容 \\
+\midrule
+Claude Code & Anthropic のアカウント(スマホからの操作には Pro / Max / Team / Enterprise) \\
+Codex & ChatGPT のアカウント。\textbf{設定 → セキュリティで「Codex、Excel、PowerPoint、Word のデバイスコードによるサインイン」を有効にしておく} \\
+GitHub・Gitea & push する場合。エージェント専用のアカウントか、権限を絞ったトークンが無難 \\
+Docker Hub & ログインなしの取得は 6 時間に 100 回まで。エージェントが使うとすぐ当たるのでアカウントを用意する \\
+Slack & 通知を送るチャンネルの Incoming Webhook の URL \\
+追加のエージェント & Copilot CLI は Copilot の契約、Antigravity CLI は Google のアカウント、OpenCode は使うモデルの API キーなど \\
+クラウド & 使う場合。権限を絞った開発用のアカウント(AWS は IAM Identity Center の SSO)、プロジェクト、サブスクリプション \\
+\bottomrule
+\end{tabularx}}
+
+\begin{caution}
+どのアカウントで \code{agent} にログインするかは先に決める。ログインしたアカウントの設定
+(たとえば Claude のスキル)は \code{agent} のホームに同期される。
+\end{caution}
+
+%======================================================================
+\section{env.yaml を作る}
+%======================================================================
+
+環境ごとの値(秘密情報を含む)は \code{autoinstall/env.yaml} に書く。
+このファイルは \code{.gitignore} の対象で、コミットしない。サンプルをコピーして作る。
+
+\begin{local}
+cp autoinstall/env.example.yaml autoinstall/env.yaml
+\end{local}
+
+\code{CHANGE_ME} が残っていたり、値の形が正しくなかったり、知らないキー(書き間違い)があったりすると、ISO の作成は止まる。
+
+env.yaml は複数のファイルに分けて重ねられる。前から順に重ね、後のファイルの値が勝つ(辞書はキーごとに重なり、並びは置き換わる)。
+ホストが 2 台以上になったら、全台で共通の値とホストごとの値を分け、別の非公開リポジトリで管理する(\ref{sec:fleet} 節)。
+\begin{local}
+just check-env common.yaml hosts/agent-host-01.yaml
+\end{local}
+
+\subsection{項目の一覧}
+{\small
+\begin{longtable}{@{}p{0.34\linewidth}p{0.61\linewidth}@{}}
+\toprule\headrow
+項目 & 内容 \\
+\midrule
+\endhead
+\code{hostname} & ホスト名 \\
+\code{keyboard_layout} & \code{us} か \code{jp}。\textbf{RDP で使う人のキーボードに合わせる}(101/104 の英字配列なら \code{us}、106/109 なら \code{jp})。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるため \\
+\code{network.mode} & \code{dhcp} か \code{static} \\
+\code{network.interface} & 設定する有線 LAN。既定の \code{en*} はすべての有線 LAN に当てはまる。2 つ以上ある機種では名前(\code{enp3s0} など)を書く \\
+\code{network.address} など & static のとき: \code{address}(プレフィックス付き)、\code{gateway}、\code{dns}(並び)、\code{search}(任意) \\
+\code{proxy.url} & HTTP プロキシ(例 \code{http://proxy.example.internal:8080})。空なら使わない \\
+\code{proxy.no_proxy} & プロキシを通さない宛先 \\
+\code{ca_certs} & 独自の CA 証明書(PEM)の並び。空なら何もしない \\
+\code{ntp_servers} & 足す NTP サーバー。空なら Ubuntu の既定と DHCP で配られたもの \\
+\code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
+\code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
+\code{vscode_extensions} & VS Code に足す拡張機能(\code{発行者.名前} か \code{発行者.名前@版})。基本の拡張機能と、\code{clouds} に合わせたクラウドの拡張機能は書かなくても入る \\
+\code{zed_extensions} & Zed に足す拡張機能(zed.dev の ID。版は指定できず、次に Zed を起動したときの最新が入り、その後は更新しない) \\
+\code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
+\code{clouds} & クラウドの CLI: \code{aws}、\code{gcp}、\code{azure}(合わせて約 1.8GB) \\
+\code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
+\code{notify.ipmsg_to} & IP Messenger で知らせる相手。ユーザー名・PC 名・ニックネームか IP。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く) \\
+\code{notify.ipmsg_broadcast} & 探すときのブロードキャストの宛先。空なら 255.255.255.255(同じサブネットだけ)。別のサブネットも探すときに足す \\
+\code{desktop_color} & 壁紙の色(\texttt{\#RRGGBB})。台ごとに変えると、どのホストに入っているか見分けやすい \\
+\code{gitea_url} & Gitea の URL(任意)。tea のログインの既定の接続先になり、エージェント向けの説明に載る \\
+\code{agent_ssh_authorized_keys} & SFTP で \code{agent} に入る人の公開鍵。空なら入れない \\
+\code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3999"})。1024 以上 \\
+\code{lan_cidrs} & SSH・RDP・\code{dev_ports} を許可する LAN の範囲 \\
+\code{sysadmin.password_hash} & \code{sysadmin} のパスワードのハッシュ(sudo とコンソールで使う) \\
+\code{sysadmin.ssh_authorized_keys} & \code{sysadmin} の SSH の公開鍵 \\
+\code{rdp.username}, \code{rdp.password} & デスクトップ共有(RDP)の認証情報 \\
+\bottomrule
+\end{longtable}}
+
+\subsection{パスワードのハッシュを作る}
+\begin{local}
+mkpasswd -m sha-512          # whois パッケージ
+openssl passwd -6            # openssl でもよい
+\end{local}
+
+\subsection{例(固定 IP、プロキシなし)}
+\begin{filebox}{autoinstall/env.yaml}
+hostname: agent-host-01
+keyboard_layout: us
+network:
+  mode: static
+  interface: "en*"
+  address: 192.0.2.10/24
+  gateway: 192.0.2.1
+  dns: [192.0.2.53]
+proxy:
+  url: ""
+  no_proxy: "localhost,127.0.0.1,::1"
+ca_certs: []
+ntp_servers: []
+git_user_name: agent-host-01
+git_user_email: agent-host-01@example.invalid
+editors: [vscode]
+agents: [opencode]
+notify:
+  slack_webhook_url: "https://hooks.slack.com/services/..."
+  ipmsg_to: [user1]
+agent_ssh_authorized_keys: ["ssh-ed25519 AAAA... user@pc"]
+dev_ports: ["3000:3999"]
+lan_cidrs: [192.0.2.0/24]
+sysadmin:
+  password_hash: "$6$..."
+  ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@pc"]
+rdp:
+  username: agent
+  password: "..."
+\end{filebox}
+
+%======================================================================
+\section{インストール用の USB を作る}\label{sec:build}
+%======================================================================
+
+\subsection{ISO を作る}
+\begin{local}
+just check-env          # env.yaml を検査する
+just fetch-iso          # Ubuntu の ISO を build/ に取得して SHA256 を照合する
+just iso                # build/agent-host.iso を作る
+\end{local}
+\code{just fetch-iso} は、Ubuntu の公式のサイト\footnote{\url{https://releases.ubuntu.com/26.04/}}から
+Desktop の ISO と SHA256 の一覧を取得する。
+
+\subsection{just iso がすること}
+\code{scripts/build-usb.sh} を呼ぶ。
+\begin{enumerate}
+  \item env.yaml を検査し、値を埋めた \code{autoinstall.yaml} と、スクリプト用の \code{env.sh}・公開鍵・CA 証明書を作る
+  \item ISO の直下に \code{/autoinstall.yaml} と、スクリプト一式 \code{/agent-host/} を足す
+  \item grub.cfg の起動行に \code{autoinstall} を足す(確認画面を出さないため)
+  \item 元の ISO の起動の構成(BIOS と UEFI)を保ったまま書き出す
+\end{enumerate}
+
+\subsection{USB に書き込む}
+\code{build/agent-host.iso} を、Rufus なら「DD イメージ」のモードで書き込む。Linux なら \code{dd} を使う。
+env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
+
+\begin{caution}
+できた ISO と USB には、パスワードのハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。
+使い終わったら消す。この USB から起動すると、\textbf{確認なしでディスク全体を消してインストールが始まる}。
+対象以外の PC に挿したまま起動しない。
+\end{caution}
+
+%======================================================================
+\section{BIOS の設定}
+%======================================================================
+\begin{checklist}
+  \item 「Restore on AC Power Loss」(名称は機種による)を \textbf{Power On} にする
+  \item UEFI で起動する。USB から起動できるようにする
+  \item HDMI のダミープラグを挿す
+\end{checklist}
+
+%======================================================================
+\section{インストール}
+%======================================================================
+\begin{enumerate}
+  \item USB から起動する。確認画面は出ずにインストールが始まる
+  \item インストーラーがディスク全体を LVM で使い、\code{sysadmin} を作り、openssh-server を入れる
+  \item 最後に同梱のスクリプトを \code{/opt/agent-host} に置き、初回起動時の構成サービスを有効にして再起動する
+  \item \textbf{再起動したら USB を抜く}
+\end{enumerate}
+
+VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかった。実機ではもっと速い。
+
+\begin{hint}
+インストール中、ライブ環境のログイン画面(「Live session user」)で止まって見えることがある。
+インストールは裏で進んでいる。気になるなら \key{Enter} でログインすると進み具合が見える。
+\end{hint}
+
+%======================================================================
+\section{初回起動の構成}
+%======================================================================
+
+\subsection{何が起きるか}
+初回の起動で \code{agent-host-provision.service} が、GDM より前に
+\code{/opt/agent-host/post-install/} のスクリプトを番号順に実行する。
+ネットワークから各ツールを取得するので数分〜十数分かかる。終わるまで画面はログインに進まない。
+終わると \code{agent} で自動ログインし、first-login がデスクトップ共有を有効にし、Orca が起動する。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=2mm,
+  pstep/.style={box,minimum width=32mm,minimum height=6mm,font=\scriptsize\gtfamily,inner sep=2pt}]
+  \node[pstep] (a1) {05 プロキシ・CA};
+  \node[pstep,below=of a1] (a2) {10 agent を作る};
+  \node[pstep,below=of a2] (a3) {20 自動ログイン・見張り};
+  \node[pstep,below=of a3] (a4) {30 スリープ無効};
+  \node[pstep,below=of a4] (a5) {35 時刻・上限・apport};
+  \node[pstep,below=of a5] (a6) {36 最小化・最適化};
+  \node[pstep,right=8mm of a1] (b1) {40 SSH ・ ufw};
+  \node[pstep,below=of b1] (b2) {50 自動更新};
+  \node[pstep,right=8mm of b1] (c1) {60 開発の道具};
+  \node[pstep,below=of c1] (c2) {62 追加のエージェント};
+  \node[pstep,below=of c2] (c2b) {63 クラウドの CLI};
+  \node[pstep,below=of c2b] (c3) {65 rootless Docker};
+  \node[pstep,below=of c3] (c4) {70 Orca};
+  \node[pstep,below=of c4] (c5) {72 エディター};
+  \node[pstep,below=of c5] (c6) {75 Chrome ・ 76 デスクトップ};
+  \node[pstep,right=8mm of c1] (d1) {80 agent のセッション};
+  \node[pstep,below=of d1] (d2) {84 通知・ディスク監視};
+  \node[pstep,below=of d2] (d3) {86 移行の道具};
+  \begin{scope}[on background layer]
+    \node[group,fill=accentlight,fit=(a1)(a6),label={[font=\headstyle\small,text=accent]above:OS の土台}] (ga) {};
+    \node[group,fill=accentlight,fit=(b1)(b2),label={[font=\headstyle\small,text=accent]above:ネットワーク}] (gb) {};
+    \node[group,fill=accentlight,fit=(c1)(c6),label={[font=\headstyle\small,text=accent]above:道具とアプリ}] (gc) {};
+    \node[group,fill=accentlight,fit=(d1)(d3),label={[font=\headstyle\small,text=accent]above:agent の仕上げ}] (gd) {};
+  \end{scope}
+  \draw[flow] (ga.east) -- (gb.west|-ga.east);
+  \draw[flow] (gb.east) -- (gc.west|-gb.east);
+  \draw[flow] (gc.east) -- (gd.west|-gc.east);
+\end{tikzpicture}
+\caption{構成スクリプトの順番(番号はファイル名の先頭)}
+\end{figure}
+
+{\small
+\begin{longtable}{@{}p{0.25\linewidth}p{0.70\linewidth}@{}}
+\toprule\headrow
+スクリプト & すること \\
+\midrule
+\endhead
+\code{05-proxy-ca.sh} & HTTP プロキシと独自の CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
+\code{10-users.sh} & \code{agent} を作る(sudo なし、パスワードなし、ホームは 700) \\
+\code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf)。GNOME のセッションが落ちたら GDM を再起動して戻す見張り(1 分ごと) \\
+\code{30-power.sh} & スリープ・休止を無効にする \\
+\code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
+\code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。snap・snapd と kdump、使わないパッケージ(画面の読み上げ、印刷のドライバー、AD・LDAP、VPN・モデム、Bluetooth、報告など)を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
+\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を LAN だけに許可 \\
+\code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
+\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
+\code{62-agents.sh} & 選んだ追加のエージェント \\
+\code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
+\code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
+\code{70-orca.sh} & Orca と、その自動起動 \\
+\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
+\code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
+\code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
+\code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
+\code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
+\code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
+\bottomrule
+\end{longtable}}
+
+\subsection{結果を確かめる}
+\begin{local}
+just status <ホスト>    # 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
+just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
+\end{local}
+
+\begin{confirm}
+\code{just status} で「構成: 済み」「RDP: 待ち受け中」「agent のセッション: seat0」が出て、
+失敗した unit がないこと。
+\end{confirm}
+
+構成が失敗したときは、原因を直してから \code{just update <ホスト>} で再実行する。
+スクリプトは冪等で、何度流しても同じ状態になる。
+
+\begin{hint}
+first-login の記録に \code{RDP server certificate is invalid} が出ることがあるが、最終的な状態は正常で、
+RDP も待ち受ける(原因は未調査)。
+\end{hint}
+
+%======================================================================
+\section{初回の手作業}
+%======================================================================
+以降は、手元の PC から RDP で \code{agent} のデスクトップに入って行う。
+
+\subsection{チェックリスト}
+\begin{checklist}
+  \item RDP でつなぐ(\ref{sec:rdp} 節)
+  \item Claude Code にログインする
+  \item Codex にログインする(デバイスコード)
+  \item Orca の初回の設定(利用統計と更新の通知をオフ)
+  \item 追加のエージェントにログインする(選んだものだけ)
+  \item GitHub・Gitea の認証(push する場合)
+  \item Docker Hub にログインする
+  \item (選んだ場合)クラウドの CLI にログインする
+  \item 通知が届くことを確かめる
+  \item (使う場合)スマホからの操作(Remote Control)
+\end{checklist}
+
+\subsection{RDP でつなぐ}\label{sec:rdp}
+\begin{local}
+just rdp <ホスト>       # build/<ホスト>.rdp を作る(Windows のリモート デスクトップ接続用)
+\end{local}
+ユーザーとパスワードは env.yaml の \code{rdp} の値。RDP のクライアントは何でもよい
+(Windows のリモート デスクトップ接続(mstsc)、Linux の Remmina や FreeRDP、macOS の Windows App など)。
+\code{just rdp} が作る接続ファイルは mstsc 向けで、Windows キーを常にホストへ送り、クリップボードを共有し、
+色を 24 ビットにする(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)。ほかのクライアントでも、同じ設定にするとよい。
+初回は証明書の警告が出る(自己署名のため)。mstsc では「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
+
+\begin{caution}
+デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける。
+\end{caution}
+
+\subsection{日本語入力と使い勝手}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule\headrow
+操作 & キーと動き \\
+\midrule
+日本語入力の切り替え & \key{Ctrl}+\key{Space}(Mozc と英字) \\
+スクリーンショット & \key{Ctrl}+\key{Shift}+\key{Alt}+\key{S}。撮った画像はクリップボードに入り、Claude Code に \key{Ctrl}+\key{V} で貼れる(Windows のクライアントでは、\key{PrintScreen} は手元に取られることがある) \\
+端末 & \key{Ctrl}+\key{Alt}+\key{T} で Xfce Terminal。右クリックで貼り付け、選択でコピー \\
+クリップボードの履歴 & 上部のバーの Clipboard Indicator から選んで貼る \\
+Caps Lock & ホストでは何もしない(RDP で手元と状態がずれるため)。大文字は \key{Shift} で打つ \\
+\bottomrule
+\end{tabularx}}
+
+\subsection{Claude Code のログイン}
+\begin{term}
+claude                  # 案内に従う。ブラウザ(Chrome)が開くので、そこでログインする
+\end{term}
+
+\subsection{Codex のログイン}
+\begin{term}
+codex login --device-auth
+\end{term}
+表示された URL とコードを、手元の PC のブラウザで入力する。
+\begin{caution}
+ChatGPT 側でデバイスコードによるサインインが有効でないと、その旨のメッセージが出て止まる
+(「準備するもの」のアカウントの表を参照)。
+\end{caution}
+
+\subsection{Orca の初回の設定}
+\begin{checklist}
+  \item 初回の案内に従い、既定のエージェントを選ぶ。\textbf{Yolo モード(確認なしでコマンドを実行)は最初からオン}なので、使い方の方針に合わせて決める
+  \item 案内に従い、\code{~/.claude} と \code{~/.codex} の設定を取り込む
+  \item Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数でも止めている)
+  \item Settings → Notifications の「Update available」をオフにする
+\end{checklist}
+
+\subsection{追加のエージェントのログイン(選んだものだけ)}
+\begin{term}
+opencode auth login     # OpenCode: 使うモデルの API キーや OAuth を設定する
+copilot                 # Copilot CLI: 起動して /login → デバイスコード
+agy                     # Antigravity CLI: 表示された URL を開き、得たコードを貼り付ける
+\end{term}
+Antigravity CLI のテレメトリは、アカウントの設定(\code{/config})で切り替える。
+
+\subsection{GitHub・Gitea の認証(push する場合)}
+GitHub は gh で認証する。
+\begin{term}
+gh auth login        # GitHub.com → HTTPS → ブラウザ(デバイスコード)
+gh auth setup-git    # git の push に gh の認証を使う
+gh auth status
+\end{term}
+Gitea は tea で認証する。先に Gitea の画面の「設定 → アプリケーション」でアクセストークンを作る
+(repository と issue の書き込み、user の読み取り。tea でリポジトリを作るなら user の書き込みも)。
+\begin{term}
+tea login add --name gitea --token <トークン> --git-credentials
+tea login list
+tea whoami
+\end{term}
+\begin{hint}
+env.yaml に \code{gitea_url} を書いていれば、接続先は自動で入る。書いていなければ \code{--url https://<Gitea のホスト>} を足す。
+\code{--git-credentials} を付けると、Gitea への git の HTTPS の push にも tea の認証が使われる。
+\end{hint}
+
+\subsection{Docker Hub へのログイン}
+\begin{term}
+docker login         # アクセストークンを使う
+docker run --rm hello-world
+\end{term}
+
+\subsection{クラウドの CLI のログイン(選んだものだけ)}
+どれもブラウザ(Chrome)が開くので、そこでログインする。
+\begin{term}
+aws configure sso                       # 初回だけ: SSO の開始 URL、リージョン、アカウント、ロール
+aws sso login                           # 切れたらこれで入りなおす
+gcloud auth login                       # gcloud コマンド用
+gcloud auth application-default login   # SDK・Terraform などのプログラム用(使う場合)
+gcloud config set project <プロジェクト ID>
+az login                                # サブスクリプションを選ぶ
+\end{term}
+\begin{caution}
+認証情報は agent のホーム(\code{~/.aws}、\code{~/.config/gcloud}、\code{~/.azure})に残り、エージェントは確認なしで
+コマンドを動かせる。長く使えるアクセスキー(\code{aws configure} で入れるものやサービスアカウントの鍵)は置かず、
+上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
+\end{caution}
+
+\subsection{通知の確認}
+\begin{term}
+agent-notify approval テスト "通知のテストです"
+\end{term}
+\begin{confirm}
+承認待ち(approval)とエラー(error)は Slack と IP Messenger の両方に、完了(done)は Slack だけに届くこと。
+IP Messenger\footnotemark{} の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
+\end{confirm}
+\footnotetext{\url{https://ipmsg.org/}}
+\begin{caution}
+IP Messenger のメッセージは暗号化されないので、本文に秘密情報を入れない。
+\end{caution}
+
+\subsection{スマホからの操作(Claude Code の Remote Control)}
+Pro / Max / Team / Enterprise のアカウントでログインしているときだけ使える。通信は Anthropic のサービスを通る。
+\begin{term}
+claude remote-control   # 作業するディレクトリで。初回は確認に y
+\end{term}
+\begin{enumerate}
+  \item 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
+  \item プッシュ通知: Claude アプリに同じアカウントでログインし、端末の \code{/config} で「Push when actions required」などをオンにする
+\end{enumerate}
+
+\subsection{ファイルのやり取り}
+env.yaml の \code{agent_ssh_authorized_keys} に公開鍵を書いた人は、SFTP で \code{agent} に入れる(シェルには入れない)。
+作業の置き場所は \code{/home/agent/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
+\begin{checklist}
+  \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{agent}
+  \item 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は、PuTTY の形式(\code{.ppk})への変換を勧められるので、変換して保存する
+  \item 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、下のコマンドの結果と同じか確かめてから受け入れる
+\end{checklist}
+\begin{host}
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub   # ホスト鍵の指紋
+\end{host}
+\begin{hint}
+macOS や Linux からは、FileZilla か、端末の \code{sftp agent@<ホスト>} を使う。
+FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
+小さなファイルは RDP のクリップボードでも渡せる(未検証)。
+\end{hint}
+
+\subsection{自動化が効かなかったときだけ}
+\paragraph{ログインキーリング}
+first-login の記録に \code{set-credentials} の失敗が出ていたら、キーリングが開いていない。
+「パスワードと鍵」(seahorse)で「ログイン」キーリングのパスワードを空にし、
+\code{/opt/agent-host/first-login/first-login.sh} を実行する。
+
+\paragraph{デスクトップ共有}
+設定 → システム → リモートデスクトップ →「デスクトップ共有」と「リモート操作」をオンにし、
+認証情報を env.yaml の \code{rdp} の値にする。
+\begin{caution}
+「リモートログイン」は\textbf{オンにしない}(デスクトップ共有が 3390 番に移る)。
+\end{caution}
+
+%======================================================================
+\section{受け入れテスト}
+%======================================================================
+印刷して、結果の欄に印を付けながら行う。詳細は \code{docs/acceptance-test.md}。
+
+{\small
+\begin{longtable}{@{}p{0.03\linewidth}p{0.25\linewidth}p{0.47\linewidth}p{0.17\linewidth}@{}}
+\toprule\headrow
+\# & 確認すること & 合格の条件 & 結果 \\
+\midrule
+\endhead
+1 & 無人でインストールできる & 確認画面なしで終わり、\code{agent} で自動ログインする & \okng \\
+2 & 手作業を終えられる & 各ログインが終わる & \okng \\
+3 & 停電から自動で復帰する & 電源ケーブルを抜き差しすると、何もしなくても起動し自動ログインする & \okng \\
+4 & 再起動後、何もせずに RDP がつながる & Orca が起動済みの画面が出る。\key{Ctrl}+\key{Space} で日本語を打て、記号がキーの刻印どおりに出る & \okng \\
+5 & エージェントが動く & Orca から Claude Code と Codex で、簡単なタスクがそれぞれ終わる & \okng \\
+6 & 切断しても作業が続く & RDP を切断し 10 分後に再接続しても、ロックされずタスクが続いている & \okng \\
+7 & LAN の外から到達できない & \code{lan_cidrs} の外から 22・3389 に届かない & \okng \\
+8 & セッションが落ちても戻る & GNOME Shell を落とすと、2〜3 分で agent のセッションと RDP が戻り、通知が届く & \okng \\
+\bottomrule
+\end{longtable}}
+
+\noindent 実施日: \rule{30mm}{0.4pt}\qquad ホスト: \rule{40mm}{0.4pt}\qquad 実施者: \rule{35mm}{0.4pt}
+
+\medskip
+構成の確認はホストで行う。
+\begin{host}
+df -h /; sudo vgs                      # ルートがディスクのほぼ全部
+ip -4 addr; ip route                   # env.yaml の network どおり
+apt-mark showhold                      # 版を固定したパッケージ
+sudo ufw status                        # 22/3389/dev_ports が lan_cidrs だけ
+sudo -u agent XDG_RUNTIME_DIR=/run/user/$(id -u agent) \
+    systemctl --user show-environment  # mise の PATH、DOCKER_HOST など
+\end{host}
+
+%======================================================================
+\section{運用}
+%======================================================================
+
+\subsection{定期的な再起動}
+unattended-upgrades はセキュリティ更新を自動で入れるが、作業中のエージェントを止めないよう自動では再起動しない。
+カーネルなどの更新は再起動するまで反映されないので、\textbf{月 1 回、エージェントが作業していない時間に再起動する}。
+\begin{local}
+just ssh <ホスト>
+\end{local}
+\begin{host}
+[ -f /var/run/reboot-required ] && cat /var/run/reboot-required.pkgs
+sudo systemctl reboot
+\end{host}
+再起動後は何もしなくても RDP で接続できる状態に戻る。
+
+\subsection{設定やバージョンを変える}\label{sec:versions}
+env.yaml を直したとき、スクリプトや固定するバージョン(スクリプトの先頭の版と SHA256)を直したときは、
+OS を入れなおさずに反映できる。
+\begin{caution}
+版を固定したソフト(apt で hold した Claude Code、Docker、GitHub CLI、Orca、VS Code、クラウドの CLI と、
+Node.js・npm で入れたツール)には、セキュリティ更新が自動では入らない。各ソフトのセキュリティ情報を見て、
+スクリプトの先頭の版を上げ、ここの手順で反映する(付録 A に固定している版の一覧がある)。
+\end{caution}
+\begin{local}
+just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
+\end{local}
+\begin{itemize}
+  \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
+  \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
+  \item agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
+  \item Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
+\end{itemize}
+\begin{caution}
+ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} から外したものは手で消す
+(\code{just ssh} → \code{sudo ufw status numbered} → \code{sudo ufw delete <番号>})。
+\end{caution}
+
+\subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、\code{~/work} と Orca の worktree を移す。
+ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=8mm and 20mm]
+  \node[box,minimum width=28mm] (old) {古いホスト\\[-1pt]{\scriptsize 作業を止める}};
+  \node[soft,right=of old,minimum width=34mm] (file) {書き出したファイル\\[-1pt]{\scriptsize 手元の PC ・ 暗号化して保管}};
+  \node[box,right=of file,minimum width=28mm] (new) {新しいホスト\\[-1pt]{\scriptsize 同じ env.yaml で just iso}};
+  \node[box,below=of new,minimum width=28mm] (reboot) {再起動\\[-1pt]{\scriptsize 受け入れテスト 4・5}};
+  \draw[flow] (old) -- node[lbl,above=1mm,font=\scriptsize\ttfamily] {just backup} (file);
+  \draw[flow] (file) -- node[lbl,above=1mm,font=\scriptsize\ttfamily] {just restore} (new);
+  \draw[flow] (new) -- (reboot);
+  \node[ext,below=of file,align=left,font=\scriptsize\gtfamily] (moved)
+    {移す: ホストの鍵、RDP の証明書、\\ログイン、設定、\texttt{\string~/work}};
+\end{tikzpicture}
+\caption{移行の流れ}
+\end{figure}
+
+\begin{enumerate}
+  \item Orca とエージェントの作業を止める
+  \item 書き出す(ホストには保存されない。sudo のパスワードを 1 回聞かれる)
+\begin{local}
+just backup <ホスト>    # build/backups/<ホスト>-<日時>.tar.zst に書き出す
+\end{local}
+  \item Docker のボリュームに残したいデータがあれば、手で書き出す
+  \item 同じ env.yaml で \code{just iso} を作り、新しいホストを入れる
+  \item 構成が終わったら取り込み、再起動する
+\begin{local}
+just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
+just ssh <ホスト>       # sudo systemctl reboot
+\end{local}
+  \item 受け入れテストの 4・5 を行う
+\end{enumerate}
+
+\begin{caution}
+書き出したファイルにはログインの情報が入る。暗号化された場所に置き、取り込んだら消す。
+\end{caution}
+
+\subsection{複数台を管理する}\label{sec:fleet}
+ホストが 2 台以上になったら、このリポジトリ(道具)とは別に、実機の構成を管理する非公開のリポジトリ(構成リポジトリ)を
+非公開の Git リポジトリ(自前の Gitea、GitHub の private など)に作る。詳しい手順は \code{docs/fleet.md}、ひな形は \code{examples/fleet/} にある。
+
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule\headrow
+置くもの & 内容 \\
+\midrule
+\code{tool/} & 道具。submodule で、リリースのタグに固定する \\
+\code{common.yaml} & 全台で共通の値。秘密情報は SOPS と age で値だけ暗号化する \\
+\code{hosts/<ホスト>.yaml} & ホストごとの値。\code{common.yaml} に重ねる \\
+\code{facts/}、\code{docs/} & 台帳、ホストの情報(\code{just facts})、受け入れテストと変更の記録 \\
+\bottomrule
+\end{tabularx}}
+
+\begin{local}
+just check agent-host-01      # 構成リポジトリで。復号して道具に渡し、終わったら消す
+just iso agent-host-01
+just update agent-host-01
+just facts agent-host-01      # facts/agent-host-01.yaml(機種、シリアル、MAC、鍵の指紋、作った版)
+\end{local}
+作ったホストには、道具の版と構成の版が \code{/opt/agent-host/BUILD-INFO} に残り、\code{just status} の「作った版」に出る。
+道具の版を上げるときは、CHANGELOG の「env.yaml の変更」を読み、すべてのホストの env.yaml を検査し、1 台で試してから全台に反映する。
+\begin{caution}
+ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れない。作業する人が抜けたら、\code{sops updatekeys} で鍵を外し、
+その人が知っている秘密情報(RDP と sysadmin のパスワード、Webhook)を替える。
+\end{caution}
+
+\subsection{困ったとき}
+{\small
+\begin{longtable}{@{}p{0.27\linewidth}p{0.68\linewidth}@{}}
+\toprule\headrow
+症状 & 見るところ・対処 \\
+\midrule
+\endhead
+RDP がつながらない & \code{just status} で待ち受けとセッションを見る。first-login の記録(\code{just logs})を見る。画面がロックされていないか。リモートログインを有効にしていないか(3390 に移る) \\
+ログイン画面のまま & GNOME のセッションが落ちた。見張りが 2〜3 分で GDM を再起動して戻し、通知する。\code{just logs} で確かめる \\
+構成サービスが失敗した & \code{just logs} で止まったスクリプトを見て、直して \code{just update} で再実行する \\
+エージェントが apt を試して失敗する & \code{agent} には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
+mise のコマンドが見つからない & 再ログイン(再起動)で環境が入る。\code{systemctl --user show-environment} で PATH を確かめる \\
+Docker のイメージが取れない & \code{docker login} をしたか。プロキシの下なら env.yaml の \code{proxy} \\
+EMFILE / ファイル監視の上限 & \code{ulimit -n}(65536)と \code{fs.inotify.max_user_watches}(524288) \\
+\bottomrule
+\end{longtable}}
+
+%======================================================================
+\appendix
+\section{固定しているバージョン}
+%======================================================================
+2026-10-24 時点。値はスクリプトの先頭にある。
+
+{\small
+\begin{longtable}{@{}p{0.32\linewidth}p{0.28\linewidth}p{0.35\linewidth}@{}}
+\toprule\headrow
+ソフトウェア & 版 & 入れ方 \\
+\midrule
+\endhead
+Node.js & 24.22.1 & 公式の tar.xz(SHA256) \\
+Claude Code & 2.1.308-1 & 公式 apt、hold \\
+Codex & 0.164.0 & npm \\
+CCManager & 4.4.9 & npm \\
+GitHub CLI & 2.103.2 & リリースの .deb(SHA256)、hold \\
+Gitea CLI & 0.16.0 & dl.gitea.com のバイナリ(SHA256) \\
+uv & 0.13.5 & リリースの tar(SHA256) \\
+mise & 2026.10.18 & リリースの tar(SHA256) \\
+OpenCode & 1.19.4 & npm \\
+GitHub Copilot CLI & 1.0.103 & npm \\
+Antigravity CLI & 1.4.6 & リリースの tar(SHA256) \\
+AWS CLI & 2.38.5 & 公式の zip(PGP 署名を確かめた SHA256) \\
+Google Cloud CLI & 590.0.1 & Google の apt、hold \\
+Azure CLI & 2.91.0 & Microsoft の apt、hold \\
+Docker & 29.9.2 ほか & 公式 apt、hold \\
+Orca & 1.4.237 & リリースの .deb(SHA256)、hold \\
+VS Code & 1.143.1 & Microsoft の apt、hold \\
+VS Code の拡張機能 & 72-editors.sh の先頭 & Marketplace(版を指定。依存で入るものは入れたときの最新) \\
+Zed & 1.25.3 & リリースの tar(SHA256) \\
+Zed の拡張機能 & 固定しない & zed.dev(初めて入れたときの最新。その後は更新しない) \\
+Google Chrome & 固定しない & Google の apt、自動更新 \\
+Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
+Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
+\bottomrule
+\end{longtable}}
+
+%======================================================================
+\section{ホスト上のファイルの配置}
+%======================================================================
+{\small
+\begin{longtable}{@{}p{0.45\linewidth}p{0.50\linewidth}@{}}
+\toprule\headrow
+場所 & 内容 \\
+\midrule
+\endhead
+\code{/opt/agent-host/} & 構成スクリプト一式と env.sh(秘密情報) \\
+\code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
+\code{/opt/agent-host/BUILD-INFO} & 作った版(道具の版、構成の版、使った env のファイル名、作った日時) \\
+\code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
+\code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
+\code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\
+\code{agent-host-diskcheck.timer} & ディスクの残りの監視(1 時間ごと) \\
+\code{agent-host-session-watchdog.timer} & セッションの見張り(1 分ごと) \\
+\code{/etc/gdm3/custom.conf} & 自動ログイン \\
+\code{/etc/ssh/sshd_config.d/10-agent-host.conf} & SSH の設定 \\
+\code{~agent/.config/environment.d/} & \code{agent} のセッションの環境変数(mise、Docker、Orca など) \\
+\code{~agent/.claude/CLAUDE.md} & エージェント向けのホストの説明(Codex は \code{~/.codex/AGENTS.md}) \\
+\code{~agent/.local/state/agent-host/first-login.log} & first-login の記録 \\
+\bottomrule
+\end{longtable}}
+
+%======================================================================
+\section{just を使わない場合}
+%======================================================================
+just のレシピがしていることを手で行うときのコマンド。リポジトリの直下で実行する。
+
+\subsection{ISO を作る}
+Linux(\code{xorriso} と \code{python3-yaml} が要る):
+\begin{local}
+curl -fLO https://releases.ubuntu.com/26.04/ubuntu-26.04.1-desktop-amd64.iso
+curl -fsSL https://releases.ubuntu.com/26.04/SHA256SUMS | sha256sum -c --ignore-missing
+scripts/build-usb.sh ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml
+\end{local}
+Windows では、Git Bash から Docker の Ubuntu の中で同じことをする。
+\begin{local}
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
+  ubuntu:26.04 bash -c 'apt-get update -qq &&
+  apt-get install -y -qq xorriso python3-yaml &&
+  bash scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml'
+\end{local}
+
+\subsection{状態と記録を見る}
+\begin{local}
+ssh sysadmin@<ホスト>
+\end{local}
+\begin{host}
+test -f /var/lib/agent-host/provisioned && echo 構成済み
+ss -tln | grep 3389
+sudo journalctl -u agent-host-provision.service
+sudo cat /home/agent/.local/state/agent-host/first-login.log
+\end{host}
+
+\subsection{設定やスクリプトを変えたとき}
+\code{scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>} で \code{<作業ディレクトリ>/agent-host/} を作り、
+ホストの \code{/opt/agent-host} と入れ替えてから(\code{env.sh} と \code{agent_authorized_keys} は 600、所有者は root)、
+\code{sudo /opt/agent-host/provision.sh} を実行する。
+
+\subsection{移行の書き出しと取り込み}
+\code{sysadmin} の sudo はパスワードが要り、標準入力は書き出しの受け渡しに使うので、
+パスワードは標準入力の先頭の 1 行で渡す。
+\begin{local}
+read -rsp "sysadmin のパスワード: " PW; echo
+printf '%s\n' "$PW" | ssh sysadmin@<ホスト> \
+    'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+{ printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } |
+    ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
+unset PW
+\end{local}
+
+\subsection{RDP の接続ファイル}
+\code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
+
+\subsection{手順書の PDF}
+リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。
+just を使わないときは、スクリプトを直接実行する。
+\begin{local}
+scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
+\end{local}
+
+%======================================================================
+\section{確認できていないこと}
+%======================================================================
+このリポジトリの検証は、VirtualBox 7.2 の VM(UEFI、メモリ 4GB。Windows のホストで Hyper-V と共存させたため CPU 1)で行った。
+次のことは実機で確かめていない。実機で問題が見つかったら、修正の版(hotfix)で直す。
+\begin{itemize}
+  \item HDMI のダミープラグでの RDP、BIOS の停電復帰、LAN の外からの到達(テスト 7)
+  \item 実際のプロキシ・TLS を検査するプロキシの下での動作
+  \item Slack への送信、Claude Code の Remote Control
+  \item クラウドの CLI の実際のログイン、独自の CA の証明書を使う Gitea への接続
+  \item Zed での日本語入力、VS Code の日本語の表示(設定は入れた)、RDP のクリップボードでのファイルのコピー
+  \item systemd-oomd がメモリ不足のときに Orca ごと止めないか
+\end{itemize}
+最新の状況は \code{docs/notes.md} の「確認できていないこと」を見る。
+
+%======================================================================
+% 奥付
+%======================================================================
+\clearpage
+\thispagestyle{empty}
+\phantomsection\addcontentsline{toc}{section}{奥付}
+\vspace*{\fill}
+\begin{center}
+\begin{minipage}{0.86\linewidth}
+  {\headstyle\color{accent}\fontsize{17}{24}\selectfont 常時稼働 AI エージェントホスト 設定手順書}\par
+  \vspace{2pt}
+  {\small\color{gray}agent-host-autoinstall}\par
+  \vspace{6pt}
+  {\color{accent}\hrule height 1pt}
+  \vspace{8pt}
+  {\small
+  \renewcommand{\arraystretch}{1.45}
+  \begin{tabularx}{\linewidth}{@{}>{\headstyle\color{accent}}l@{\hspace{1.2em}}L@{}}
+    発行 & \guideholder\ifdefempty{\guideholderurl}{}{\quad\expandafter\url\expandafter{\guideholderurl}} \\
+    作成日 & \guidedate \\
+    版 & \guiderev \\
+    対象 & Ubuntu Desktop 26.04.1 LTS。固定しているバージョンは付録 A \\
+    リポジトリ & \expandafter\url\expandafter{\guiderepo} \\
+    ライセンス & Apache License 2.0(\guidecopyright) \\
+    組版 & LuaLaTeX(TeX Live 2025、luatexja、原ノ味フォント)、図は TikZ \\
+    表紙 & 絵は Google Gemini(gemini-3-pro-image)で生成し、文字は組版で重ねた \\
+  \end{tabularx}}
+  \vspace{4pt}
+  {\color{accent}\hrule height 0.4pt}
+  \vspace{8pt}
+  {\scriptsize\color{gray}\setlength{\parindent}{0pt}\linespread{1.3}\selectfont
+  本書は VirtualBox の仮想マシンで確かめた内容に基づく。実機での動作は付録 D の項目を確かめてから使うこと。
+  本書とリポジトリの文書・スクリプトが食い違うときは、リポジトリを正とする。
+  本書とリポジトリは無保証で提供する。利用は自己責任とし、本書の内容に従って構成・運用したことで生じたデータの消失、セキュリティ上の問題、費用その他の損害について、作成者は責任を負わない(Apache License 2.0 の第 7 条・第 8 条)。本書で名前を挙げたソフトやサービスの提供元とは関係がなく、承認も受けていない。\par
+  \vspace{4pt}
+  Ubuntu は Canonical Ltd. の登録商標。Claude と Claude Code は Anthropic, PBC の、ChatGPT と Codex は OpenAI の、
+  GitHub と GitHub Copilot は GitHub, Inc. の、Google Chrome、Gemini、Antigravity は Google LLC の、
+  Windows と Visual Studio Code は Microsoft Corporation の、Docker は Docker, Inc. の、Slack は Slack Technologies, LLC の商標または登録商標。
+  その他、本書に記載の会社名・製品名は、各社の商標または登録商標。本文では ™ と ® を省いた。\par}
+  \vspace{4pt}
+  {\color{accent}\hrule height 1pt}
+\end{minipage}
+\end{center}
+\vspace{18mm}
+
+\end{document}

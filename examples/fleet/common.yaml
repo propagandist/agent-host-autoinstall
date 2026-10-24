@@ -1,0 +1,39 @@
+# 全台で共通の値。hosts/<ホスト>.yaml を後から重ねる(同じキーはホストのほうが勝つ。辞書はキーごとに重なる)。
+# 書けるキーと意味は tool/autoinstall/env.example.yaml を見る。
+# 秘密情報(password_hash、password、slack_webhook_url)は、コミットする前に sops --encrypt --in-place で暗号化する。
+# CHANGE_ME が残っていると、just check も just iso も止まる
+
+keyboard_layout: us
+
+sysadmin:
+  password_hash: "$6$CHANGE_ME"
+  ssh_authorized_keys:
+    - "ssh-ed25519 AAAA_CHANGE_ME admin@example"
+
+rdp:
+  username: agent
+  password: "CHANGE_ME"
+
+lan_cidrs:
+  - 192.0.2.0/24
+
+ntp_servers: []
+proxy:
+  url: ""
+  no_proxy: "localhost,127.0.0.1,::1"
+ca_certs: []
+
+editors:
+  - vscode
+agents: []
+clouds: []
+gitea_url: ""
+
+notify:
+  slack_webhook_url: ""
+  ipmsg_to: []
+  ipmsg_broadcast: []
+
+agent_ssh_authorized_keys: []
+dev_ports:
+  - "3000:3999"

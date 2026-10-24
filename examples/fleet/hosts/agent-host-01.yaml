@@ -1,0 +1,18 @@
+# agent-host-01 だけの値。common.yaml に重ねる(ファイル名はホスト名と同じにする)。
+# 共通と違うものだけ書く(例: このホストだけ Zed も入れるなら editors を並べなおす。並びは置き換わる)
+
+hostname: agent-host-01
+
+network:
+  mode: static
+  interface: "en*"
+  address: 192.0.2.10/24
+  gateway: 192.0.2.1
+  dns:
+    - 192.0.2.53
+
+git_user_name: agent-host-01
+git_user_email: agent-host-01@example.invalid
+
+# 台ごとに変えると、RDP でどのホストに入っているか見分けやすい
+desktop_color: "#1f3a5f"

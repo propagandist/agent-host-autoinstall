@@ -1,0 +1,4 @@
+# シェルスクリプトを Linux で動かすため、改行は LF に固定する
+* text=auto eol=lf
+# Windows のリモート デスクトップ接続で使うので CRLF
+*.rdp.example text eol=crlf

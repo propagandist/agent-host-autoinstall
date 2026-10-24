@@ -1,0 +1,218 @@
+#!/usr/bin/env python3
+"""エージェントの通知を Slack と IP Messenger に送る。
+
+使い方:
+  agent-notify --claude              Claude Code の hook から(標準入力に JSON)
+  agent-notify --codex '<JSON>'      Codex の notify から(引数に JSON)
+  agent-notify <種類> <題名> <本文>   手で試すとき(種類: approval / error / done)
+
+送り先は /etc/agent-host/notify.env(84-notify.sh が env.yaml の notify から作る)。
+  承認待ち(approval)とエラー(error): Slack と IP Messenger
+  完了(done): Slack だけ
+エージェントの作業を止めないよう、送れなくても常に終了コード 0 で終わる。
+"""
+import hashlib
+import json
+import os
+import socket
+import sys
+import time
+import urllib.request
+
+CONF = "/etc/agent-host/notify.env"
+STATE = os.path.expanduser("~/.cache/agent-notify/last.json")
+DEDUP_SECONDS = 60  # 同じ通知が続いたら 1 回にまとめる
+TITLES = {"approval": "承認待ち", "error": "エラー", "done": "完了"}
+
+
+def load_conf():
+    conf = {}
+    try:
+        with open(CONF, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    conf[k] = v.strip().strip('"')
+    except OSError:
+        pass
+    return conf
+
+
+def short(text, limit=300):
+    text = " ".join(str(text or "").split())
+    return text if len(text) <= limit else text[:limit] + "…"
+
+
+def from_claude(data):
+    """Claude Code の hook の JSON を (種類, 本文) にする。対象外なら None。"""
+    event = data.get("hook_event_name")
+    cwd = data.get("cwd", "")
+    if event == "Notification":
+        ntype = data.get("notification_type", "")
+        # idle_prompt は応答を終えて約 60 秒たっても入力がないとき = 作業の区切り
+        kind = "done" if ntype == "idle_prompt" else "approval"
+        return kind, f"{short(data.get('message'))}\n{cwd}"
+    if event == "StopFailure":
+        detail = data.get("error_details") or data.get("last_assistant_message")
+        return "error", f"{data.get('error', '')}: {short(detail)}\n{cwd}"
+    return None
+
+
+def from_codex(data):
+    """Codex の notify の JSON を (種類, 本文) にする。"""
+    if data.get("type") == "agent-turn-complete":
+        return "done", f"{short(data.get('last-assistant-message'))}\n{data.get('cwd', '')}"
+    return None
+
+
+def duplicate(kind, body):
+    """直前の同じ通知から DEDUP_SECONDS 以内なら True。"""
+    key = hashlib.sha256(f"{kind}\n{body}".encode()).hexdigest()
+    now = time.time()
+    try:
+        with open(STATE, encoding="utf-8") as f:
+            last = json.load(f)
+        if last.get("key") == key and now - last.get("at", 0) < DEDUP_SECONDS:
+            return True
+    except (OSError, ValueError):
+        pass
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w", encoding="utf-8") as f:
+        json.dump({"key": key, "at": now}, f)
+    return False
+
+
+def send_slack(url, text):
+    req = urllib.request.Request(
+        url, data=json.dumps({"text": text}).encode(), headers={"Content-Type": "application/json"}
+    )
+    urllib.request.urlopen(req, timeout=10).read()
+
+
+# --- IP Messenger(プロトコルは ipmsg.org/protocol.txt と ipmsg.h) ---
+# パケット: Ver:Packet番号:User:Host:Command:追加部。暗号化はしない
+IPMSG_PORT = 2425
+BR_ENTRY, BR_EXIT, ANSENTRY, SENDMSG = 0x01, 0x02, 0x03, 0x20
+NOADDLISTOPT, UTF8OPT, CAPUTF8OPT = 0x80000, 0x800000, 0x1000000
+LOCK = os.path.expanduser("~/.cache/agent-notify/ipmsg.lock")
+DISCOVER_SECONDS = 2.0
+
+
+def ipmsg_packet(command, extra):
+    head = f"1:{int(time.time() * 1000) % 2**31}:agent:{socket.gethostname()}:{command}:"
+    return head.encode("utf-8") + extra.encode("utf-8") + b"\0"
+
+
+def ipmsg_names(data):
+    """受け取ったパケットから (コマンド, 名前の集合) を返す。名前はユーザー名・ホスト名・ニックネーム。"""
+    parts = data.split(b":", 5)
+    if len(parts) < 6:
+        return None
+    try:
+        command = int(parts[4])
+    except ValueError:
+        return None
+    enc = "utf-8" if command & UTF8OPT else "cp932"
+    names = {parts[2].decode(enc, "replace"), parts[3].decode(enc, "replace"),
+             parts[5].split(b"\0", 1)[0].decode(enc, "replace")}
+    # UTF-8 に対応した版は、追加部に UN:(ユーザー名) HN:(ホスト名) NN:(ニックネーム) を持つことがある
+    for line in parts[5].decode("utf-8", "replace").replace("\0", "\n").splitlines():
+        if line[:3] in ("UN:", "HN:", "NN:"):
+            names.add(line[3:])
+    return command & 0xFF, {n.strip().lower() for n in names if n.strip()}
+
+
+def ipmsg_discover(broadcasts):
+    """参加の通知をブロードキャストし、応答から {名前: {IP}} を作る。終わったら退出の通知を送る。"""
+    found = {}
+    me = socket.gethostname().lower()
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.bind(("", IPMSG_PORT))  # 応答は 2425 番に返ってくる
+        s.settimeout(0.2)
+        for addr in broadcasts:
+            s.sendto(ipmsg_packet(BR_ENTRY | UTF8OPT | CAPUTF8OPT, "agent\0"), (addr, IPMSG_PORT))
+        end = time.time() + DISCOVER_SECONDS
+        while time.time() < end:
+            try:
+                data, (ip, _) = s.recvfrom(65535)
+            except socket.timeout:
+                continue
+            parsed = ipmsg_names(data)
+            if not parsed or parsed[0] not in (ANSENTRY, BR_ENTRY) or me in parsed[1]:
+                continue
+            for name in parsed[1]:
+                found.setdefault(name, set()).add(ip)
+        # 各 PC のメンバー一覧から消す
+        for addr in broadcasts:
+            s.sendto(ipmsg_packet(BR_EXIT | UTF8OPT, "agent\0"), (addr, IPMSG_PORT))
+    return found
+
+
+def send_ipmsg(targets, broadcasts, text):
+    """宛先(IP か、IP Messenger のユーザー名・ホスト名・ニックネーム)に送る。名前はその場で探す。"""
+    ips, names = set(), []
+    for t in targets:
+        try:
+            socket.inet_aton(t)
+            ips.add(t)
+        except OSError:
+            names.append(t)
+    if names:
+        import fcntl  # 同時に動いた通知と 2425 番を取り合わないように、順番に探す
+        os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+        with open(LOCK, "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            found = ipmsg_discover(broadcasts)
+        for name in names:
+            if name.lower() in found:
+                ips |= found[name.lower()]
+            else:
+                print(f"agent-notify: IP Messenger で {name} が見つからない", file=sys.stderr)
+    packet = ipmsg_packet(SENDMSG | UTF8OPT | NOADDLISTOPT, text)
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        for ip in sorted(ips):
+            s.sendto(packet, (ip, IPMSG_PORT))
+
+
+def main():
+    args = sys.argv[1:]
+    if args[:1] == ["--claude"]:
+        event = from_claude(json.load(sys.stdin))
+    elif args[:1] == ["--codex"] and len(args) >= 2:
+        event = from_codex(json.loads(args[1]))
+    elif len(args) == 3 and args[0] in TITLES:
+        event = (args[0], f"{args[1]}\n{args[2]}")
+    else:
+        print(__doc__, file=sys.stderr)
+        return
+    if not event:
+        return
+    kind, body = event
+    if duplicate(kind, body):
+        return
+
+    conf = load_conf()
+    text = f"[{socket.gethostname()}] {TITLES[kind]}\n{body}"
+    if conf.get("SLACK_WEBHOOK_URL"):
+        try:
+            send_slack(conf["SLACK_WEBHOOK_URL"], text)
+        except Exception as e:  # 送れなくてもエージェントは止めない
+            print(f"agent-notify: Slack に送れなかった: {e}", file=sys.stderr)
+    targets = conf.get("IPMSG_TO", "").split()
+    if kind in ("approval", "error") and targets:
+        broadcasts = conf.get("IPMSG_BROADCAST", "").split() or ["255.255.255.255"]
+        try:
+            send_ipmsg(targets, broadcasts, text)
+        except Exception as e:
+            print(f"agent-notify: IP Messenger に送れなかった: {e}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception as e:
+        print(f"agent-notify: {e}", file=sys.stderr)
+    sys.exit(0)
