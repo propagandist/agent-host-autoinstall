@@ -218,7 +218,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 
 ### 構成リポジトリに合わせた道具の変更(2026-10-24 追加、VirtualBox で確認)
 - env.yaml を複数のファイルで重ねられるようにした(render-autoinstall.py。後のファイルが勝ち、辞書はキーごと、並びと値は置き換え)。知らないキーと、SOPS で暗号化されたままのファイルはエラーにする
-- Docker の中から見えるのはこのリポジトリだけなので、scripts/local/envs.sh が env.yaml を build/.env/ に写してから渡し、終わったら消す。相対パスは just を呼んだディレクトリ(invocation_directory)から見る。ISO も build/ に作ってから出力先に移す
+- Docker の中から見えるのはこのリポジトリだけなので、scripts/local/envs.sh が env.yaml を build/ の下の実行ごとの一時ディレクトリ(build/.run.XXXXXX)に写してから渡し、終わったら消す(固定の名前を共有すると、並行に動かしたときに別のホストの env.yaml が混ざった。Issue #9)。相対パスは just を呼んだディレクトリ(invocation_directory)から見る。ISO も build/ に作ってから出力先に移す
 - 作った版を /opt/agent-host/BUILD-INFO(道具の git describe、AGENT_HOST_CONFIG_REV、env のファイル名、日時)に残し、just status に出す。just facts で台帳のための YAML(機種、シリアル、MAC、ディスク、メモリ、OS、ホスト鍵と RDP の証明書の指紋)を出す
 - just update のホスト名の確認は、重ねた結果の env.sh の AH_HOSTNAME で行う
 - 確かめたこと: リポジトリの外の common.yaml + hosts/x.yaml で check-env・iso・update が通る。書き間違い・暗号化のまま・hostname がないときは止まる。別のホストの env.yaml では update が止まる。examples/fleet をコピーし、sops 3.13.3 と age 1.3.2 で common.yaml の秘密情報を暗号化した構成リポジトリから、just check・update・status・facts が通り、復号したファイルが残らない

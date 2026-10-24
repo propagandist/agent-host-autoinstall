@@ -1,7 +1,7 @@
 # shellcheck shell=bash
 # scripts/local/ のスクリプトが読み込む共通の関数(単独では実行しない)。
 # 構成リポジトリ(docs/fleet.md)から使えるように、リポジトリの外の env.yaml と、呼び出したディレクトリから見た
-# 相対パスを扱う。Docker の中から見えるのはこのリポジトリだけなので、env.yaml は build/.env/ に写してから渡す。
+# 相対パスを扱う。Docker の中から見えるのはこのリポジトリだけなので、env.yaml は build/ の下の一時ディレクトリに写してから渡す。
 
 # パスを解決する。絶対パスはそのまま。相対パスは、呼び出したディレクトリ(just が AGENT_HOST_CALLER_DIR で渡す)
 # にあればそれ、なければこのリポジトリの直下から見る(既定の autoinstall/env.yaml など)
@@ -19,25 +19,34 @@ resolve_path() {
     esac
 }
 
-# env.yaml を build/.env/ に写し、写した先を ENV_FILES に入れる。終わったら消す(秘密情報が入るため)
+# この実行だけの一時ディレクトリ build/.run.XXXXXX を RUN_DIR に作り、終わったら消す(秘密情報が入るため)。
+# 写した env.yaml、BUILD-INFO、検査の出力、ISO、更新の作業ディレクトリは、すべてこの下に置く。
+# 固定の名前(build/.env など)を共有すると、並行に動かしたときに別のホストの env.yaml が混ざった(Issue #9)
+make_run_dir() {
+    [ -n "${RUN_DIR:-}" ] && return
+    mkdir -p build
+    RUN_DIR="$(mktemp -d build/.run.XXXXXX)"
+    chmod 700 "$RUN_DIR"
+    trap 'rm -rf "$RUN_DIR"' EXIT
+}
+
+# env.yaml を RUN_DIR/env/ に写し、写した先を ENV_FILES に入れる
 copy_envs() {
     local i=0 f src
+    make_run_dir
     ENV_FILES=()
-    rm -rf build/.env
-    mkdir -p build/.env
-    chmod 700 build/.env
-    trap 'rm -rf build/.env' EXIT
+    mkdir -p "$RUN_DIR/env"
     for f in "$@"; do
         src="$(resolve_path "$f")"
         [ -f "$src" ] || { echo "$f がない" >&2; exit 1; }
         i=$((i + 1))
-        install -m 600 "$src" "build/.env/$i-$(basename "$src")"
-        ENV_FILES+=("build/.env/$i-$(basename "$src")")
+        install -m 600 "$src" "$RUN_DIR/env/$i-$(basename "$src")"
+        ENV_FILES+=("$RUN_DIR/env/$i-$(basename "$src")")
     done
     [ "$i" -gt 0 ] || { echo "env.yaml を 1 つ以上渡す" >&2; exit 2; }
 }
 
-# 作った版の記録を build/.env/BUILD-INFO に書く(ホストの /opt/agent-host/BUILD-INFO になる。秘密情報は入れない)。
+# 作った版の記録を RUN_DIR/BUILD-INFO に書く(ホストの /opt/agent-host/BUILD-INFO になる。秘密情報は入れない)。
 # 構成リポジトリは、自分の版を AGENT_HOST_CONFIG_REV で渡す
 write_build_info() {
     local f names=()
@@ -48,5 +57,5 @@ write_build_info() {
         printf "config='%s'\n" "${AGENT_HOST_CONFIG_REV:-}"
         printf "env='%s'\n" "${names[*]}"
         printf "built='%s'\n" "$(date +%Y-%m-%dT%H:%M:%S%z)"
-    } >build/.env/BUILD-INFO
+    } >"$RUN_DIR/BUILD-INFO"
 }

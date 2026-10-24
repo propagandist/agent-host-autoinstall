@@ -126,12 +126,10 @@ update)
     [ $# -ge 1 ] || { echo "env.yaml を指定する" >&2; exit 2; }
     copy_envs "$@"
     write_build_info "$@"
-    tmp="build/.update-$host"
-    rm -rf "$tmp"
+    tmp="$RUN_DIR/stage"
     mkdir -p "$tmp"
-    trap 'rm -rf "$tmp" build/.env' EXIT
     scripts/local/in-ubuntu.sh python3-yaml python3 \
-        bash scripts/stage.sh --build-info build/.env/BUILD-INFO "${ENV_FILES[@]}" "$tmp" >/dev/null
+        bash scripts/stage.sh --build-info "$RUN_DIR/BUILD-INFO" "${ENV_FILES[@]}" "$tmp" >/dev/null
     # 別のホストの env.yaml を流さないよう、重ねた結果のホスト名を確かめる
     want="$(sed -n "s/^AH_HOSTNAME=//p" "$tmp/agent-host/env.sh" | tr -d "'")"
     have="$(ssh "${ssh_opts[@]}" "$target" hostname)"
