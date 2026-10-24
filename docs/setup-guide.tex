@@ -340,11 +340,12 @@ agent-host-backup ほか & 環境を入れ替えるときの書き出しと取�
 \end{itemize}
 
 \subsection{作業用の PC}
-手元の PC での作業は just(\url{https://just.systems/})で行う。リポジトリの直下で \code{just} を実行すると、
+手元の PC での作業は just\footnote{\url{https://just.systems/}}で行う。リポジトリの直下で \code{just} を実行すると、
 レシピの一覧が出る。Linux の道具(xorriso、shellcheck、TeX など)が手元になければ、Docker の Ubuntu 26.04 の中で動く。
 \begin{checklist}
   \item just
-  \item Windows なら Git Bash(\code{C:/Program Files/Git/bin/bash.exe})と Docker Desktop。
+  \item Windows なら Git Bash(Git for Windows\footnote{\url{https://gitforwindows.org/}} に入っている。
+        \code{C:/Program Files/Git/bin/bash.exe})と Docker Desktop\footnote{\url{https://www.docker.com/products/docker-desktop/}}。
         Linux なら \code{xorriso}・\code{python3-yaml}・\code{shellcheck} があれば Docker は要らない
   \item USB への書き込みに、Windows なら Rufus\footnote{\url{https://rufus.ie/}}(DD イメージのモード)
 \end{checklist}
@@ -483,6 +484,8 @@ just check-env          # env.yaml を検査する
 just fetch-iso          # Ubuntu の ISO を build/ に取得して SHA256 を照合する
 just iso                # build/agent-host.iso を作る
 \end{local}
+\code{just fetch-iso} は、Ubuntu の公式のサイト\footnote{\url{https://releases.ubuntu.com/26.04/}}から
+Desktop の ISO と SHA256 の一覧を取得する。
 
 \subsection{just iso がすること}
 \code{scripts/build-usb.sh} を呼ぶ。
@@ -710,8 +713,9 @@ agent-notify approval テスト "通知のテストです"
 \end{term}
 \begin{confirm}
 承認待ち(approval)とエラー(error)は Slack と IP Messenger の両方に、完了(done)は Slack だけに届くこと。
-IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
+IP Messenger\footnotemark{} の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
 \end{confirm}
+\footnotetext{\url{https://ipmsg.org/}}
 \begin{caution}
 IP Messenger のメッセージは暗号化されないので、本文に秘密情報を入れない。
 \end{caution}
@@ -728,7 +732,7 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 
 \subsection{ファイルのやり取り}
 \begin{itemize}
-  \item SFTP: env.yaml に公開鍵を書いた人は、WinSCP などでホスト、ポート 22、ユーザー \code{agent}、秘密鍵で入る。作業の置き場所は \code{/home/agent/work}。シェルには入れない
+  \item SFTP: env.yaml に公開鍵を書いた人は、WinSCP\footnote{\url{https://winscp.net/}} などでホスト、ポート 22、ユーザー \code{agent}、秘密鍵で入る。作業の置き場所は \code{/home/agent/work}。シェルには入れない
   \item 小さなファイルは RDP のクリップボードでも渡せる(未検証)
 \end{itemize}
 
