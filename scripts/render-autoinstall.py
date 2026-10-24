@@ -111,6 +111,10 @@ def main():
     for a in agents:
         if a not in ("opencode", "copilot", "antigravity"):
             fail(f"agents の {a} は使えない(opencode, copilot, antigravity)")
+    clouds = env.get("clouds") or []
+    for c in clouds:
+        if c not in ("aws", "gcp", "azure"):
+            fail(f"clouds の {c} は使えない(aws, gcp, azure)")
     desktop_color = str(env.get("desktop_color") or "")
     if desktop_color and not re.fullmatch(r"#[0-9a-fA-F]{6}", desktop_color):
         fail("desktop_color は #RRGGBB の形にする")
@@ -170,6 +174,7 @@ def main():
         f"AH_EDITORS={shlex.quote(' '.join(editors))}",
         f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
         f"AH_AGENTS={shlex.quote(' '.join(agents))}",
+        f"AH_CLOUDS={shlex.quote(' '.join(clouds))}",
         f"AH_DESKTOP_COLOR={shlex.quote(desktop_color)}",
         f"AH_GITEA_URL={shlex.quote(gitea_url)}",
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",

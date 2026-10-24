@@ -73,6 +73,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - `agent` の mise(プロジェクトごとの言語のバージョン。shims を PATH に入れる)と、エージェント向けのホストの説明(`~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。既にあれば上書きしない)
 - エディター:env.yaml の `editors` で vscode / neovim / zed から選ぶ
 - 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
+- クラウドの CLI:env.yaml の `clouds` で AWS CLI v2 / Google Cloud CLI / Azure CLI から選ぶ。版を固定し、利用状況の送信を止める。認証は短い時間だけ有効なログインと、権限を絞った開発用のアカウントで使う。Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる
 - 通知:Claude Code の hooks(承認待ち・入力待ち・API のエラー)と Codex の notify(完了)から `agent-notify` を呼び、env.yaml の `notify` の Slack(Incoming Webhook)と IP Messenger(LAN 内の UDP)に送る。承認待ちとエラーは両方、完了は Slack だけ
 - スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
 - IP Messenger の通知先は、ユーザー名・PC 名・ニックネームか IP で指定する。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く)
@@ -87,7 +88,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
-- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed はバージョンを固定する(勝手に上がらないように)
+- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に

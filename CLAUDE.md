@@ -38,6 +38,7 @@ scripts/
     50-updates.sh
     60-devtools.sh
     62-agents.sh            # env.yaml の agents で選んだ追加のエージェント
+    63-clouds.sh            # env.yaml の clouds で選んだクラウドの CLI(AWS・Google Cloud・Azure)
     65-docker.sh            # Docker(固定・hold)と agent 専用の rootless Docker
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
@@ -71,7 +72,7 @@ docs/
 - **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE の著作権者表示は除く)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
-- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed はバージョンを明示する。例外は Google Chrome で、公式リポジトリに最新版しかないため固定せず、unattended-upgrades で自動更新する
+- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は Google Chrome で、公式リポジトリに最新版しかないため固定せず、unattended-upgrades で自動更新する
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと HANDOVER.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語

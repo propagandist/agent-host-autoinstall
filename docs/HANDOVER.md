@@ -148,6 +148,14 @@
 - トークンの権限は repository と issue の書き込み、user の読み取りで足りる。`tea repo create` だけは write:user が要った
 - 社内の Gitea が社内の CA の証明書を使うときは、env.yaml の ca_certs に入れれば tea(Go)もシステムの証明書として信頼する(未確認)
 
+### クラウドの CLI(2026-10-24 追加、VirtualBox で確認)
+- env.yaml の clouds で AWS CLI v2(2.38.5)、Google Cloud CLI(590.0.1)、Azure CLI(2.91.0)を選んで入れる(63-clouds.sh)。3 つで約 1.8GB(/opt/aws-cli 275MB、/usr/lib/google-cloud-sdk 846MB、/opt/az 647MB)。初回の構成で約 6 分、2 回目は入れなおさない
+- AWS CLI は SHA256 を配っていない。2.38.5 の zip の PGP 署名(.sig)を AWS CLI Team の鍵(FB5DB77FD5C118B80511ADA8A6310ACC4672475C)で確かめ、その zip の SHA256 を固定した。鍵はキーサーバーの写しでは 2026-07-07 で期限切れになっていたが、署名は Good だった。版を上げるときも同じ手順で確かめる
+- Azure CLI は Microsoft の apt に 26.04(resolute)向けがある。鍵は VS Code と同じ
+- agent の environment.d に AWS_PAGER=(出力を less に渡さない)、CLOUDSDK_CORE_DISABLE_USAGE_REPORTING、CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK、AZURE_CORE_COLLECT_TELEMETRY=false を置く
+- ログイン(SSO・ブラウザ)は試していない(実際のアカウントが要る)。未確認
+- Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる(エージェント向けの説明に書いた)
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)

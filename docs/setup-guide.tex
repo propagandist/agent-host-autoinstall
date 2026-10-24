@@ -301,6 +301,11 @@ OpenCode(選択) & 使うモデルを選べるオープンソースのコーデ�
 GitHub Copilot CLI(選択) & GitHub のコーディングエージェント(端末で動く) & \code{copilot} \\
 Antigravity CLI(選択) & Google のコーディングエージェント(端末で動く) & \code{agy} \\
 \addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}クラウドの CLI(選択)} \\
+AWS CLI & AWS の操作 & \code{aws} \\
+Google Cloud CLI & Google Cloud の操作 & \code{gcloud} \\
+Azure CLI & Azure の操作 & \code{az} \\
+\addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}開発の道具} \\
 Node.js、npm & JavaScript の実行環境とパッケージ管理 & \code{node}、\code{npm}、\code{npx} \\
 uv & Python とパッケージ・仮想環境の管理 & \code{uv}、\code{uvx} \\
@@ -386,6 +391,7 @@ GitHub・Gitea & push する場合。エージェント専用のアカウント�
 Docker Hub & ログインなしの取得は 6 時間に 100 回まで。エージェントが使うとすぐ当たるのでアカウントを用意する \\
 Slack & 通知を送るチャンネルの Incoming Webhook の URL \\
 追加のエージェント & Copilot CLI は Copilot の契約、Antigravity CLI は Google のアカウント、OpenCode は使うモデルの API キーなど \\
+クラウド & 使う場合。権限を絞った開発用のアカウント(AWS は IAM Identity Center の SSO)、プロジェクト、サブスクリプション \\
 \bottomrule
 \end{tabularx}}
 
@@ -426,6 +432,7 @@ cp autoinstall/env.example.yaml autoinstall/env.yaml
 \code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
 \code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
 \code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
+\code{clouds} & クラウドの CLI: \code{aws}、\code{gcp}、\code{azure}(合わせて約 1.8GB) \\
 \code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
 \code{notify.ipmsg_to} & IP Messenger で知らせる相手。ユーザー名・PC 名・ニックネームか IP。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く) \\
 \code{notify.ipmsg_broadcast} & 探すときのブロードキャストの宛先。空なら 255.255.255.255(同じサブネットだけ)。別のサブネットも探すときに足す \\
@@ -597,6 +604,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
+\code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
 \code{70-orca.sh} & Orca と、その自動起動 \\
 \code{72-editors.sh} & 選んだエディター \\
@@ -641,6 +649,7 @@ RDP も待ち受ける(原因は未調査)。
   \item 追加のエージェントにログインする(選んだものだけ)
   \item GitHub・Gitea の認証(push する場合)
   \item Docker Hub にログインする
+  \item (選んだ場合)クラウドの CLI にログインする
   \item 通知が届くことを確かめる
   \item (使う場合)スマホからの操作(Remote Control)
 \end{checklist}
@@ -723,6 +732,22 @@ env.yaml に \code{gitea_url} を書いていれば、接続先は自動で入�
 docker login         # アクセストークンを使う
 docker run --rm hello-world
 \end{term}
+
+\subsection{クラウドの CLI のログイン(選んだものだけ)}
+どれもブラウザ(Chrome)が開くので、そこでログインする。
+\begin{term}
+aws configure sso                       # 初回だけ: SSO の開始 URL、リージョン、アカウント、ロール
+aws sso login                           # 切れたらこれで入りなおす
+gcloud auth login                       # gcloud コマンド用
+gcloud auth application-default login   # SDK・Terraform などのプログラム用(使う場合)
+gcloud config set project <プロジェクト ID>
+az login                                # サブスクリプションを選ぶ
+\end{term}
+\begin{caution}
+認証情報は agent のホーム(\code{~/.aws}、\code{~/.config/gcloud}、\code{~/.azure})に残り、エージェントは確認なしで
+コマンドを動かせる。長く使えるアクセスキー(\code{aws configure} で入れるものやサービスアカウントの鍵)は置かず、
+上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
+\end{caution}
 
 \subsection{通知の確認}
 \begin{term}
@@ -914,6 +939,9 @@ mise & 2026.10.18 & リリースの tar(SHA256) \\
 OpenCode & 1.19.4 & npm \\
 GitHub Copilot CLI & 1.0.103 & npm \\
 Antigravity CLI & 1.4.6 & リリースの tar(SHA256) \\
+AWS CLI & 2.38.5 & 公式の zip(PGP 署名を確かめた SHA256) \\
+Google Cloud CLI & 590.0.1 & Google の apt、hold \\
+Azure CLI & 2.91.0 & Microsoft の apt、hold \\
 Docker & 29.9.2 ほか & 公式 apt、hold \\
 Orca & 1.4.237 & リリースの .deb(SHA256)、hold \\
 VS Code & 1.143.1 & Microsoft の apt、hold \\
