@@ -72,6 +72,9 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - ufw:env.yaml の `dev_ports` を社内LANから開ける(開発サーバーを手元の PC から見るため)
 - `agent` の mise(プロジェクトごとの言語のバージョン。shims を PATH に入れる)と、エージェント向けのホストの説明(`~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。既にあれば上書きしない)
 - エディター:env.yaml の `editors` で vscode / neovim / zed から選ぶ
+- 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
+- 通知:Claude Code の hooks(承認待ち・入力待ち・API のエラー)と Codex の notify(完了)から `agent-notify` を呼び、env.yaml の `notify` の Slack(Incoming Webhook)と IP Messenger(LAN 内の UDP)に送る。承認待ちとエラーは両方、完了は Slack だけ
+- スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない

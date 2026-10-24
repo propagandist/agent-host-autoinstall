@@ -31,11 +31,14 @@ scripts/
     40-ssh-ufw.sh
     50-updates.sh
     60-devtools.sh
+    62-agents.sh            # env.yaml の agents で選んだ追加のエージェント
     65-docker.sh            # Docker(固定・hold)と agent 専用の rootless Docker
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、agent の既定のブラウザにする
     80-agent-session.sh     # キーリング、RDP 認証情報の受け渡し、first-login の自動起動
+    84-notify.sh            # 通知(Slack、IP Messenger)を Claude Code / Codex につなぐ
+  notify/agent-notify       # 通知を送るスクリプト(/usr/local/bin に置く)
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
 docs/
   SPEC.md                   # 仕様

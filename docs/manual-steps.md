@@ -99,7 +99,31 @@ env.yaml の `agent_ssh_authorized_keys` に公開鍵を書いた人は、WinSCP
 
 小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(VirtualBox では未確認)。
 
-## 11. 定期的な再起動(運用)
+## 11. 追加のエージェントのログイン(env.yaml の agents で選んだものだけ)
+
+RDP で agent の端末から行う。
+
+- OpenCode: `opencode auth login` で、使うモデルのプロバイダーの API キーや OAuth を設定する
+- GitHub Copilot CLI: `copilot` を起動し `/login` → デバイスコード(github.com/login/device)。Copilot の契約が要る
+- Antigravity CLI: `agy` を起動し、表示された URL を手元のブラウザで開き、得たコードを端末に貼り付ける。テレメトリはアカウント側の `/config` で切り替える
+
+## 12. 通知の確認(env.yaml の notify を書いた場合)
+
+```
+agent-notify approval テスト "通知のテストです"
+```
+
+Slack と IP Messenger の両方に届くことを確かめる(done は Slack だけ)。IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
+
+## 13. スマホからの操作(Claude Code の Remote Control)
+
+Claude Code に Pro / Max / Team / Enterprise のアカウントでログインしているときだけ使える。通信は Anthropic のサービスを通る。
+
+1. RDP で agent の端末から、作業するディレクトリで `claude remote-control`(または動いているセッションで `/remote-control`)。初回は確認に `y` で答える
+2. 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
+3. スマホへのプッシュ通知: Claude アプリに同じアカウントでログインし、端末で `/config` から「Push when actions required」などをオンにする
+
+## 14. 定期的な再起動(運用)
 
 unattended-upgrades はセキュリティ更新を自動で入れるが、自動では再起動しない(作業中のエージェントを止めないため)。カーネルなどの更新は再起動するまで反映されないので、月 1 回、エージェントが作業していない時間に sysadmin で再起動する。
 
