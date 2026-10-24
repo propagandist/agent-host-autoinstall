@@ -17,8 +17,8 @@
 2. 常時稼働させたいが、AI エージェントを動かすためにデスクトップが必要 → Desktop 版に常時稼働の設定を足す
 3. エージェントの作業環境は Orca(stablyai/orca。Claude Code や Codex を git worktree ごとに並列実行する ADE)。Codex も併用する
 4. 遠隔操作は xrdp ではなく、GNOME 標準の「デスクトップ共有」(RDP)にする
-   - Ubuntu 26.04 LTS は Wayland のみで、xrdp が使えない
-   - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない
+   - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない(主な理由)
+   - Ubuntu の GNOME のセッションは 25.10 から Wayland だけ(上流の mutter が 49 で X11 を既定で無効にし、50 で削除)。xrdp は Xorg のセッションを作るので、GNOME を動かせない。xrdp・xorgxrdp と、Xfce などの X11 のセッションは 26.04 にもある(Ubuntu 26.04 のリリースノート「Other desktop sessions, such as KDE on X11, Xfce, ... can still be launched using an X.org session」。2026-10-25 に確認)
    - デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立する
 5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(専用ユーザー・秘密情報なしが前提)
 6. post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)
@@ -39,7 +39,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - identity は Desktop では省略できるが、ここでは sysadmin を作るために使う(確認済み)。`admin` は予約名で使えない(VirtualBox で確認済み: "Username is reserved by the system")
 - 既定のカーネルは Desktop では hwe(確認済み)
 - GDM の自動ログイン設定は 26.04(gdm3 50.x)でも `/etc/gdm3/custom.conf` の `[daemon]`(確認済み、ソース)。PreSession などのスクリプトは 26.04 で廃止
-- 26.04 は GNOME 50、Wayland のみ(確認済み、リリースノート)
+- 26.04 は GNOME 50。GNOME のセッションは Wayland のみ(25.10 から。確認済み、リリースノート)
 - late-commands の時点で `/cdrom` はマウントされていて、同梱スクリプトをコピーできた(VirtualBox で確認済み)
 - 26.04.1 ISO の grub.cfg は `linux /casper/vmlinuz ... --- quiet splash` の形で、build-usb.sh の書き換えが効いた(確認済み)
 - `ssh.install-server: true` でインストール中に openssh-server が入った(VirtualBox で確認済み)
