@@ -92,6 +92,12 @@
 - 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
 - SPEC.md §10 の対象外だが気付いた点: Orca の初回の案内で「Yolo モード」(確認なしでコマンド実行)が最初からオン。agent でログインしたアカウントのスキルが `~/.claude/skills/synced/` に同期される。どのアカウントでログインするかは決めておく
 
+### Docker(2026-10-24 追加)
+- 公式 apt リポジトリ(26.04 resolute 対応、過去の版も残る)から docker-ce 29.9.2 ほか 6 つを版指定で入れて hold する。署名鍵の fingerprint は 9DC858229FC7DD38854AE2D88D81803C0EBFCD88
+- agent は rootless Docker。docker グループは実質 root になるので使わない(作業者の判断)。root のデーモンは止め、agent に linger を付けて `dockerd-rootless-setuptool.sh install` を agent で実行する。`DOCKER_HOST` は `~/.config/environment.d/60-docker.conf`
+- Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
+- 未確認: 26.04 で上の手順が通るか、hello-world が動くか(VirtualBox で入れ直して確かめる)。1024 未満のポートを待ち受けられないなど rootless の制限がある
+
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)
 
