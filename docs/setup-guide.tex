@@ -914,10 +914,9 @@ unset PW
 \code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
+リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは次のとおり(Docker が要る)。
 \begin{local}
-docker build -t agent-host-guide -f docs/guide.Dockerfile docs
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo agent-host-guide \
-  latexmk -lualatex -outdir=build/setup-guide docs/setup-guide.tex
+scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
 \end{local}
 
 %======================================================================

@@ -34,14 +34,16 @@ lint:
 
 # 詳細な設定手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live で作る。初回はイメージの作成に数分かかる)
 guide:
-    mkdir -p build/setup-guide
-    printf '%s{%s 版(%s)}\n' '\newcommand{\guideversion}' "$(date +%Y-%m-%d)" "$(git describe --always --dirty 2>/dev/null || echo 不明)" > build/setup-guide/guide-version.tex
-    docker build -q -t agent-host-guide -f docs/guide.Dockerfile docs > /dev/null
-    case "$(uname -s)" in MINGW*|MSYS*) repo="$(pwd -W)"; user=() ;; *) repo="$(pwd)"; user=(--user "$(id -u):$(id -g)") ;; esac; \
-    MSYS_NO_PATHCONV=1 docker run --rm "${user[@]}" -v "$repo:/repo" -w /repo -e TEXINPUTS=/repo/build/setup-guide: agent-host-guide \
-        latexmk -lualatex -interaction=nonstopmode -halt-on-error -outdir=build/setup-guide docs/setup-guide.tex > build/setup-guide/latexmk.out \
-        || { tail -30 build/setup-guide/latexmk.out; exit 1; }
-    @echo "作成した: build/setup-guide/setup-guide.pdf"
+    scripts/local/build-guide.sh
+
+# リリースの前の確認(release ブランチで、コミット済みであること、検査と PDF の作成が通ること)。手順は docs/release.md
+release-check:
+    case "$(git branch --show-current)" in release/*) ;; *) echo "release/<版> のブランチで実行する" >&2; exit 1 ;; esac
+    git diff --quiet && git diff --cached --quiet || { echo "コミットしていない変更がある" >&2; exit 1; }
+    v="$(git branch --show-current)"; v="${v#release/}"; grep -q "^## \[$v\]" CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] の節がない" >&2; exit 1; }
+    just lint
+    just guide
+    @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
 
 # ホスト用の RDP の接続ファイルを build/<ホスト>.rdp に作る
 rdp host:

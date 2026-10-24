@@ -5,7 +5,7 @@ USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後�
 
 ## 現状
 
-一通り実装したが、仮想マシン・実機ではまだ動かしていない。未確認の点は [docs/HANDOVER.md](docs/HANDOVER.md) を参照。
+VirtualBox の仮想マシンで、無人インストールから RDP の接続と受け入れテストまで確かめた。実機ではまだ確かめていない。未確認の点は [docs/HANDOVER.md](docs/HANDOVER.md) を参照。
 
 ## 前提
 
@@ -23,6 +23,8 @@ USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後�
 | [docs/setup-guide.tex](docs/setup-guide.tex) | 詳細な設定手順書(準備から運用まで)。PDF は `just guide`(Docker の TeX Live)で作る |
 | [docs/manual-steps.md](docs/manual-steps.md) | USB の作り方と、手作業の手順 |
 | [docs/acceptance-test.md](docs/acceptance-test.md) | 受け入れテスト |
+| [docs/release.md](docs/release.md) | リリースの手順。手順書の PDF は GitHub の Releases に付く |
+| [CHANGELOG.md](CHANGELOG.md) | 変更の記録 |
 | [CLAUDE.md](CLAUDE.md) | 作業ルール(ディレクトリ構成、秘密情報の扱い、検証、ブランチ運用) |
 
 ## 使い方
