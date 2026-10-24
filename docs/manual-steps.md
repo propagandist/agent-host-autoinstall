@@ -191,13 +191,31 @@ agent-notify approval テスト "通知のテストです"
 
 Slack と IP Messenger の両方に届くことを確かめる(done は Slack だけ)。IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
 
-## 13. スマホからの操作(Claude Code の Remote Control)
+## 13. スマホからの操作(Claude Code の Remote Control、Orca Mobile)
+
+### Claude Code の Remote Control
 
 Claude Code に Pro / Max / Team / Enterprise のアカウントでログインしているときだけ使える。通信は Anthropic のサービスを通る。
 
 1. 作業するディレクトリで `claude remote-control`(または動いているセッションで `/remote-control`)。初回は確認に `y` で答える
 2. 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
 3. スマホへのプッシュ通知: Claude アプリに同じアカウントでログインし、端末で `/config` から「Push when actions required」などをオンにする
+
+### Orca Mobile
+
+Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる(Orca の公式のアプリ)。**スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。** 画面のロックをかけたスマホだけをペアリングし、無くしたら Orca の「設定 > モバイル」からその端末を外す。
+
+つなぎ方は 2 つある(Orca の画面で選ぶ)。
+
+| つなぎ方 | 通り道 | このホストでの準備 |
+|---|---|---|
+| LAN | スマホがホストの 6768 番に直接つなぐ(通信は暗号化される)。アカウントは要らない | env.yaml の `dev_ports` に `6768` を足して `just update`(`lan_cidrs` からだけ開く)。LAN の外からは、VPN か、ホストとスマホの両方に Tailscale などを入れて、そのアドレスを選ぶ |
+| Orca Relay(ベータ) | ホストとスマホが Orca のサーバーに外向きにつなぎ、サーバーが中継する。モバイル回線からも使える | ポートは開けない。ホストの Orca で Orca のアカウントにサインインする(アカウントによっては使えない)。通信は Orca のサービスを通る |
+
+1. RDP で入り、Orca の「設定 > モバイル」で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
+2. スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
+
+Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリングの操作で LAN にも開く。一度つないだ端末があれば、次の起動からは最初から LAN にも開く(v1.4.237 のソース。このホストでは未確認)。
 
 ## 14. ファイルのやり取り(SFTP)
 

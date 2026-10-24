@@ -178,6 +178,73 @@ RDP で接続できる状態に戻ることを目指す。
 仕様は \code{docs/SPEC.md}、調べたこと・確かめたことと未確認の事項は \code{docs/notes.md} にある。
 この手順書と食い違ったときは、リポジトリの文書とスクリプトを正とする。
 
+\subsection{なぜ Orca で動かす専用の PC を用意するのか}\label{sec:why}
+コーディングエージェントは、1 つの作業に数十分から数時間かかり、確認なしで動かすことも多い。
+人の役割は、作業を任せ、承認や質問に答え、できたものを見比べて選ぶことに移る。
+そうなると「エージェントをどこで動かすか」が問題になる。置き場所ごとに比べると次のとおり(2026-10-25 時点の各社の文書と、このリポジトリで確かめたことによる)。
+
+\noindent{\small\begin{tabularx}{\linewidth}{@{}p{0.2\linewidth}p{0.22\linewidth}L@{}}
+\toprule\headrow
+置き場所 & 向いていること & この用途で足りないこと \\
+\midrule
+手元の PC & 短い作業。すぐ自分で手を入れたいとき &
+  動いているあいだ閉じる・持ち出す・再起動することができない。
+  私的なファイルや個人のログイン情報と同じ環境で、確認なしのエージェントを動かすことになる。並べるほどメモリと CPU を取り合う \\
+クラウドのエージェント(Claude Code の cloud sessions、Codex cloud) & 手元を閉じても続く。各社が隔離した環境で動く &
+  各社のエージェントごとに別々で、1 つの画面で並べて見比べられない。
+  リポジトリは GitHub が前提(Claude Code の文書では、GitHub 以外のリポジトリは送れても push で戻せない)。
+  各社の環境からは LAN の中の Gitea や検証用のサーバーに届かない(組織で自前の実行環境を用意する仕組みはある)。
+  使わない時間が続くと環境が片付けられる \\
+クラウドの VM で同じものを動かす & 置き場所を選ばない &
+  動かし続けるほど費用がかかる(金額は比べていない)。LAN の資源には VPN が要る。
+  この手順の USB からの導入は物理の PC を前提にしている \\
+\textbf{専用の PC(この構成)} & LAN の中で Orca を動かし続け、どの PC やスマホからも同じ画面に入る &
+  PC の用意と置き場所、壊れたときの交換は利用者が持つ。ディスクは暗号化しない(\ref{sec:caution} 節) \\
+\bottomrule
+\end{tabularx}}
+
+\medskip
+\noindent\textbf{専用の PC で得られること}
+\begin{itemize}
+  \item \textbf{閉じても止まらない。}RDP を切っても作業は続き、つなぎなおせば同じ画面に戻る(受け入れテスト 6)。
+        再起動・電源断・セッションの異常終了のあとも、人手なしで RDP まで戻る(受け入れテスト 3・4・8。VM で自動の試験がある)
+  \item \textbf{任せる範囲を分けられる。}確認なしのエージェントは、読んだ Web ページや入れたパッケージの中の指示に従ってしまうことがある。
+        専用の PC の、sudo のない専用のユーザーで動かせば、私的なファイルや個人のログイン情報には届かない。
+        影響はその PC の作業と、その PC でログインしたサービスの範囲にとどまる(ログインする範囲は絞っておく)
+  \item \textbf{LAN の中の資源を使える。}LAN の Gitea、検証用のサーバーやデータベースに、そのまま届く。
+        プロキシや独自の CA 証明書がある LAN にも合わせられる(env.yaml の \code{proxy}、\code{ca_certs})
+  \item \textbf{取り合わない。}エージェントを並べても、手元の PC の動きは重くならない。メモリは 32GB 以上を勧める
+  \item \textbf{同じものを作りなおせる。}USB メモリ 1 本から、同じ構成を何度でも作れる。2 台目からの管理は \code{docs/fleet.md}
+\end{itemize}
+
+\noindent\textbf{Orca を中心に置く理由}
+\begin{itemize}
+  \item \textbf{Orca 自身が「作業する PC」と「操作する PC」を分ける使い方を想定している。}Orca の文書の Remote Orca Server では、
+        作業する側がプロジェクト・worktree・端末・エージェントのセッションを持ち、ノート PC やブラウザー、スマホは画面になる。
+        ノート PC が眠ってもエージェントは動き続ける。この構成は、その作業する側を OS ごと人手なしで保つもの
+        (自動ログイン、キーリング、RDP、セッションの見張り、UPS は Orca の範囲の外なので、ここで用意する)
+  \item \textbf{特定の会社のエージェントに縛られない。}Claude Code と Codex に加え、OpenCode・Copilot CLI・Antigravity CLI も同じ画面に並べられる。
+        同じ作業を別々のエージェントに任せて結果を比べることも、得意なものに振り分けることもできる
+  \item \textbf{並べてもぶつからない。}エージェントごとに git の worktree を分けるので、同時に進めても互いのファイルを壊さない
+  \item \textbf{人が詰まりにならない。}承認待ちとエラーを Slack と IP Messenger に知らせ、スマホからも様子を見て答えられる
+        (Orca Mobile、Claude Code の Remote Control)
+\end{itemize}
+
+\noindent\textbf{なぜデスクトップと RDP か(画面のない \code{orca serve} ではなく)}
+\begin{itemize}
+  \item エージェントのログインにブラウザーが要る(Claude Code は Chrome でログインする。GitHub やクラウドの SSO も)。
+        Orca の文書でも、ログインは作業する側で行い、ノート PC のログインは引き継がれない
+  \item RDP なら、Windows に最初からあるリモート デスクトップ接続でつながり、手元に何も入れなくてよい。
+        手元の Orca から作業する側につなぐ方法(Remote Orca Servers)はベータで、手元にも Orca が要る
+  \item エージェントが Chrome で画面を確かめる作業も、人が VS Code やファイルを触って手を入れる作業も、同じデスクトップでできる
+  \item そのかわり、自動ログイン・空パスワードのキーリング・画面のロックなし、という妥協がいる(\ref{sec:caution} 節)
+\end{itemize}
+
+\noindent\textbf{向かない場合。}作業が短く、リポジトリが GitHub にあり、LAN の資源が要らないなら、クラウドのエージェントで足りることが多い。
+物理の PC を置けない・管理できないときも向かない。両方を使い分けてもよい。
+
+道具としての Orca の比較(ほかの ADE や TUI)は、\ref{sec:apps} 節の終わりにある。
+
 \subsection{対象読者}
 このリポジトリを使って、AI エージェントのためのホストを用意・運用する人。
 Linux の基本的な操作(端末、SSH、apt)ができることを前提とする。
@@ -277,7 +344,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \caption{起動から RDP まで。点線の箱は初回だけ動く}
 \end{figure}
 
-\subsection{利用上の注意と免責}
+\subsection{利用上の注意と免責}\label{sec:caution}
 この構成は、利便性と引き換えに安全性を下げている部分がある。次を読み、自分の環境と組織の規程に合うかを判断したうえで使う。
 まずは仮想マシンで試すことを勧める。
 
@@ -357,6 +424,13 @@ agent-notify & 承認待ち・エラー・完了を Slack と IP Messenger に�
 agent-host-backup ほか & 環境を入れ替えるときの書き出しと取り込み & \code{just backup}、\code{just restore} \\
 \bottomrule
 \end{longtable}}
+
+\begin{hint}
+\textbf{なぜ Orca か。}Linux の .deb があり、Claude Code と Codex を同じ画面で、worktree ごとに並べて使える。
+MIT でアカウントが要らず、.deb 版は自分では更新しないので版を固定でき、利用統計も止められる。
+2026-10-24 に Emdash・Nimbalyst・Superset・Warp・Conductor・TUI の道具などと比べ、条件をすべて満たし、開発もいちばん活発だった
+(比較は \code{docs/notes.md}「Orca を選んだ理由」)。GUI が使えないときの予備に、端末の CCManager も入れている。
+\end{hint}
 
 %======================================================================
 \section{準備するもの}
@@ -701,7 +775,7 @@ RDP も待ち受ける(原因は未調査)。
   \item Docker Hub にログインする
   \item (選んだ場合)クラウドの CLI にログインする
   \item 通知が届くことを確かめる
-  \item (使う場合)スマホからの操作(Remote Control)
+  \item (使う場合)スマホからの操作(Remote Control、Orca Mobile)
 \end{checklist}
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
@@ -824,6 +898,27 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 \begin{enumerate}
   \item 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
   \item プッシュ通知: Claude アプリに同じアカウントでログインし、端末の \code{/config} で「Push when actions required」などをオンにする
+\end{enumerate}
+
+\subsection{スマホからの操作(Orca Mobile)}
+Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる。つなぎ方は Orca の「設定 > モバイル」で選ぶ。
+\begin{caution}
+スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。
+画面のロックをかけたスマホだけをペアリングし、無くしたら「設定 > モバイル」からその端末を外す。
+\end{caution}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\toprule\headrow
+つなぎ方 & 通り道 & このホストでの準備 \\
+\midrule
+LAN & スマホがホストの 6768 番に直接つなぐ(暗号化される)。アカウントは要らない &
+  env.yaml の \code{dev_ports} に \code{6768} を足して \code{just update}。LAN の外からは VPN か Tailscale など \\
+Orca Relay(ベータ) & Orca のサーバーが中継する。モバイル回線からも使える &
+  ポートは開けない。Orca のアカウントにサインインする。通信は Orca のサービスを通る \\
+\bottomrule
+\end{tabularx}}
+\begin{enumerate}
+  \item RDP で入り、Orca の「設定 > モバイル」で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
+  \item スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 \end{enumerate}
 
 \subsection{ファイルのやり取り}

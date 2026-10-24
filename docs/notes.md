@@ -97,12 +97,41 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
 
+### 専用の PC を置く理由(2026-10-25 の調査)
+
+エージェントをどこで動かすかを比べた。各社の文書は 2026-10-25 に読んだもの。
+
+- **手元の PC**: エージェントの CLI は手元で動くので、閉じる・スリープ・再起動で止まる。確認なしで動かすと、私的なファイルや個人のログイン情報(SSH の鍵、ブラウザーのログイン、パスワードの管理ソフトなど)と同じ環境で動くことになる
+- **Claude Code の cloud sessions**(code.claude.com/docs/en/claude-code-on-the-web): Anthropic が管理する隔離された VM で動き、手元を閉じても続く。Pro・Max・Team と一部の Enterprise で使え、利用の上限はほかの Claude の利用と共有。リポジトリの clone と PR の作成は GitHub が要る(Team・Enterprise は GitHub Enterprise Server も)。GitLab などは手元から送れるが、そのリモートには push で戻せない。ネットワークは既定で制限され、許可した先にだけ届く。組織が自前の実行環境(self-hosted environment)を用意すれば、そちらで動かせる。使わない時間が続くと VM が片付けられ、動いていたコマンドは戻らない。組織が IP の許可リストを使っていると失敗する
+- **Codex cloud**(learn.chatgpt.com/docs/cloud): 作業ごとに作業場所があり、手元が眠っていても続く。手順は GitHub のリポジトリを選ぶところから始まる。インターネットへの接続は環境ごとに設定する。どのプランで使えるか、時間の上限、LAN の中に届くかは、読んだ範囲では書かれていなかった
+- **クラウドの VM**: Orca は SSH の先や VPS でも動く(Orca の文書の Ways to run)。費用は比べていない。LAN の資源には VPN が要る。このリポジトリの autoinstall は物理の PC に USB から入れる前提で、クラウドの VM のイメージでは試していない
+- **Orca の想定**(Orca の文書の Remote Orca Servers、v1.4.237 のソースの docs): Remote Orca Server では、作業する側がプロジェクト・worktree・端末・タブ・エージェントのアカウントとセッションを持ち、クライアントは画面になる。クライアントのノート PC が眠っても、つながりが切れても、エージェントは動き続ける。ログインは作業する側で行い、ノート PC のログインは引き継がれない。Remote Orca Servers はベータで、Tailscale か信頼できる LAN の中で使うことを勧めている。画面のない Linux では `orca-ide serve` で同じことができる
+- この構成は、その「作業する側」を、OS の自動ログイン・キーリング・RDP・セッションの見張り・UPS まで含めて人手なしで保つもの。画面のない `orca serve` ではなくデスクトップと RDP にしたのは、ログインにブラウザーが要るため(Claude Code は Chrome でログインした。受け入れテスト 2)、手元に何も入れずに Windows のリモート デスクトップ接続でつなげるため、人が同じデスクトップで手を入れられるため
+- 未確認: このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと(LAN なら env.yaml の dev_ports に 6768 を足すことになるはず)
+
+### Orca を選んだ理由(2026-10-24 の調査)
+
+この用途で要る条件は次のとおり。Linux で動く(できれば .deb)、Claude Code と Codex を同じ画面で使える、エージェントごとに git の worktree を分けて並べられる、OSS、アカウントなしで使える、自分では更新を適用しない(版を固定できる)、利用統計を止められる、sudo のない agent で動く、RDP(Wayland)の画面で使える、開発が続いている。
+
+- **Orca**(stablyai/orca、MIT): 条件をすべて満たした。.deb 版は自分では更新を適用せず、通知と apt のコマンドを出すだけ(公式の文書)。利用統計(PostHog)は既定でオンだが、設定と `ORCA_TELEMETRY_DISABLED=1` で止まる。対応エージェントは Claude Code・Codex・OpenCode・Copilot ほか端末で動くもの。SSH の worktree とヘッドレスの `orca serve`、スマホのアプリ(Orca Mobile)もある。調べた時点で、GitHub のスターは約 10 万、直近 1 週間にデスクトップ版のリリースが 7 本と、候補の中でもっとも活発だった。VirtualBox の RDP の画面で、Wayland ネイティブで動くことを確かめた
+- **Emdash**(Apache-2.0): いちばん近い。Linux の .deb、Claude Code と Codex、worktree、SSH に対応し、利用統計も止められる。ただし更新の確認が 1 時間ごとで、止める設定がソースに見当たらず、Orca より良くなる点がなかった
+- **Nimbalyst**(MIT。Crystal の後継): Linux の .deb、Claude Code と Codex、worktree に対応し、利用統計も止められる。更新の確認と通知を止められるかは確かめられず、Orca より良くなる点が見当たらなかった
+- **Superset**: Elastic License 2.0(ソースは公開されているが OSS ではない)。Linux は AppImage だけで実験的の扱い。更新の確認(4 時間ごと)を止める `DISABLE_UPDATE_CHECK` は macOS でしか効かない(ソース)。利用統計の止め方の文書がない
+- **Warp**: 無料のプランでは、利用統計を止めると AI の機能が使えない。.deb を入れると apt のリポジトリが登録され、自動で更新される
+- **Conductor**: Mac だけ
+- **Crystal**、**Vibe Kanban**: 開発が終わっている(Crystal は 2026-02、Vibe Kanban は運営が 2026-04 に終了を発表)
+- **Sculptor**: Codex への対応が明記されていない
+- **Zed**: エディターとして選べるようにした(env.yaml の editors)。エージェントの並列(Parallel Agents)もあるが、作業の中心にするには、調べた時点で GPU のない RDP での描画が未確認だった(のちに VM で動くことは確かめた)
+- **TUI(Claude Squad、CCManager、Agent of Empires)**: 端末だけで使えるのは強み。ただ、エージェントの作業を並べて見比べるには GUI のほうが向くので、主にはしない。GUI が落ちたときや RDP がつながらないときの予備に、MIT で tmux が要らず npm で版を固定できる CCManager を入れた(Claude Squad は AGPL-3.0 で tmux が要る)
+- Orca の弱点: 更新の確認の通信(1 日 1 回と 30 分ごとの nudge.json)は止められない(v1.4.237 のソース)。.deb 版は自分で更新しないので、出るのは通知だけ。確認なしでコマンドを実行する「Yolo モード」が最初からオン(README の「利用上の注意」)
+- 出典: github.com/stablyai/orca、onorca.dev/docs(install・telemetry・settings)、github.com/generalaction/emdash、github.com/Nimbalyst/nimbalyst、github.com/superset-sh/superset、docs.warp.dev、conductor.build/docs、vibekanban.com/shutdown、github.com/kbwo/ccmanager、github.com/smtg-ai/claude-squad
+
 ### 開発環境の追加(2026-10-24)
 - agent に sudo がないので、エージェントが要る道具は構成で入れるか、mise(言語のバージョン)と rootless Docker(サービス)で済ませる。その事実を agent の `~/.claude/CLAUDE.md` と `~/.codex/AGENTS.md` に書いて置く
 - 版を固定して足したもの: uv 0.13.5、mise 2026.10.18(どちらもリリースの tar を SHA256 照合)、CCManager 4.4.9(npm)、VS Code 1.143.1(Microsoft の apt、hold)、Zed 1.25.3(リリースの tar)。apt で足したもの: python3-dev、pkg-config、libssl-dev、fd-find、tree、htop、tmux、sqlite3、shellcheck、zip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd、libnss3-tools、neovim(選んだとき)
 - env.yaml に足した項目: proxy、ca_certs、editors、agent_ssh_authorized_keys(agent は SFTP 専用)、dev_ports
 - Orca: `ORCA_TELEMETRY_DISABLED=1` を agent の environment.d に置く。利用統計と「Update available」の通知は設定画面でもオフにする(手順書)。更新の確認の通信(1 日 1 回と 30 分ごとの nudge.json)は止める手段がない(v1.4.237 のソースで確認)
-- Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査)。予備の TUI として CCManager を入れた
+- Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査。下の「Orca を選んだ理由」)。予備の TUI として CCManager を入れた
 - 未確認: プロキシと CA 証明書の実際の動作(VirtualBox ではプロキシなし。CA は試験用の自己署名で登録まで確認する)、(VS Code の debconf と、Zed の GPU なしでの動作は、のちに確認済み。下の節を参照)RDP のクリップボードでのファイルのコピー
 
 ### VirtualBox での確認(2026-10-24、入れ直しと feature/dev-env)
@@ -233,6 +262,14 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 37-gpu.sh で、`apt-cache policy` の出力が日本語(「候補:」)だったので `Candidate:` を探す判定が外れた(構成は ja_JP.UTF-8 で動く)。`LC_ALL=C` を付けた。vainfo は 26.04 では `vainfo` のパッケージ(libva-utils ではない)
 - 未確認: 実際の UPS での終了・出力の停止・復電での起動。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 
+### Orca Mobile(2026-10-24 調査、v1.4.237 のソース)
+
+- スマホのアプリからデスクトップの Orca につなぐ。つなぎ方は LAN(`ws://<ホスト>:6768` に直接。アカウントは不要)と Orca Relay(ベータ。両方が Orca のサーバーへ外向きにつなぎ、サーバーが中継する。デスクトップで Orca のアカウントにサインインが要り、アカウントによっては使えない)
+- LAN でも、スマホとの通信はエンドツーエンドで暗号化する作り(`src/main/runtime/rpc/e2ee-channel.ts`)。ペアリングは QR コード
+- 待ち受けは普段 127.0.0.1:6768(VirtualBox の ss でも確認)。ペアリングの操作をすると 0.0.0.0 に広げ、一度つないだ端末があれば次の起動からは最初から広げる(`runtime-rpc-pairing-types.ts`、`runtime-rpc-network-exposure.ts`)。自動ログインで起動した Orca にも、そのままつながるはず(未確認)
+- このリポジトリでは対応のための設定を足さない。LAN で使うなら env.yaml の `dev_ports` に 6768 を足せば `lan_cidrs` からだけ開く。Relay はポートを開けずに使える
+- スマホから agent のターミナルにコマンドを送れるので、スマホの管理(画面のロック、無くしたときにペアリングを外す)を手順に書いた
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -240,7 +277,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - HDMI のダミープラグでの RDP(モニターなし)、BIOS の停電復帰、lan_cidrs の外から 22・3389 に届かないこと(受け入れテスト 7)
 - 電源のプロファイル performance(VM にはない)、RDP の extend モード(VM では GNOME Shell が異常終了した)
 - 実際の HTTP プロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
-- Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
+- Slack への送信、Claude Code の Remote Control、Orca Mobile でのペアリング(LAN・Relay)、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)

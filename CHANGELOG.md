@@ -21,8 +21,9 @@
   - `just vm-test`: VirtualBox の VM に入れなおし、検査、電源を切ったあと、セッションが落ちたあとの戻りを通しで確かめる
 - `just release-check` で `just test` も行う
 - UPS への対応(env.yaml の ups、85-ups.sh): NUT で UPS を見て、バッテリーが少なくなったら(か NUT サーバーの指示で)正しく終了する。USB でつないだときは終了の最後に UPS の出力を止め、電源が戻ったら BIOS の設定で起動させる。停電・復電・まもなく終了を agent-notify で知らせる。just verify に「UPS」の確認
-
 - RDP の画面の符号化を GPU に任せる(37-gpu.sh): Intel は VA-API の full 版(intel-media-va-driver-non-free)、Vulkan のドライバー、vainfo。NVIDIA は autoinstall の drivers でプロプライエタリ ドライバーをインストールの中で入れる。just verify に「GPU」の確認
+- なぜ Orca で動かす専用の PC を用意するのか(手元の PC を閉じられない、並べて見比べる、任せる範囲を分ける、止まらない、同じものを作れる)と、なぜ Orca か(2026-10-24 に代替と比べた条件と結果)を README・SPEC・手順書・notes に書いた
+- Orca Mobile(スマホから Orca を操作するアプリ)の使い方と注意を手順に書いた(LAN なら dev_ports に 6768、外からは VPN か Orca Relay)。設定の追加はなし
 
 ### 修正
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
