@@ -7,3 +7,6 @@ build/
 # Python のキャッシュ(試験で agent-notify を読み込むとできる)
 __pycache__/
 .env
+
+# Git Bash が異常終了したときの記録
+*.stackdump
