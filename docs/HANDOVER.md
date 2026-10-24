@@ -162,7 +162,8 @@
 - 容量: 3 つのクラウドを選んで 26 個・約 2.7GB。大きいのは Codex(openai.chatgpt)1.1GB、Cloud Code 300MB、Claude Code 290MB、Gemini Code Assist 240MB(Cloud Code が必ず一緒に入れる)
 - Azure Tools(ms-vscode.vscode-node-azure-pack)は 12 個のまとめで Windows AI Studio や Jupyter まで入り約 600MB 増えたので、土台の Azure Resources だけにした
 - 依存やまとめで入る拡張機能の版は固定できない(入れたときの最新)。外した拡張機能のフォルダーは VS Code を次に起動したときに消える
-- agent の LANG は ja_JP.UTF-8 なので、日本語の表示は設定なしで効く(画面での確認は未)
+- Language Pack を入れて LANG が ja_JP.UTF-8 でも、表示は英語のままだった(VM の画面で確認)。「表示言語を構成する」と同じく ~/.vscode/argv.json に "locale": "ja" を書く。argv.json はコメント入りなので、locale がないときだけ { の次の行に足す
+- Language Pack の最新は 1.131(VS Code 1.143 より古いが、engine は ^1.131.0 で使える。新しい画面の文言は英語のまま残りうる)
 
 ### Zed の拡張機能(2026-10-24 追加、VirtualBox で確認)
 - Zed には拡張機能を版を指定して入れるコマンドがない。settings.json の auto_install_extensions に書くと、Zed を起動したときに最新が入る。入ったあとは auto_update_extensions を false にして更新を止める

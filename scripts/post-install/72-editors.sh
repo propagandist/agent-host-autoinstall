@@ -133,6 +133,14 @@ if selected vscode; then
         agent_code --install-extension "$ext" --force >/dev/null
     done
     log "VS Code の拡張機能を入れた(${#exts[@]} 個)"
+    # 表示を日本語にする(Language Pack は入れただけでは効かない。「表示言語を構成する」と同じく argv.json に書く)。
+    # argv.json はコメント入りなので JSON として書き換えず、locale がないときだけ { の次の行に足す
+    argv="$AGENT_HOME/.vscode/argv.json"
+    if [ ! -f "$argv" ]; then
+        printf '{\n\t"locale": "ja"\n}\n' | write_agent_file 644 "$argv"
+    elif ! grep -q '"locale"' "$argv"; then
+        sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
+    fi
 fi
 
 # --- Neovim(Ubuntu の公式パッケージ。OS の更新に任せる) ---
