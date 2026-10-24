@@ -141,7 +141,7 @@
   \node[anchor=north west,text=white!85!coverbg,font=\gtfamily\normalsize,align=left]
     at ([xshift=2.2cm,yshift=6.4cm]current page.south west)
     {AI コーディングエージェントを動かし続ける専用の PC を、USB メモリ 1 本で自動で組み立てる。\\
-     再起動や停電のあとも、人の手を借りずにリモートデスクトップで使える状態に戻る。};
+     再起動のあとも、人の手を借りずにリモートデスクトップで使える状態に戻る。};
   \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
   \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
     \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
@@ -172,7 +172,7 @@
 \subsection{この手順書の目的}
 手元に置く物理 PC を、AI コーディングエージェント(Claude Code、Codex ほか)を
 Orca で並列に動かす「常時稼働のエージェントホスト」にするための手順をまとめる。
-USB メモリ 1 本からほぼ無人でインストールでき、再起動や停電のあとも人手を介さずに、
+USB メモリ 1 本からほぼ無人でインストールでき、再起動やセッションの異常終了のあとも人手を介さずに、
 RDP で接続できる状態に戻ることを目指す。
 
 仕様は \code{docs/SPEC.md}、調べたこと・確かめたことと未確認の事項は \code{docs/notes.md} にある。

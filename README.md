@@ -1,14 +1,14 @@
 # agent-host-autoinstall
 
 手元に置く物理 PC を、常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)として、autoinstall で自動構成するための設定とスクリプト一式。
-USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後も人手を介さず RDP で接続できる状態に戻ることを目指す。
+USBメモリ1本から同じ構成を再現でき、再起動やセッションの異常終了のあとも、人手を介さず RDP で接続できる状態に戻ることを目指す。
 
 日本語の環境向け(ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc。文書も日本語)。
 
 ## できること
 
 - USB メモリ 1 本から無人でインストールし、初回起動時に構成する。env.yaml で、ネットワーク、プロキシと CA 証明書、キーボード配列などを指定する
-- GDM の自動ログインと GNOME のデスクトップ共有(RDP)。再起動・停電・セッションの異常終了のあとも、人手なしで RDP に戻る
+- GDM の自動ログインと GNOME のデスクトップ共有(RDP)。再起動やセッションの異常終了のあとも、人手なしで RDP に戻る(電源が戻ったときの起動は BIOS の設定で行う)
 - AI エージェント: Orca、Claude Code、Codex、CCManager。選んで OpenCode、GitHub Copilot CLI、Antigravity CLI
 - 開発の道具: Node.js、uv、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome。選んで VS Code(拡張機能と日本語の表示も)、Neovim、Zed(拡張機能も)、AWS・Google Cloud・Azure の CLI
 - 承認待ち・エラー・完了を Slack と IP Messenger に通知する。ディスクの残りを監視する
