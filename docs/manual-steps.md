@@ -260,12 +260,25 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
    ```
 3. Docker のボリュームに残したいデータがあれば、手で書き出す(例: `docker run --rm -v <ボリューム>:/v -v $PWD:/b alpine tar czf /b/<ボリューム>.tgz -C /v .`)
 4. 同じ env.yaml で `just iso` を作り、新しいホストを入れる
-5. 構成が終わったら取り込み、再起動する
+5. 取り込むまでは、一時の known_hosts でつなぐ(下の「ホスト鍵」)
+   - 新しいホストの画面(RDP の端末でもよい)で、新しいホスト鍵の指紋を見る
+     ```
+     ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+     ```
+   - 手元の PC で、一時の known_hosts を使うようにする(ほかに `AGENT_HOST_SSH_OPTS` を使っていれば後ろに足す)
+     ```
+     export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
+     just status <ホスト>   # 最初に出る指紋が、上で見たものと同じなら yes
+     ```
+6. 構成が終わったら取り込み、再起動する
    ```
    just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
-   just ssh <ホスト>      # sudo systemctl reboot
+   unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate   # 取り込むと元のホスト鍵に戻るので、一時のものは要らない
+   just ssh <ホスト>      # sudo systemctl reboot(元の known_hosts でつながる)
    ```
-6. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
+7. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
+
+**ホスト鍵:** 入れなおすと SSH のホスト鍵が新しくなり、取り込むと書き出したときの鍵に戻る(sshd も再起動する)。そのため、取り込むまでは手元の known_hosts の鍵と合わず、`just status` も `just restore` も「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まる。known_hosts の古い鍵は消さない(消すと、取り込んだあとにもう一度食い違う)。`StrictHostKeyChecking=no` などで確かめずにつなぐと、書き出し(ログインの情報が入る)と sudo のパスワードを、確かめていない相手に送ることになるので使わない。
 
 **書き出したファイルにはログインの情報が入る。暗号化された場所に移し、取り込んだら消す。**
 

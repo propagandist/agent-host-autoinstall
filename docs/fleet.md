@@ -123,14 +123,17 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    just backup agent-host-01 <暗号化された場所>/agent-host-01-<日付>.tar.zst
    ```
 2. 同じ `hosts/<ホスト>.yaml` で `just iso` を作り、入れなおす(機種を替えるときは、台帳の機種・MAC も直す)
-3. 取り込み、再起動する
+3. 取り込み、再起動する。入れなおしたホストはホスト鍵が新しいので、取り込むまでは一時の known_hosts でつなぎ、
+   最初に出る指紋を新しいホストの画面の `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` と照らす(道具の手順書の「環境を入れ替える」)
    ```
+   export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
    just restore agent-host-01 <暗号化された場所>/agent-host-01-<日付>.tar.zst
+   unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate
    just ssh agent-host-01            # sudo systemctl reboot
    ```
 4. `just verify` と受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
 
-ホスト鍵と RDP の証明書も移るので、手元の known_hosts と RDP の「今後確認しない」は、そのまま使える。
+ホスト鍵と RDP の証明書も移るので、取り込んだあとは、手元の known_hosts と RDP の「今後確認しない」をそのまま使える(取り込むまでは使えない。known_hosts の古い鍵は消さない)。
 
 ## 8. 作業する人が増える・減る
 

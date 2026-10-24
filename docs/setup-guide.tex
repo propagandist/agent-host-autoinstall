@@ -1058,10 +1058,19 @@ just backup <ホスト>    # build/backups/<ホスト>-<日時>.tar.zst に書�
 \end{local}
   \item Docker のボリュームに残したいデータがあれば、手で書き出す
   \item 同じ env.yaml で \code{just iso} を作り、新しいホストを入れる
+  \item 取り込むまでは一時の \code{known_hosts} でつなぐ。新しいホストの画面(RDP の端末でもよい)で指紋を見て、最初に出る指紋と照らす
+\begin{host}
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+\end{host}
+\begin{local}
+export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
+just status <ホスト>    # 指紋が同じなら yes
+\end{local}
   \item 構成が終わったら取り込み、再起動する
 \begin{local}
 just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
-just ssh <ホスト>       # sudo systemctl reboot
+unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate
+just ssh <ホスト>       # sudo systemctl reboot(元の known_hosts でつながる)
 \end{local}
   \item \code{just verify <ホスト>} と、受け入れテストの 4・5 を行う
 \end{enumerate}
@@ -1069,6 +1078,11 @@ just ssh <ホスト>       # sudo systemctl reboot
 \begin{caution}
 書き出したファイルにはログインの情報が入る。暗号化された場所に置き、取り込んだら消す。
 \end{caution}
+\begin{hint}
+入れなおすと SSH のホスト鍵が新しくなり、取り込むと書き出したときの鍵に戻る。そのため取り込むまでは、手元の \code{known_hosts} と合わず
+「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まる。\code{known_hosts} の古い鍵は消さない(取り込んだあとにもう一度食い違う)。
+確かめずにつなぐ設定(\code{StrictHostKeyChecking=no})は、書き出しと sudo のパスワードを確かめていない相手に送ることになるので使わない。
+\end{hint}
 
 \subsection{複数台を管理する}\label{sec:fleet}
 ホストが 2 台以上になったら、このリポジトリ(道具)とは別に、実機の構成を管理する非公開のリポジトリ(構成リポジトリ)を
