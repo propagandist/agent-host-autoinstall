@@ -114,6 +114,9 @@ def main():
     desktop_color = str(env.get("desktop_color") or "")
     if desktop_color and not re.fullmatch(r"#[0-9a-fA-F]{6}", desktop_color):
         fail("desktop_color は #RRGGBB の形にする")
+    gitea_url = str(env.get("gitea_url") or "").rstrip("/")
+    if gitea_url and not re.fullmatch(r"https?://[^\s/]+(/\S*)?", gitea_url):
+        fail("gitea_url は https://gitea.example.internal の形にする")
     notify = env.get("notify") or {}
     slack_url = str(notify.get("slack_webhook_url") or "")
     if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
@@ -168,6 +171,7 @@ def main():
         f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
         f"AH_AGENTS={shlex.quote(' '.join(agents))}",
         f"AH_DESKTOP_COLOR={shlex.quote(desktop_color)}",
+        f"AH_GITEA_URL={shlex.quote(gitea_url)}",
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
         f"AH_IPMSG_TO={shlex.quote(' '.join(ipmsg_to))}",
         f"AH_IPMSG_BROADCAST={shlex.quote(' '.join(ipmsg_broadcast))}",

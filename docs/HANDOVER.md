@@ -142,6 +142,12 @@
 - tcolorbox の環境名 `check` は既にある命令とぶつかるので `confirm`、TikZ の style 名 `step` も既にあるキーなので `pstep` にした
 - 表紙の絵は Gemini(gemini-3-pro-image)で作った docs/cover.jpg。作りなおすときは .env に GEMINI_API_KEY を書き、`python3 scripts/local/gen-cover.py build/cover.jpg 3` で候補を作って選ぶ。横長だと下半分が空き、縦長で「余白を空けて」と頼むと色の違う帯ができたので、「継ぎ目のない 1 枚の絵」と書いた。Gemini で作った絵には見えない透かし(SynthID)が入る
 
+### Gitea(2026-10-24 追加、VirtualBox で確認)
+- Gitea CLI の tea 0.16.0 をいつも入れる(dl.gitea.com の単体のバイナリを SHA256 で照合。/opt/tea-<版>/tea)。env.yaml の gitea_url を書くと、agent の environment.d に GITEA_SERVER_URL を置き(tea login add の既定の接続先)、エージェント向けの説明にも載せる
+- 手元の Docker の Gitea 28.2.0 に VM から接続し、`tea login add --token … --git-credentials` → HTTPS の clone・push(tea が git の credential helper になる)→ `tea issues create` が通った
+- トークンの権限は repository と issue の書き込み、user の読み取りで足りる。`tea repo create` だけは write:user が要った
+- 社内の Gitea が社内の CA の証明書を使うときは、env.yaml の ca_certs に入れれば tea(Go)もシステムの証明書として信頼する(未確認)
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)

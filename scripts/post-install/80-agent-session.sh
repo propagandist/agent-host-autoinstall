@@ -151,6 +151,14 @@ MISE_TRUSTED_CONFIG_PATHS=${HOME}
 COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 EOF
 # 上の COREPACK_ENABLE_DOWNLOAD_PROMPT: pnpm / yarn の初回の取得で確認を出さない(エージェントが端末で止まらないように)
+
+# --- Gitea ---
+# env.yaml の gitea_url を、tea login add の既定の接続先(GITEA_SERVER_URL)にする
+if [ -n "${AH_GITEA_URL:-}" ]; then
+    printf 'GITEA_SERVER_URL=%s\n' "$AH_GITEA_URL" | write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-gitea.conf"
+else
+    rm -f "$AGENT_HOME/.config/environment.d/60-gitea.conf"
+fi
 if ! grep -q 'mise activate bash' "$AGENT_HOME/.bashrc" 2>/dev/null; then
     # shellcheck disable=SC2016  # .bashrc にはそのまま書く(展開はログイン時)
     printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' >>"$AGENT_HOME/.bashrc"
@@ -168,11 +176,15 @@ agent-host-autoinstall が置いた説明。環境の事実だけを書いてい
 - 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
 - Python は uv(`uv venv`、`uv pip install`、`uv run`)を使える。pnpm と yarn は corepack で使える
 - データベースなどのサービスは rootless Docker(`docker compose`)で動かす。1024 未満のポートは待ち受けできない
-- 入っている主な道具: git、gh、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
+- 入っている主な道具: git、gh、tea、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
 - GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
+- Gitea の Issue・PR などの操作は tea を使う(`tea login list` で確かめる)。Gitea への HTTPS の push は tea のログインの認証を使う
 - 作業は ~/work の下で行う
 EOF
 )"
+if [ -n "${AH_GITEA_URL:-}" ]; then
+    agent_notes="$agent_notes"$'\n'"- 社内の Gitea: $AH_GITEA_URL"
+fi
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
     if [ ! -f "$notes" ]; then
         printf '%s\n' "$agent_notes" | write_agent_file 644 "$notes"
