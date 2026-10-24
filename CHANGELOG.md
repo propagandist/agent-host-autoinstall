@@ -36,6 +36,9 @@
 - 独自の CA 証明書(ca_certs)を OS に入れても、構成の途中の npm(Node.js)はそれを使わず、TLS を検査するプロキシの下では止まった。provision.sh が NODE_EXTRA_CA_CERTS などを渡す。apt の取得元の更新は、プロキシと CA の設定のあとに行う(#6)
 - just update が途中で失敗しても、`just status` が「構成: 済み」と新しい版を出し、成功と区別できなかった。provision.sh が実行中の印を置いて成功したら消し、成功した版を BUILD-INFO.ok に残す。status は「置いた版」「最後に適用に成功した版」と「前回の実行が最後まで終わっていない」を出し、verify も確かめる(#10)
 - env.yaml のどの項目が just update で反映されるかが分からず、壁紙の色と Dock は first-login の一度きりで変わらなかった。項目ごとの線引き(update・セッション・インストールだけ)を render-autoinstall.py の UPDATE_SCOPE と文書の表に持ち、試験で漏れを確かめる。壁紙の色と Dock はログインのたびの自動起動(desktop-env.sh)が、変わったときだけ入れなおす(ログイン中ならその場で)(#13)
+- UPS の netclient では nut の HOME(/var/lib/nut)が無く、停電などの通知が送られなかった。mode に関わらず作り、agent-notify は記録を書けなくても送る(#5)
+- 手元の一時ファイル(build/.env など)と構成リポジトリのひな形の復号先(build/.dec/<ホスト>)を固定の名前で共有していたため、並行に動かすと別のホストの env.yaml が混ざったり、先に動いているほうの入力が消えたりした。実行ごとのディレクトリ(build/.run.XXXXXX、build/.dec/<ホスト>.XXXXXX)に分ける(#9)
+- `/dev/dri` が無いと just verify が途中で終わり、集計まで届かなかった(#12)
 - `rdp.password` を替えて `just update` しても、古い RDP の認証情報が有効なままだった。替えたら渡しなおし、ログイン中ならその場で、そうでなければ次のログインで入れ替える。移行の取り込みのあとも、このホストの認証情報を入れなおす(#3)
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 
