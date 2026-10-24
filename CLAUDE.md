@@ -10,6 +10,8 @@
 
 ```
 README.md                   # 概要と文書の案内
+LICENSE                     # Apache License 2.0(標準の全文のまま。書き足さない)
+NOTICE                      # 著作権者の表示(手順書の PDF の発行者もここから入れる)
 justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF、リリース前の確認)。just で一覧
 CHANGELOG.md                # 変更の記録(版ごと)
 .github/workflows/release.yml # タグの push で手順書の PDF を作り GitHub Release に付ける
@@ -72,7 +74,7 @@ docs/
 ## ルール
 
 - **秘密情報をコミットしない。** パスワードハッシュ、SSH 鍵、LAN の IP 範囲などは `env.yaml` に分離し、`.gitignore` に入れる
-- **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE の著作権者表示は除く)。特定の組織や読者を前提にしない(「社内」「社外」「当社」「作業者」と書かず、「LAN」「組織」「利用者」などと書く。組織の予定や判断の経緯はこのリポジトリに書かない)
+- **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE と NOTICE の著作権者表示、それを入れる手順書の PDF の発行者表示、README の「ライセンス / 位置づけ」で PROPAGANDIST の OSS であることを書く 1 か所は除く)。特定の組織や読者を前提にしない(「社内」「社外」「当社」「作業者」と書かず、「LAN」「組織」「利用者」などと書く。組織の予定や判断の経緯はこのリポジトリに書かない)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
 - **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるもの(どちらも入れたときの最新で、その後は更新しない)

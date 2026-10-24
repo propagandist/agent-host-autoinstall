@@ -40,7 +40,7 @@ git config gitflow.prefix.versiontag v
    git flow release start 0.1.0
    ```
 3. 版の内容を書く(このブランチでは版の記録と文書の手直しだけを行い、機能は足さない)
-   - `CHANGELOG.md` の `## [未リリース]` を `## [0.1.0] - <日付>` にし、上に空の `## [未リリース]` を足す。「確認した環境」に、VM と実機で確かめた範囲を書く
+   - `CHANGELOG.md` の `## [未リリース]` を `## [0.1.0] - <日付> — <位置づけ>` にし(位置づけは日本語 4〜27 字。例: 最初の版。Release の名前「v0.1.0 — 最初の版」になる)、上に空の `## [未リリース]` を足す。「確認した環境」に、VM と実機で確かめた範囲を書く
    - 「env.yaml の変更」の欄に、構成リポジトリの各ホストの env.yaml で直すこと(項目の追加・名前の変更・使えなくなった値)を書く。なければ「なし」。互換性がなくなる変更ならメジャーを上げる
    - 手順書(docs/setup-guide.tex)の付録「固定しているバージョン」の日付と値を、スクリプトの先頭の値に合わせる
    - docs/notes.md の「検証した環境」と「確認できていないこと」を直す
@@ -60,7 +60,7 @@ git config gitflow.prefix.versiontag v
 ## うまくいかなかったとき
 
 - **Actions が失敗した:** 直したものを hotfix(下と同じ手順。main から `git flow hotfix start 0.1.1`)として出す。タグは付けなおさない
-- **CHANGELOG の節がないと言われた:** 見出しが `## [0.1.0]` で始まっているか(タグの `v` は付けない)
+- **CHANGELOG の節がないと言われた:** 見出しが `## [0.1.0] - <日付> — <位置づけ>` の形か(タグの `v` は付けない。` — ` は前後に空白のある em dash)
 - **PDF だけ作りなおしたい:** Actions の画面から、失敗した実行を再実行する。Release が先にできていれば、手元で `just guide` を実行し `gh release upload v0.1.0 <PDF> --clobber` で差し替える
 
 ## 実機で問題が出たとき(hotfix)
@@ -92,4 +92,6 @@ git config gitflow.prefix.versiontag v
 - GitHub の secret scanning と push protection を有効にする
 - `git log --all --format='%ae %ce' | sort -u` で、作成者のメールアドレスが noreply などの公開してよいものだけであることを確かめる
 - main と develop に、強制 push と削除を禁止する保護を入れる(Private のリポジトリでは、契約によっては設定できない)
-
+- 既定ブランチを main にする(開いた人がリリース済みの状態を見る)。マージ済みのブランチを自動で消す設定(`delete_branch_on_merge`)が入っていることを確かめる
+- About 欄の description(日本語 1 文、60〜80 字)と topics(6 個)が入っていることを確かめる。Zenn などの紹介記事を公開したら、Website にその URL を入れる
+- 公開したあとで、`gh api repos/<owner>/<repo>/license --jq .license.spdx_id` が `Apache-2.0` になること、右柱に `v0.1.0 — 最初の版` のような Release が出ていることを確かめる
