@@ -252,6 +252,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 初回の起動では、起動画面(plymouth)が構成のあいだ(約 23 分)出たままで CPU を 1 分 20 秒使い、GDM の起動のときに SEGV で落ちて plymouth-start.service が failed で残った。構成サービスの最初に `plymouth quit` し、GRUB の `GRUB_CMDLINE_LINUX_DEFAULT` を `quiet` にした(splash を外す)
 - 初回の起動のカーネル引数は、インストーラーが書いたもの(crashkernel あり)のまま。kdump を消して update-grub しても、再起動するまで /proc/cmdline には残る。just verify は GRUB の設定(grub.cfg)で確かめ、動いているカーネルに残っているときは「再起動で反映」と出すだけにした
 - 入れなおしから RDP の待ち受けまで人手なし、強制的な電源断のあと、gnome-shell の SEGV のあと、のいずれも、verify(106 項目)と verify-rdp が通った(VirtualBox 7.2、CPU 1、メモリ 4GB)
+- 2026-10-25、v0.2.0 の前(レビューの指摘 #1〜#14 の修正と全体の整合の直しを含むスクリプト)で、もう一度 just vm-test を通した。ISO の起動から RDP の待ち受けまで約 75 分(CPU 1)。入れた直後・強制的な電源断のあと・gnome-shell の SEGV のあとのいずれも、verify(128 項目。agent の設定の確認を足した版)と verify-rdp が通り、8 項目すべて通った。入れた直後はカーネルの引数に splash が残る旨を出す(再起動で反映)。GPU は VM にないので対象外
 
 ### UPS(2026-10-24 追加)
 
