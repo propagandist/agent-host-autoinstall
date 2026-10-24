@@ -10,6 +10,8 @@
 
 ## [未リリース]
 
+## [0.1.0] - 2026-10-24
+
 ### env.yaml の変更
 - 最初の版なので、なし(項目は autoinstall/env.example.yaml)
 
@@ -32,5 +34,5 @@
 - リリースの手順(docs/release.md)と、タグの push で手順書の PDF を GitHub Release に付けるワークフロー
 
 ### 確認した環境
-- VirtualBox 7.2(Windows 10、UEFI、CPU 1、メモリ 4GB)で、無人インストールから RDP の接続、受け入れテスト 1〜6・8
-- 実機は未確認(ダミープラグでの RDP、停電復帰、社内 LAN の外から届かないこと、プロキシ、Slack、Zed)
+- VirtualBox 7.2(Windows 10、UEFI、CPU 1、メモリ 4GB)で、release/0.1.0 の ISO から新しく入れなおし、無人インストールから RDP の接続まで。受け入れテスト 1〜6・8 はこれまでの VM で確かめた
+- 実機は未確認(ダミープラグでの RDP、停電復帰、社内 LAN の外から届かないこと、プロキシ、Slack、クラウドへのログイン、Zed での日本語入力)。問題が出たら hotfix で直す
