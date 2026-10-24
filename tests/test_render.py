@@ -167,6 +167,30 @@ class TestValid(Case):
         self.assertEqual(r.stdout, pw)
 
 
+class TestUpdateScope(Case):
+    """just update で反映される範囲の表(Issue #13)。"""
+
+    def load(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("render", RENDER)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_every_key_is_classified(self):
+        mod = self.load()
+        self.assertEqual(set(mod.UPDATE_SCOPE), set(mod.KNOWN_KEYS))
+        self.assertTrue(set(mod.UPDATE_SCOPE.values()) <= {"update", "relogin", "install"})
+
+    def test_install_only_keys_do_not_reach_the_host(self):
+        # インストールのときだけ効く項目(hostname は update の照合にだけ使う)は、env.sh に値として出ない
+        out = self.ok(self.write(self.with_(keyboard_layout="jp", network={"mode": "dhcp", "interface": "enp9s0"})))
+        with open(os.path.join(out, "env.sh"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertNotIn("KEYBOARD", text)
+        self.assertNotIn("enp9s0", text)
+
+
 class TestUps(Case):
     def test_usb(self):
         env = read_env_sh(os.path.join(self.ok(self.write(self.with_(ups={"mode": "usb"}))), "env.sh"))

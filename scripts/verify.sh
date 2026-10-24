@@ -119,6 +119,8 @@ check "セッションの見張りのタイマーが動いている" systemctl i
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
 eq "画面のロックが無効" "$(gset org.gnome.desktop.screensaver lock-enabled)" false
 eq "アイドルで画面を消さない" "$(gset org.gnome.desktop.session idle-delay)" "uint32 0"
+eq "壁紙の色が env.yaml と同じ" "$(gset org.gnome.desktop.background primary-color)" "'${AH_DESKTOP_COLOR:-#4a4a4a}'"
+check "壁紙の色と Dock を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop"
 check "空パスワードのログインキーリングがある" test -f "$AGENT_HOME/.local/share/keyrings/login.keyring"
 check "first-login が済んでいる" test -f "$AGENT_HOME/.config/agent-host/first-login.done"
 check "RDP の認証情報を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-rdp-credentials.desktop"

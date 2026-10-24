@@ -52,9 +52,23 @@ cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
 EOF
 : | write_agent_file 644 "$AGENT_HOME/.config/google-chrome/First Run"
 
-# --- first-login に渡す値(壁紙の色) ---
+# --- 壁紙の色と Dock(env.yaml の desktop_color と editors で変わる) ---
+# desktop-env.sh がログインのたびに読み、変わっていれば入れる。ログイン中なら、その場でも入れる(Issue #13)
 printf 'DESKTOP_COLOR=%s\n' "${AH_DESKTOP_COLOR:-#4a4a4a}" |
     write_agent_file 644 "$AGENT_HOME/.config/agent-host/desktop.env"
+write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=agent-host desktop settings
+Exec=$AH_ROOT/first-login/desktop-env.sh
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+EOF
+if [ -f "$AGENT_HOME/.config/agent-host/first-login.done" ]; then
+    rc=0
+    agent_session_run "$AH_ROOT/first-login/desktop-env.sh" >/dev/null || rc=$?
+    [ "$rc" = 0 ] || [ "$rc" = 2 ] || log "注意: 壁紙の色と Dock をその場では入れられなかった。次のログインで入る"
+fi
 
 # --- Files のサイドバーに ~/work ---
 # 新規インストールではまだファイルがない(xdg-user-dirs-gtk-update は 80 で止めている)ので、よく使う場所も一緒に書く

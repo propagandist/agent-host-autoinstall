@@ -223,14 +223,14 @@ fi
 # agent がログイン中なら、その場でセッションに入れる(キーリングが開いているので入る)
 if queue_rdp_credentials; then
     log "RDP の認証情報を渡した"
-    if [ -f "$done_mark" ] && [ -S "/run/user/$agent_uid/bus" ] &&
-        loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
-        if agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$agent_uid" \
-            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$agent_uid/bus" "$AH_ROOT/first-login/rdp-credentials.sh"; then
-            log "ログイン中の $AGENT_USER のセッションに RDP の認証情報を入れた"
-        else
-            log "注意: RDP の認証情報をその場では入れられなかった。次のログインで入る"
-        fi
+    if [ -f "$done_mark" ]; then
+        rc=0
+        agent_session_run "$AH_ROOT/first-login/rdp-credentials.sh" || rc=$?
+        case "$rc" in
+        0) log "ログイン中の $AGENT_USER のセッションに RDP の認証情報を入れた" ;;
+        2) ;;  # ログインしていない。次のログインで入る
+        *) log "注意: RDP の認証情報をその場では入れられなかった。次のログインで入る" ;;
+        esac
     fi
 fi
 

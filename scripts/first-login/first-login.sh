@@ -33,28 +33,12 @@ gsettings set org.gnome.desktop.wm.keybindings switch-input-source "['<Super>spa
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward "['<Shift><Super>space', '<Shift><Control>space']"
 
 # --- RDP での使い勝手 ---
-# アニメーションを切り、壁紙を単色にする(RDP は画面の変化を送るので、動きと模様が少ないほど軽い)。
-# 壁紙の色は env.yaml の desktop_color(76-desktop.sh が desktop.env に渡す)
+# アニメーションを切る(RDP は画面の変化を送るので、動きが少ないほど軽い)。
+# 壁紙の色と Dock は env.yaml で変わるので、ログインのたびに動く desktop-env.sh が入れる(ここでも呼ぶ)
 gsettings set org.gnome.desktop.interface enable-animations false
-desktop_color="#4a4a4a"
-if [ -f "$state_dir/desktop.env" ]; then
-    # shellcheck source=/dev/null
-    . "$state_dir/desktop.env"
-    desktop_color="${DESKTOP_COLOR:-$desktop_color}"
-fi
-gsettings set org.gnome.desktop.background picture-options 'none'
-gsettings set org.gnome.desktop.background color-shading-type 'solid'
-gsettings set org.gnome.desktop.background primary-color "$desktop_color"
+"$(dirname "$0")/desktop-env.sh"
 # スクリーンショット: PrintScreen は RDP で手元の Windows に取られることがあるので、Ctrl+Shift+Alt+S でも開く
 gsettings set org.gnome.shell.keybindings show-screenshot-ui "['Print', '<Shift><Control><Alt>s']"
-# Dock: Orca・端末・Chrome・入っているエディター・Files に絞る
-favorites=""
-for app in orca-ide xfce4-terminal google-chrome com.microsoft.VSCode dev.zed.Zed org.gnome.Nautilus; do
-    if [ -f "/usr/share/applications/$app.desktop" ]; then
-        favorites+="${favorites:+, }'$app.desktop'"
-    fi
-done
-gsettings set org.gnome.shell favorite-apps "[$favorites]"
 # Ctrl+Alt+T で開く端末を Xfce Terminal に(gsd-media-keys はこの設定と xdg-terminal-exec を見る。
 # xdg-terminal-exec の既定は Ptyxis で、~/.config/xdg-terminals.list は 76-desktop.sh が置く)。
 # 右クリックでクリップボードから貼り付け、選択でコピー(PuTTY や Windows Terminal に近い動き)

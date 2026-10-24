@@ -85,6 +85,21 @@ def check_types(env):
                     fail(f"env.yaml の {path} の {item!r} は文字列にする(引用符で囲む)")
 
 
+# just update で反映されるか(Issue #13)。KNOWN_KEYS を足したらここも直し、文書の表(manual-steps の「設定や
+# スクリプトを変えたとき」、手順書の「設定やバージョンを変える」)も合わせる。tests/test_render.py が漏れを確かめる
+#   update:  just update で反映する(注記は文書の表)
+#   relogin: just update のあと、agent のログイン中ならその場で、そうでなければ次のログインで反映する
+#   install: インストールのときだけ効く(変えるなら入れなおす)
+UPDATE_SCOPE = {
+    "hostname": "install", "keyboard_layout": "install", "network": "install",
+    "sysadmin": "update", "proxy": "update", "ca_certs": "update", "ntp_servers": "update",
+    "git_user_name": "update", "git_user_email": "update", "editors": "update", "vscode_extensions": "update",
+    "zed_extensions": "update", "gitea_url": "update", "agents": "update", "clouds": "update", "notify": "update",
+    "agent_ssh_authorized_keys": "update", "dev_ports": "update", "lan_cidrs": "update", "ups": "update",
+    "rdp": "relogin", "desktop_color": "relogin",
+}
+
+
 def merge(base, over):
     """over を base に重ねる。辞書はキーごとに重ね、それ以外(並び・値)は置き換える。"""
     if isinstance(base, dict) and isinstance(over, dict):

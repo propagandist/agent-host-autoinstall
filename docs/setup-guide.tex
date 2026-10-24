@@ -1015,6 +1015,18 @@ Node.js・npm で入れたツール)には、セキュリティ更新が自動�
 \begin{local}
 just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 \end{local}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}p{0.36\linewidth}p{0.16\linewidth}L@{}}
+\toprule\headrow
+env.yaml の項目 & just update で & 注記 \\
+\midrule
+\code{hostname}・\code{network}・\code{keyboard_layout} & \textbf{反映しない} & インストールのときだけ効く。変えるなら入れなおす \\
+\code{sysadmin} & 反映する & 鍵とパスワードを env.yaml の内容に置き換える \\
+\code{rdp}・\code{desktop_color} & 反映する & ログイン中ならその場で、そうでなければ次のログインで(Dock も) \\
+\code{editors}・\code{agents}・\code{clouds}・拡張機能 & 足すだけ & 外しても消さない \\
+\code{lan_cidrs}・\code{dev_ports} & 足すだけ & ufw の許可は外しても消えない \\
+ほか(\code{proxy}・\code{ca_certs}・\code{notify}・\code{ups} など) & 反映する & agent の環境変数は次のログインで効く \\
+\bottomrule
+\end{tabularx}}
 \begin{itemize}
   \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
   \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
