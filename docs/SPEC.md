@@ -54,7 +54,7 @@
 late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回起動時の構成サービス(`agent-host-provision.service`)を有効にするだけにする。構成そのものは、初回起動時にこのサービスが `post-install/` を番号順に実行する(GDM の起動前)。インストール中の chroot では ufw などが動かないため。`agent` のセッションが要る設定(gsettings、grdctl)は first-login で行う。
 
 - `agent` ユーザー作成(sudo なし)
-- GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`
+- GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`。GNOME のセッションが落ちてログイン画面のままになったら、見張りのタイマーが GDM を再起動して自動ログインさせ、通知する
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - `agent` のホームのフォルダー名(デスクトップ、ダウンロードなど)は英語名(Desktop、Downloads など)にする
 - `agent` の GNOME 設定(初回ログイン時に適用):

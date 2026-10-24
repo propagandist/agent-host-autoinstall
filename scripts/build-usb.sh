@@ -36,7 +36,7 @@ cp -a "$work/render/ca" "$stage/ca"
 # 2. ターゲットの /opt/agent-host に置くスクリプトをそろえる
 cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" \
     "$repo/scripts/lib" "$repo/scripts/post-install" "$repo/scripts/first-login" \
-    "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$stage/"
+    "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$repo/scripts/watchdog" "$stage/"
 find "$stage" -name '*.sh' -exec chmod 755 {} +
 chmod 600 "$stage/env.sh"
 

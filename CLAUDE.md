@@ -44,6 +44,7 @@ scripts/
   notify/agent-notify       # 通知を送るスクリプト(/usr/local/bin に置く)
   notify/agent-host-diskcheck # ディスクの残りの監視
   migrate/                  # 環境を入れ替えるときの書き出し(agent-host-backup)と取り込み(agent-host-restore)
+  watchdog/                 # agent のセッションが落ちたら GDM を再起動する見張り(20-autologin.sh が置く)
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
 docs/
   SPEC.md                   # 仕様
