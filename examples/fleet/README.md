@@ -23,5 +23,6 @@ just check agent-host-01      # env.yaml を検査する
 just iso agent-host-01        # build/agent-host-01.iso を作る
 just update agent-host-01     # 設定とスクリプトの変更を反映する
 just status agent-host-01     # 状態と作った版を見る
+just verify agent-host-01     # 仕様どおりかを確かめる
 just facts agent-host-01      # facts/agent-host-01.yaml を書く
 ```
