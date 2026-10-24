@@ -197,6 +197,42 @@ check "agent の Docker の掃除のタイマー" as_agent systemctl --user is-a
 dinfo="$(as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" docker info --format '{{.SecurityOptions}}' 2>&1 || true)"
 if [[ "$dinfo" == *rootless* ]]; then ok "agent の docker が rootless で応える"; else ng "agent の docker が rootless で応える" "$dinfo"; fi
 
+section "GPU(RDP の画面の符号化)"
+check "vainfo(libva-utils)が入っている" installed libva-utils
+check "Vulkan のドライバー(mesa-vulkan-drivers)が入っている" installed mesa-vulkan-drivers
+render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1)"
+gpu_vendor=""
+if [ -n "$render" ]; then
+    gpu_vendor="$(cat "/sys/class/drm/${render##*/}/device/vendor" 2>/dev/null || true)"
+fi
+case "$gpu_vendor" in
+0x8086 | 0x1002)
+    # Intel か AMD: VA-API で H.264(High)を符号化できること
+    if [ "$gpu_vendor" = 0x8086 ]; then
+        check "Intel の VA-API の full 版" installed intel-media-va-driver-non-free
+    fi
+    if vainfo --display drm --device "$render" 2>/dev/null | grep -qE 'VAProfileH264High[[:space:]]*:[[:space:]]*VAEntrypointEncSlice'; then
+        ok "GPU($gpu_vendor)で H.264 を符号化できる(vainfo)"
+    else
+        ng "GPU($gpu_vendor)で H.264 を符号化できる(vainfo)" "vainfo --display drm --device $render に VAEntrypointEncSlice がない"
+    fi
+    # RDP でつないだあとに、gnome-remote-desktop が VA-API を使い始めた記録が残る
+    if journalctl -b "_UID=$agent_uid" -o cat --no-pager 2>/dev/null | grep -q 'HWAccel.VAAPI\] Successfully initialized'; then
+        ok "RDP が GPU で符号化している(gnome-remote-desktop の記録)"
+    else
+        printf '  - RDP が GPU で符号化しているかは、RDP でつないだあとに確かめる(gnome-remote-desktop の記録がまだない)\n'
+    fi
+    ;;
+0x10de)
+    # NVIDIA: プロプライエタリ ドライバーと NVENC(gnome-remote-desktop は CUDA と NVENC を使う)
+    check "NVIDIA のドライバーが動いている" test -d /sys/module/nvidia
+    check "NVENC のライブラリがある" bash -c "ldconfig -p | grep -q libnvidia-encode.so"
+    ;;
+*)
+    printf '  - GPU がない(VM など。vendor %s)ので、符号化の確認は対象外\n' "${gpu_vendor:-なし}"
+    ;;
+esac
+
 section "日本語"
 for pkg in ibus-mozc language-pack-ja language-pack-gnome-ja fonts-noto-cjk; do
     check "$pkg が入っている" installed "$pkg"

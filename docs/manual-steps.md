@@ -46,6 +46,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 ## 1. BIOS
 
 - Restore on AC Power Loss(名称は機種による)を **Power On** にする
+- NVIDIA の GPU で Secure Boot が有効なら、そのままにしておく(インストールの中で入る NVIDIA のドライバーが、署名済みのモジュールで動くかは未確認。動かなければ just verify の「GPU」が ✗ になる)
 - HDMI ダミープラグを挿す。デスクトップ共有は実際の画面をそのまま映すので、RDP の解像度はプラグの解像度になる(手元からは変えられない)。1920×1080 のプラグを選ぶ(4K だと文字がとても小さい)
 
 ## 2. インストール
@@ -207,6 +208,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
+- NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
 - どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)

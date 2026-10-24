@@ -128,11 +128,8 @@ if command -v powerprofilesctl >/dev/null; then
     powerprofilesctl set performance || log "注意: 電源のプロファイルを performance にできなかった"
 fi
 
-# 15. Intel の内蔵 GPU があれば、RDP の画面の符号化を任せる(VA-API。なければ使われないだけ)
-apt-get install -y intel-media-va-driver
-
-# 16. 正しく終了しなかったあとの GRUB の待ちを 30 秒から 5 秒に(停電からの復帰を早くする)
+# 15. 正しく終了しなかったあとの GRUB の待ちを 30 秒から 5 秒に(停電からの復帰を早くする)
 printf '# agent-host-autoinstall が置いた設定\nGRUB_RECORDFAIL_TIMEOUT=5\n' >/etc/default/grub.d/60-agent-host.cfg
 update-grub >/dev/null 2>&1
 
-log "snap・kdump の削除、zram、電源のプロファイル、VA-API、GRUB の待ちを設定した"
+log "snap・kdump の削除、zram、電源のプロファイル、GRUB の待ちを設定した"

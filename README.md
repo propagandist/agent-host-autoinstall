@@ -32,7 +32,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
 
 ### 必要なもの
 
-- 入れる先の PC: x86_64、メモリ 32GB 以上を推奨、有線 LAN、HDMI のダミープラグ(モニターなしで描画させるため)
+- 入れる先の PC: x86_64、メモリ 32GB 以上を推奨、有線 LAN、HDMI のダミープラグ(モニターなしで描画させるため)。GPU は Intel の第 6 世代以降の内蔵 GPU か AMD を勧める(RDP の画面を GPU で符号化する)
 - 手元の PC: [just](https://just.systems/) と、次のどちらか
   - Docker(Linux の道具を Docker の Ubuntu の中で動かす。Windows では Git Bash と Docker Desktop)
   - Linux なら `xorriso`・`python3-yaml`・`shellcheck`
