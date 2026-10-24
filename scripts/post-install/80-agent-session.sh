@@ -179,11 +179,20 @@ agent-host-autoinstall が置いた説明。環境の事実だけを書いてい
 - 入っている主な道具: git、gh、tea、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
 - GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
 - Gitea の Issue・PR などの操作は tea を使う(`tea login list` で確かめる)。Gitea への HTTPS の push は tea のログインの認証を使う
+- Terraform・OpenTofu・kubectl・Helm などは入れていない。プロジェクトに合う版を mise で入れる(例: `mise use terraform@1.13`)
 - 作業は ~/work の下で行う
 EOF
 )"
 if [ -n "${AH_GITEA_URL:-}" ]; then
     agent_notes="$agent_notes"$'\n'"- 社内の Gitea: $AH_GITEA_URL"
+fi
+if [ -n "${AH_CLOUDS:-}" ]; then
+    clouds_cmds=""
+    for c in $AH_CLOUDS; do
+        case "$c" in gcp) c=gcloud ;; azure) c=az ;; esac
+        clouds_cmds="${clouds_cmds:+$clouds_cmds、}$c"
+    done
+    agent_notes="$agent_notes"$'\n'"- クラウドの CLI: $clouds_cmds。ログイン(SSO・デバイスコード)は人がブラウザで行うもので、認証が切れているとエージェントからは更新できない"
 fi
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
     if [ ! -f "$notes" ]; then

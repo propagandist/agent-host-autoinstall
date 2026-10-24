@@ -142,6 +142,21 @@ tea whoami
 
 社内から 1 つの IP でまとめて外に出ると、ログインなしの Docker Hub からの取得は 6 時間に 100 回までで、エージェントが使うとすぐ当たる。`docker login` する(アクセストークンを使う)。
 
+### クラウドの CLI のログイン(env.yaml の clouds で選んだものだけ)
+
+どれもブラウザ(Chrome)が開くので、そこでログインする。
+
+```
+aws configure sso                       # 初回だけ: SSO の開始 URL、リージョン、アカウント、ロール
+aws sso login                           # 切れたらこれで入りなおす
+gcloud auth login                       # gcloud コマンド用
+gcloud auth application-default login   # SDK・Terraform などのプログラム用(使う場合)
+gcloud config set project <プロジェクト ID>
+az login                                # サブスクリプションを選ぶ
+```
+
+認証情報は agent のホーム(`~/.aws`、`~/.config/gcloud`、`~/.azure`)に残り、エージェントは確認なしでコマンドを動かせる。長く使えるアクセスキー(`aws configure` で入れるものやサービスアカウントの鍵)は置かず、上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
+
 ## 12. 通知の確認(env.yaml の notify を書いた場合)
 
 ```
