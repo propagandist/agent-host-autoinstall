@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SSH を鍵認証のみにし、agent は SFTP 専用にする。ufw で SSH(22)・RDP(3389)・開発用のポートを社内LANだけに許可する。
+# SSH を鍵認証のみにし、agent は SFTP 専用にする。ufw で SSH(22)・RDP(3389)・開発用のポートを LAN だけに許可する。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"

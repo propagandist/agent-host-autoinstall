@@ -8,7 +8,7 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 load_env
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 OPENCODE_VERSION=1.19.4
 COPILOT_VERSION=1.0.103
 # Antigravity CLI: リリースの tar を SHA256(GitHub API の digest)で照合する

@@ -170,16 +170,16 @@
 %======================================================================
 
 \subsection{この手順書の目的}
-社内のオンプレミスの PC を、AI コーディングエージェント(Claude Code、Codex ほか)を
+手元に置く物理 PC を、AI コーディングエージェント(Claude Code、Codex ほか)を
 Orca で並列に動かす「常時稼働のエージェントホスト」にするための手順をまとめる。
 USB メモリ 1 本からほぼ無人でインストールでき、再起動や停電のあとも人手を介さずに、
 RDP で接続できる状態に戻ることを目指す。
 
-仕様は \code{docs/SPEC.md}、経緯と未確認の事項は \code{docs/HANDOVER.md} にある。
+仕様は \code{docs/SPEC.md}、調べたこと・確かめたことと未確認の事項は \code{docs/notes.md} にある。
 この手順書と食い違ったときは、リポジトリの文書とスクリプトを正とする。
 
 \subsection{対象読者}
-このリポジトリを使ってホストを用意する社内の管理者・作業者。
+このリポジトリを使って、AI エージェントのためのホストを用意・運用する人。
 Linux の基本的な操作(端末、SSH、apt)ができることを前提とする。
 
 \subsection{この手順書の読み方}
@@ -213,7 +213,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \centering
 \begin{tikzpicture}[node distance=4mm and 8mm]
   % 手元の PC
-  \node[box,minimum width=30mm] (rdpc) {RDP クライアント\\[-1pt]{\scriptsize mstsc}};
+  \node[box,minimum width=30mm] (rdpc) {RDP クライアント\\[-1pt]{\scriptsize mstsc・Remmina など}};
   \node[box,minimum width=30mm,below=of rdpc] (sshc) {SSH ・ just\\[-1pt]{\scriptsize 管理・更新・移行}};
   \node[box,minimum width=30mm,below=of sshc] (sftpc) {SFTP\\[-1pt]{\scriptsize WinSCP など}};
   \begin{scope}[on background layer]
@@ -236,11 +236,11 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \draw[flow] (grd) -- (session);
   % 外
   \node[ext,below=12mm of watch,minimum width=40mm] (cloud) {Anthropic ・ OpenAI ・ GitHub\\[-1pt]{\scriptsize Docker Hub ・ Slack}};
-  \node[ext,left=8mm of cloud,minimum width=30mm] (ipmsg) {IP Messenger\\[-1pt]{\scriptsize 社内の PC}};
+  \node[ext,left=8mm of cloud,minimum width=30mm] (ipmsg) {IP Messenger\\[-1pt]{\scriptsize LAN 内の PC}};
   \draw[flow,draw=filecol] (watch) -- node[lbl,right] {HTTPS} (cloud);
   \draw[flow,draw=filecol] (watch.south west) -- node[lbl,left] {UDP 2425} (ipmsg);
 \end{tikzpicture}
-\caption{全体の構成。社内 LAN の中から RDP と SSH で使い、外へは HTTPS で出る}
+\caption{全体の構成。LAN の中から RDP と SSH で使い、外へは HTTPS で出る}
 \end{figure}
 
 \subsection{ユーザー}
@@ -279,9 +279,9 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 
 \subsection{セキュリティ上の前提}
 \begin{caution}
-空パスワードのキーリングと自動ログインは、社内 LAN に限ったホストで、秘密情報を置かない専用ユーザー
+空パスワードのキーリングと自動ログインは、LAN に限ったホストで、秘密情報を置かない専用ユーザー
 \code{agent} が使うことを前提に許している。SSH(22)と RDP(3389)はインターネットに開けない。
-社外からは VPN 経由とする。
+LAN の外からは VPN 経由とする。
 \end{caution}
 
 %======================================================================
@@ -331,7 +331,7 @@ Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え \\
 Clipboard Indicator & クリップボードの履歴 & 上部のバーから選ぶ \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}遠隔操作・通知・運用} \\
-GNOME デスクトップ共有 & 画面を RDP で共有する(GNOME の標準の機能) & 手元の mstsc で接続(\ref{sec:rdp} 節) \\
+GNOME デスクトップ共有 & 画面を RDP で共有する(GNOME の標準の機能) & 手元の RDP クライアントで接続(\ref{sec:rdp} 節) \\
 OpenSSH & 管理用の SSH と、agent のファイルのやり取り(SFTP) & \code{just ssh}、WinSCP など \\
 agent-notify & 承認待ち・エラー・完了を Slack と IP Messenger に知らせる & エージェントが自動で呼ぶ \\
 見張りと監視 & セッションが落ちたら戻す。ディスクの残りを知らせる & 自動で動く \\
@@ -378,9 +378,9 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
 \midrule
 IP アドレス & 固定にする(または DHCP の予約)。プレフィックス付きで(例 \code{192.0.2.10/24}) \\
 ゲートウェイ・DNS & 固定 IP のときに要る \\
-社内 LAN の範囲 & SSH・RDP を許可する範囲(CIDR)。これ以外からは拒否する \\
-プロキシ・CA 証明書 & 社内に HTTP プロキシや TLS を検査するプロキシがある場合だけ \\
-NTP サーバー & 社内から ntp.ubuntu.com に届かない場合だけ \\
+LAN の範囲 & SSH・RDP を許可する範囲(CIDR)。これ以外からは拒否する \\
+プロキシ・CA 証明書 & HTTP プロキシや TLS を検査するプロキシがある環境だけ \\
+NTP サーバー & その LAN から ntp.ubuntu.com に届かない場合だけ \\
 \bottomrule
 \end{tabularx}}
 
@@ -435,9 +435,9 @@ just check-env common.yaml hosts/agent-host-01.yaml
 \code{network.mode} & \code{dhcp} か \code{static} \\
 \code{network.interface} & 設定する有線 LAN。既定の \code{en*} はすべての有線 LAN に当てはまる。2 つ以上ある機種では名前(\code{enp3s0} など)を書く \\
 \code{network.address} など & static のとき: \code{address}(プレフィックス付き)、\code{gateway}、\code{dns}(並び)、\code{search}(任意) \\
-\code{proxy.url} & 社内のプロキシ(例 \code{http://proxy.example.internal:8080})。空なら使わない \\
+\code{proxy.url} & HTTP プロキシ(例 \code{http://proxy.example.internal:8080})。空なら使わない \\
 \code{proxy.no_proxy} & プロキシを通さない宛先 \\
-\code{ca_certs} & 社内の CA 証明書(PEM)の並び。空なら何もしない \\
+\code{ca_certs} & 独自の CA 証明書(PEM)の並び。空なら何もしない \\
 \code{ntp_servers} & 足す NTP サーバー。空なら Ubuntu の既定と DHCP で配られたもの \\
 \code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
 \code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
@@ -449,10 +449,10 @@ just check-env common.yaml hosts/agent-host-01.yaml
 \code{notify.ipmsg_to} & IP Messenger で知らせる相手。ユーザー名・PC 名・ニックネームか IP。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く) \\
 \code{notify.ipmsg_broadcast} & 探すときのブロードキャストの宛先。空なら 255.255.255.255(同じサブネットだけ)。別のサブネットも探すときに足す \\
 \code{desktop_color} & 壁紙の色(\texttt{\#RRGGBB})。台ごとに変えると、どのホストに入っているか見分けやすい \\
-\code{gitea_url} & 社内の Gitea の URL(任意)。tea のログインの既定の接続先になり、エージェント向けの説明に載る \\
+\code{gitea_url} & Gitea の URL(任意)。tea のログインの既定の接続先になり、エージェント向けの説明に載る \\
 \code{agent_ssh_authorized_keys} & SFTP で \code{agent} に入る人の公開鍵。空なら入れない \\
 \code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3999"})。1024 以上 \\
-\code{lan_cidrs} & SSH・RDP・\code{dev_ports} を許可する社内 LAN の範囲 \\
+\code{lan_cidrs} & SSH・RDP・\code{dev_ports} を許可する LAN の範囲 \\
 \code{sysadmin.password_hash} & \code{sysadmin} のパスワードのハッシュ(sudo とコンソールで使う) \\
 \code{sysadmin.ssh_authorized_keys} & \code{sysadmin} の SSH の公開鍵 \\
 \code{rdp.username}, \code{rdp.password} & デスクトップ共有(RDP)の認証情報 \\
@@ -486,7 +486,7 @@ editors: [vscode]
 agents: [opencode]
 notify:
   slack_webhook_url: "https://hooks.slack.com/services/..."
-  ipmsg_to: [taro]
+  ipmsg_to: [user1]
 agent_ssh_authorized_keys: ["ssh-ed25519 AAAA... user@pc"]
 dev_ports: ["3000:3999"]
 lan_cidrs: [192.0.2.0/24]
@@ -607,13 +607,13 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 スクリプト & すること \\
 \midrule
 \endhead
-\code{05-proxy-ca.sh} & 社内のプロキシと CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
+\code{05-proxy-ca.sh} & HTTP プロキシと独自の CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
 \code{10-users.sh} & \code{agent} を作る(sudo なし、パスワードなし、ホームは 700) \\
 \code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf)。GNOME のセッションが落ちたら GDM を再起動して戻す見張り(1 分ごと) \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
 \code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。snap・snapd と kdump、使わないパッケージ(画面の読み上げ、印刷のドライバー、AD・LDAP、VPN・モデム、Bluetooth、報告など)を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
-\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を社内 LAN だけに許可 \\
+\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を LAN だけに許可 \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
@@ -669,11 +669,13 @@ RDP も待ち受ける(原因は未調査)。
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
 \begin{local}
-just rdp <ホスト>       # build/<ホスト>.rdp を作る。ダブルクリックで接続する
+just rdp <ホスト>       # build/<ホスト>.rdp を作る(Windows のリモート デスクトップ接続用)
 \end{local}
-ユーザーとパスワードは env.yaml の \code{rdp} の値。Windows キーを常にホストへ送り、クリップボードを共有し、
-色は 24 ビット(同じ 26.04 で mstsc の 32 ビットは遅いという報告がある)の設定になっている。
-初回は証明書の警告が出る(自己署名のため)。「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
+ユーザーとパスワードは env.yaml の \code{rdp} の値。RDP のクライアントは何でもよい
+(Windows のリモート デスクトップ接続(mstsc)、Linux の Remmina や FreeRDP、macOS の Windows App など)。
+\code{just rdp} が作る接続ファイルは mstsc 向けで、Windows キーを常にホストへ送り、クリップボードを共有し、
+色を 24 ビットにする(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)。ほかのクライアントでも、同じ設定にするとよい。
+初回は証明書の警告が出る(自己署名のため)。mstsc では「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
 
 \begin{caution}
 デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける。
@@ -685,7 +687,7 @@ just rdp <ホスト>       # build/<ホスト>.rdp を作る。ダブルクリ�
 操作 & キーと動き \\
 \midrule
 日本語入力の切り替え & \key{Ctrl}+\key{Space}(Mozc と英字) \\
-スクリーンショット & \key{Ctrl}+\key{Shift}+\key{Alt}+\key{S}。撮った画像はクリップボードに入り、Claude Code に \key{Ctrl}+\key{V} で貼れる(\key{PrintScreen} は手元の Windows に取られることがある) \\
+スクリーンショット & \key{Ctrl}+\key{Shift}+\key{Alt}+\key{S}。撮った画像はクリップボードに入り、Claude Code に \key{Ctrl}+\key{V} で貼れる(Windows のクライアントでは、\key{PrintScreen} は手元に取られることがある) \\
 端末 & \key{Ctrl}+\key{Alt}+\key{T} で Xfce Terminal。右クリックで貼り付け、選択でコピー \\
 クリップボードの履歴 & 上部のバーの Clipboard Indicator から選んで貼る \\
 Caps Lock & ホストでは何もしない(RDP で手元と状態がずれるため)。大文字は \key{Shift} で打つ \\
@@ -834,7 +836,7 @@ first-login の記録に \code{set-credentials} の失敗が出ていたら、�
 4 & 再起動後、何もせずに RDP がつながる & Orca が起動済みの画面が出る。\key{Ctrl}+\key{Space} で日本語を打て、記号がキーの刻印どおりに出る & \okng \\
 5 & エージェントが動く & Orca から Claude Code と Codex で、簡単なタスクがそれぞれ終わる & \okng \\
 6 & 切断しても作業が続く & RDP を切断し 10 分後に再接続しても、ロックされずタスクが続いている & \okng \\
-7 & 社内 LAN の外から到達できない & \code{lan_cidrs} の外から 22・3389 に届かない & \okng \\
+7 & LAN の外から到達できない & \code{lan_cidrs} の外から 22・3389 に届かない & \okng \\
 8 & セッションが落ちても戻る & GNOME Shell を落とすと、2〜3 分で agent のセッションと RDP が戻り、通知が届く & \okng \\
 \bottomrule
 \end{longtable}}
@@ -927,7 +929,7 @@ just ssh <ホスト>       # sudo systemctl reboot
 
 \subsection{複数台を管理する}\label{sec:fleet}
 ホストが 2 台以上になったら、このリポジトリ(道具)とは別に、実機の構成を管理する非公開のリポジトリ(構成リポジトリ)を
-社内の Git に作る。詳しい手順は \code{docs/fleet.md}、ひな形は \code{examples/fleet/} にある。
+非公開の Git リポジトリ(自前の Gitea、GitHub の private など)に作る。詳しい手順は \code{docs/fleet.md}、ひな形は \code{examples/fleet/} にある。
 
 \noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
 \toprule\headrow
@@ -1096,16 +1098,17 @@ scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
 %======================================================================
 \section{確認できていないこと}
 %======================================================================
-VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確かめた。次は実機で確かめる。
+このリポジトリの検証は、VirtualBox 7.2 の VM(UEFI、メモリ 4GB。Windows のホストで Hyper-V と共存させたため CPU 1)で行った。
+次のことは実機で確かめていない。実機で問題が見つかったら、修正の版(hotfix)で直す。
 \begin{itemize}
-  \item HDMI のダミープラグでの RDP、BIOS の停電復帰、社内 LAN の外からの到達(テスト 7)
+  \item HDMI のダミープラグでの RDP、BIOS の停電復帰、LAN の外からの到達(テスト 7)
   \item 実際のプロキシ・TLS を検査するプロキシの下での動作
   \item Slack への送信、Claude Code の Remote Control
-  \item クラウドの CLI の実際のログイン、社内の CA の証明書を使う Gitea への接続
+  \item クラウドの CLI の実際のログイン、独自の CA の証明書を使う Gitea への接続
   \item Zed での日本語入力、VS Code の日本語の表示(設定は入れた)、RDP のクリップボードでのファイルのコピー
   \item systemd-oomd がメモリ不足のときに Orca ごと止めないか
 \end{itemize}
-最新の状況は \code{docs/HANDOVER.md} を見る。
+最新の状況は \code{docs/notes.md} の「確認できていないこと」を見る。
 
 %======================================================================
 % 奥付

@@ -43,7 +43,7 @@ git config gitflow.prefix.versiontag v
    - `CHANGELOG.md` の `## [未リリース]` を `## [0.1.0] - <日付>` にし、上に空の `## [未リリース]` を足す。「確認した環境」に、VM と実機で確かめた範囲を書く
    - 「env.yaml の変更」の欄に、構成リポジトリの各ホストの env.yaml で直すこと(項目の追加・名前の変更・使えなくなった値)を書く。なければ「なし」。互換性がなくなる変更ならメジャーを上げる
    - 手順書(docs/setup-guide.tex)の付録「固定しているバージョン」の日付と値を、スクリプトの先頭の値に合わせる
-   - docs/HANDOVER.md の「現状」を直す
+   - docs/notes.md の「検証した環境」と「確認できていないこと」を直す
    - コミットする
 4. リリースの前の確認
    ```sh
@@ -72,7 +72,7 @@ git config gitflow.prefix.versiontag v
    git checkout main && git pull
    git flow hotfix start 0.1.1
    ```
-2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付>` を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/HANDOVER.md にも、何が起きてどう直したかを書く
+2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付>` を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/notes.md にも、何が起きてどう直したかを書く
 3. 確かめる
    ```sh
    just release-check    # hotfix ブランチでも使える
@@ -84,4 +84,12 @@ git config gitflow.prefix.versiontag v
    git push origin main develop --tags
    ```
 5. 構成リポジトリ(docs/fleet.md)で、submodule を新しいタグにして、問題の出たホストから反映する
+
+## 公開するとき
+
+リポジトリを Public にするときに行う。
+
+- GitHub の secret scanning と push protection を有効にする
+- `git log --all --format='%ae %ce' | sort -u` で、作成者のメールアドレスが noreply などの公開してよいものだけであることを確かめる
+- main と develop に、強制 push と削除を禁止する保護を入れる(Private のリポジトリでは、契約によっては設定できない)
 

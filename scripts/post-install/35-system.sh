@@ -8,7 +8,7 @@ load_env
 # --- 時刻同期 ---
 # 26.04 は chrony(systemd-timesyncd ではない)。同期先は /etc/chrony/sources.d/*.sources から読む(確認済み)。
 # env.yaml の ntp_servers を足す。Ubuntu の既定(ntp.ubuntu.com、NTS)と DHCP で配られたサーバーも残る。
-# 社内から既定に届かなくても、届かない同期先が使われないだけ
+# その LAN から既定のサーバーに届かなくても、届かない同期先が使われないだけ
 ntp_sources=/etc/chrony/sources.d/agent-host.sources
 if [ -n "${AH_NTP_SERVERS:-}" ]; then
     {

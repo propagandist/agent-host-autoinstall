@@ -4,7 +4,7 @@
 
 常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)を、autoinstall で自動構成するための設定とスクリプト一式。
 
-仕様は `docs/SPEC.md`、経緯と次の作業は `docs/HANDOVER.md` を必ず先に読むこと。
+仕様は `docs/SPEC.md`、調べたこと・確かめたことの記録は `docs/notes.md` を必ず先に読むこと。
 
 ## 想定ディレクトリ構成
 
@@ -28,7 +28,7 @@ scripts/
   systemd/                  # agent-host-provision.service
   lib/common.sh             # post-install の共通関数
   post-install/             # 初回起動時に root で実行するスクリプト(番号順)
-    05-proxy-ca.sh          # 社内のプロキシと CA 証明書
+    05-proxy-ca.sh          # HTTP プロキシと独自の CA 証明書
     10-users.sh
     20-autologin.sh
     30-power.sh
@@ -56,7 +56,7 @@ examples/
   fleet/                    # 構成リポジトリのひな形(docs/fleet.md)
 docs/
   SPEC.md                   # 仕様
-  HANDOVER.md               # 経緯と次の作業
+  notes.md                  # 技術メモ(検証した環境、設計で決めたこと、調査と検証の記録、確認できていないこと)
   agent-host.rdp.example    # Windows のリモート デスクトップ接続の設定のひな形
   setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。just guide が Docker で PDF を build/setup-guide/ に出す)
   guide.Dockerfile          # 手順書を作る TeX Live のイメージ
@@ -71,12 +71,12 @@ docs/
 
 ## ルール
 
-- **秘密情報をコミットしない。** パスワードハッシュ、SSH 鍵、社内IP範囲などは `env.yaml` に分離し、`.gitignore` に入れる
-- **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE の著作権者表示は除く)
+- **秘密情報をコミットしない。** パスワードハッシュ、SSH 鍵、LAN の IP 範囲などは `env.yaml` に分離し、`.gitignore` に入れる
+- **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE の著作権者表示は除く)。特定の組織や読者を前提にしない(「社内」「社外」「当社」「作業者」と書かず、「LAN」「組織」「利用者」などと書く。組織の予定や判断の経緯はこのリポジトリに書かない)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
 - **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるもの(どちらも入れたときの最新で、その後は更新しない)
-- **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと HANDOVER.md に残す
+- **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと docs/notes.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語
 - **手順書を合わせる。** 構成・手順・固定するバージョンを変えたら、docs/manual-steps.md と docs/setup-guide.tex も直す
