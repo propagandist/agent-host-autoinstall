@@ -156,6 +156,24 @@
 - ログイン(SSO・ブラウザ)は試していない(実際のアカウントが要る)。未確認
 - Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる(エージェント向けの説明に書いた)
 
+### VS Code の拡張機能(2026-10-24 追加、VirtualBox で確認)
+- 72-editors.sh の先頭で ID を固定し、agent として `code --install-extension` で入れる。版は Marketplace の正式版(プレリリースでない)で、linux-x64 と VS Code 1.143 に合う最新を選んだ
+- settings.json に extensions.autoUpdate / autoCheckUpdates = false と redhat.telemetry.enabled = false(YAML の拡張機能が初回に聞いてくる)を、足りないときだけ足す(JSON として読めないときは触らない)
+- 容量: 3 つのクラウドを選んで 26 個・約 2.7GB。大きいのは Codex(openai.chatgpt)1.1GB、Cloud Code 300MB、Claude Code 290MB、Gemini Code Assist 240MB(Cloud Code が必ず一緒に入れる)
+- Azure Tools(ms-vscode.vscode-node-azure-pack)は 12 個のまとめで Windows AI Studio や Jupyter まで入り約 600MB 増えたので、土台の Azure Resources だけにした
+- 依存やまとめで入る拡張機能の版は固定できない(入れたときの最新)。外した拡張機能のフォルダーは VS Code を次に起動したときに消える
+- Language Pack を入れて LANG が ja_JP.UTF-8 でも、表示は英語のままだった(VM の画面で確認)。「表示言語を構成する」と同じく ~/.vscode/argv.json に "locale": "ja" を書く。argv.json はコメント入りなので、locale がないときだけ { の次の行に足す
+- Language Pack の最新は 1.131(VS Code 1.143 より古いが、engine は ^1.131.0 で使える。新しい画面の文言は英語のまま残りうる)
+
+### Zed の拡張機能(2026-10-24 追加、VirtualBox で確認)
+- Zed には拡張機能を版を指定して入れるコマンドがない。settings.json の auto_install_extensions に書くと、Zed を起動したときに最新が入る。入ったあとは auto_update_extensions を false にして更新を止める
+- 設定は VS Code と同じく、足りない項目だけ足す(72-editors.sh の merge_agent_json。JSON として読めないときは触らない)
+- VM(GPU なし、llvmpipe のソフトウェア描画)で Zed を閉じてから起動しなおすと、約 2 分で 10 個(terraform と env.yaml の biome を含む)が入った。動いている Zed に設定を足しても入らない(起動時に読む)。Zed は 1 つしか動かないので、`zed` を実行しても動いている Zed に引き渡されて終わる
+- Ruff は Zed の Python に最初から入っているので、拡張機能としては入らない(一覧から外した)
+- 画面の日本語化はできない。Zed には UI を翻訳する仕組みがない(要望 #7409 は 2026-08 時点で開いたまま。翻訳の仕組みの PR #52157・#54185・#60633・#62027 は取り込まれずに閉じた)
+- 漢字の字形: agent の LANG が ja_JP.UTF-8 なので、既定のままで日本の字形(Noto Sans CJK JP)で出る。フォントを Noto Sans Mono CJK JP と SC に切り替えて VM の画面を見比べ、既定が JP と同じ形(「角」の縦線が突き抜けない、「骨」の上の向き)であることを確かめた。代わりのフォントの設定(buffer_font_fallbacks / ui_font_fallbacks)は macOS と Windows だけで、Linux では効かない
+- 日本語入力(Mozc)を Zed で使えるかは未確認
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)
