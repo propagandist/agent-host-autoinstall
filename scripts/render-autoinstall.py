@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """env.yaml の値を埋めた autoinstall.yaml と、スクリプト用の env.sh を書き出す。
 
-使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml> <出力ディレクトリ>
+使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml>... <出力ディレクトリ>
+env.yaml は複数渡せる。前から順に重ね、後のファイルの値が勝つ(辞書は中のキーごとに重ね、並びや値は置き換える)。
+例: 全台で共通の common.yaml に、ホストごとの hosts/agent-host-01.yaml を重ねる。
+知らないキー(書き間違い)はエラーにする。
 出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, ca/*.crt
 """
 import ipaddress
@@ -15,6 +18,63 @@ import yaml
 
 def fail(msg):
     sys.exit(f"render-autoinstall: {msg}")
+
+
+# env.yaml に書けるキー(値が dict のものは、その中に書けるキー)。足したらここも直す
+KNOWN_KEYS = {
+    "hostname": None,
+    "keyboard_layout": None,
+    "network": {"mode", "interface", "address", "gateway", "dns", "search"},
+    "proxy": {"url", "no_proxy"},
+    "ca_certs": None,
+    "ntp_servers": None,
+    "git_user_name": None,
+    "git_user_email": None,
+    "editors": None,
+    "vscode_extensions": None,
+    "zed_extensions": None,
+    "desktop_color": None,
+    "gitea_url": None,
+    "agents": None,
+    "clouds": None,
+    "notify": {"slack_webhook_url", "ipmsg_to", "ipmsg_broadcast"},
+    "agent_ssh_authorized_keys": None,
+    "dev_ports": None,
+    "lan_cidrs": None,
+    "sysadmin": {"password_hash", "ssh_authorized_keys"},
+    "rdp": {"username", "password"},
+}
+
+
+def merge(base, over):
+    """over を base に重ねる。辞書はキーごとに重ね、それ以外(並び・値)は置き換える。"""
+    if isinstance(base, dict) and isinstance(over, dict):
+        out = dict(base)
+        for key, value in over.items():
+            out[key] = merge(base[key], value) if key in base else value
+        return out
+    return over
+
+
+def load_env(paths):
+    env = {}
+    for path in paths:
+        with open(path, encoding="utf-8") as f:
+            part = yaml.safe_load(f) or {}
+        if not isinstance(part, dict):
+            fail(f"{path} の中身がキーと値の形になっていない")
+        if "sops" in part:
+            fail(f"{path} は SOPS で暗号化されたまま(sops -d で復号してから渡す)")
+        for key, value in part.items():
+            if key not in KNOWN_KEYS:
+                fail(f"{path} の {key} は知らないキー(書き間違いか、この版では使えない)")
+            sub = KNOWN_KEYS[key]
+            if sub is not None and isinstance(value, dict):
+                for k in value:
+                    if k not in sub:
+                        fail(f"{path} の {key}.{k} は知らないキー(書き間違いか、この版では使えない)")
+        env = merge(env, part)
+    return env
 
 
 def require(env, path):
@@ -64,14 +124,13 @@ def render_network(net):
 
 
 def main():
-    if len(sys.argv) != 4:
-        fail("使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml> <出力ディレクトリ>")
-    src, env_path, out_dir = sys.argv[1:]
+    if len(sys.argv) < 4:
+        fail("使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml>... <出力ディレクトリ>")
+    src, env_paths, out_dir = sys.argv[1], sys.argv[2:-1], sys.argv[-1]
 
     with open(src, encoding="utf-8") as f:
         doc = yaml.safe_load(f)
-    with open(env_path, encoding="utf-8") as f:
-        env = yaml.safe_load(f) or {}
+    env = load_env(env_paths)
 
     hostname = require(env, "hostname")
     keyboard_layout = require(env, "keyboard_layout")

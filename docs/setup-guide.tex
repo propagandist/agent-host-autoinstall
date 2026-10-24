@@ -415,7 +415,13 @@ Slack & 通知を送るチャンネルの Incoming Webhook の URL \\
 cp autoinstall/env.example.yaml autoinstall/env.yaml
 \end{local}
 
-\code{CHANGE_ME} が残っていたり、値の形が正しくなかったりすると、ISO の作成は止まる。
+\code{CHANGE_ME} が残っていたり、値の形が正しくなかったり、知らないキー(書き間違い)があったりすると、ISO の作成は止まる。
+
+env.yaml は複数のファイルに分けて重ねられる。前から順に重ね、後のファイルの値が勝つ(辞書はキーごとに重なり、並びは置き換わる)。
+ホストが 2 台以上になったら、全台で共通の値とホストごとの値を分け、別の非公開リポジトリで管理する(\ref{sec:fleet} 節)。
+\begin{local}
+just check-env common.yaml hosts/agent-host-01.yaml
+\end{local}
 
 \subsection{項目の一覧}
 {\small
@@ -625,7 +631,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 
 \subsection{結果を確かめる}
 \begin{local}
-just status <ホスト>    # 構成・RDP・セッション・ディスク・メモリ・失敗した unit
+just status <ホスト>    # 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
 \end{local}
 
@@ -919,6 +925,34 @@ just ssh <ホスト>       # sudo systemctl reboot
 書き出したファイルにはログインの情報が入る。暗号化された場所に置き、取り込んだら消す。
 \end{caution}
 
+\subsection{複数台を管理する}\label{sec:fleet}
+ホストが 2 台以上になったら、このリポジトリ(道具)とは別に、実機の構成を管理する非公開のリポジトリ(構成リポジトリ)を
+社内の Git に作る。詳しい手順は \code{docs/fleet.md}、ひな形は \code{examples/fleet/} にある。
+
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule\headrow
+置くもの & 内容 \\
+\midrule
+\code{tool/} & 道具。submodule で、リリースのタグに固定する \\
+\code{common.yaml} & 全台で共通の値。秘密情報は SOPS と age で値だけ暗号化する \\
+\code{hosts/<ホスト>.yaml} & ホストごとの値。\code{common.yaml} に重ねる \\
+\code{facts/}、\code{docs/} & 台帳、ホストの情報(\code{just facts})、受け入れテストと変更の記録 \\
+\bottomrule
+\end{tabularx}}
+
+\begin{local}
+just check agent-host-01      # 構成リポジトリで。復号して道具に渡し、終わったら消す
+just iso agent-host-01
+just update agent-host-01
+just facts agent-host-01      # facts/agent-host-01.yaml(機種、シリアル、MAC、鍵の指紋、作った版)
+\end{local}
+作ったホストには、道具の版と構成の版が \code{/opt/agent-host/BUILD-INFO} に残り、\code{just status} の「作った版」に出る。
+道具の版を上げるときは、CHANGELOG の「env.yaml の変更」を読み、すべてのホストの env.yaml を検査し、1 台で試してから全台に反映する。
+\begin{caution}
+ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れない。作業する人が抜けたら、\code{sops updatekeys} で鍵を外し、
+その人が知っている秘密情報(RDP と sysadmin のパスワード、Webhook)を替える。
+\end{caution}
+
 \subsection{困ったとき}
 {\small
 \begin{longtable}{@{}p{0.27\linewidth}p{0.68\linewidth}@{}}
@@ -985,6 +1019,7 @@ Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更
 \endhead
 \code{/opt/agent-host/} & 構成スクリプト一式と env.sh(秘密情報) \\
 \code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
+\code{/opt/agent-host/BUILD-INFO} & 作った版(道具の版、構成の版、使った env のファイル名、作った日時) \\
 \code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
 \code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\

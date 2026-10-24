@@ -29,7 +29,7 @@
 1. ~~すべての修正を含めた ISO で VirtualBox の VM を入れ直し、新規インストールでしか確かめられない点を見る: sizing-policy: all、env.yaml の network(固定 IP)、英語のフォルダー名、gnome-initial-setup が出ないこと、TLS の設定順、us 配列 + mozc-on~~ 済み(2026-10-24、feature/release-flow の ISO)。USB からの起動から構成の完了まで約 67 分、再起動から RDP の待ち受けまで約 80 秒。ルートがディスクのほぼ全部、固定 IP、英語のフォルダー名、初回の案内が出ない、TLS、us + mozc-on、caps:none、Clipboard Indicator、Xfce Terminal、追加のエージェントとエディター、rootless Docker を確かめた。構成の途中で mask したサービス(cups.path など)と syslog.socket が failed のまま残っていたので、36-minimize.sh で reset-failed し、syslog.socket も止めるようにした
 2. 実機で受け入れテスト(SPEC.md §7、docs/acceptance-test.md)。特にダミープラグでの RDP、社内ネットワークでの固定 IP と NTP、lan_cidrs の外からの到達(テスト 7)
 3. 下の「未確認」を潰す
-4. (2026-10-24 決定)v0.1.0 のあと、実機の構成を管理する非公開のリポジトリを社内の Gitea に作る。このリポジトリを submodule でリリースのタグに固定し、ホストごとの env.yaml(hosts/<ホスト>.yaml)、台帳、ホストごとの受け入れテストと変更の記録を置く。env.yaml の秘密情報(パスワードのハッシュ、RDP のパスワード、Webhook の URL)は SOPS と age で値だけ暗号化し、`just iso` / `just update` のときだけ一時ファイルに戻して消す。移行の書き出し(`just backup`)は入れない。このリポジトリ側は、env.yaml の場所を引数で受け取れるので、ほとんど変えなくてよい
+4. (2026-10-24 決定)v0.1.0 のあと、実機の構成を管理する非公開のリポジトリを社内の Gitea に作る。このリポジトリを submodule でリリースのタグに固定し、ホストごとの env.yaml(hosts/<ホスト>.yaml)、台帳、ホストごとの受け入れテストと変更の記録を置く。env.yaml の秘密情報(パスワードのハッシュ、RDP のパスワード、Webhook の URL)は SOPS と age で値だけ暗号化し、`just iso` / `just update` のときだけ一時ファイルに戻して消す。移行の書き出し(`just backup`)は入れない。道具の側は先に整えた(env.yaml の重ね合わせ、BUILD-INFO、just facts。手順は docs/fleet.md、ひな形は examples/fleet/)。社内の Gitea にリポジトリを作り、ひな形をコピーするところから始める
 
 ## §9 の調査結果(2026-10-23)
 
@@ -183,6 +183,14 @@
 - 消せないもの: cups 本体は ubuntu-desktop-minimal の必須(消すとまとめが外れる)。whoopsie-preferences と apport-symptoms は、報告のパッケージと一緒に消すと gdm3・gnome-shell まで外れた。どちらも止めるだけにした。消す前に apt-get -s で、デスクトップを巻き込まないことを確かめてから消す
 - 残したもの: 機器のファームウェア(実機で要るかもしれない)、1 つ前のカーネル、日本語のフォント
 - 消したあとに再起動し、約 1 分で自動ログインと RDP の待ち受けまで戻った。失敗した unit はなかった
+
+### 構成リポジトリに合わせた道具の変更(2026-10-24 追加、VirtualBox で確認)
+- env.yaml を複数のファイルで重ねられるようにした(render-autoinstall.py。後のファイルが勝ち、辞書はキーごと、並びと値は置き換え)。知らないキーと、SOPS で暗号化されたままのファイルはエラーにする
+- Docker の中から見えるのはこのリポジトリだけなので、scripts/local/envs.sh が env.yaml を build/.env/ に写してから渡し、終わったら消す。相対パスは just を呼んだディレクトリ(invocation_directory)から見る。ISO も build/ に作ってから出力先に移す
+- 作った版を /opt/agent-host/BUILD-INFO(道具の git describe、AGENT_HOST_CONFIG_REV、env のファイル名、日時)に残し、just status に出す。just facts で台帳のための YAML(機種、シリアル、MAC、ディスク、メモリ、OS、ホスト鍵と RDP の証明書の指紋)を出す
+- just update のホスト名の確認は、重ねた結果の env.sh の AH_HOSTNAME で行う
+- 確かめたこと: リポジトリの外の common.yaml + hosts/x.yaml で check-env・iso・update が通る。書き間違い・暗号化のまま・hostname がないときは止まる。別のホストの env.yaml では update が止まる。examples/fleet をコピーし、sops 3.13.3 と age 1.3.2 で common.yaml の秘密情報を暗号化した構成リポジトリから、just check・update・status・facts が通り、復号したファイルが残らない
+- 手順は docs/fleet.md、ひな形は examples/fleet/
 
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため

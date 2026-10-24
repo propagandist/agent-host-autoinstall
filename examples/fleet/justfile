@@ -1,0 +1,65 @@
+# 実機の構成を管理するリポジトリの justfile(agent-host-autoinstall の examples/fleet から作ったもの)。
+# 道具(agent-host-autoinstall)は tool/ に submodule で、リリースのタグに固定して置く。手順は tool/docs/fleet.md
+set shell := ["bash", "-euo", "pipefail", "-c"]
+set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-euo", "pipefail", "-c"]
+
+tool := "tool/justfile"
+
+# この構成の版。作ったホストの /opt/agent-host/BUILD-INFO に残る(just status で見える)
+export AGENT_HOST_CONFIG_REV := `git describe --always --dirty 2>/dev/null || echo 不明`
+
+_default:
+    @just --list --unsorted
+
+# 道具を取得する(clone したあとに 1 回)。Ubuntu の ISO も取得する
+setup:
+    git submodule update --init
+    just -f {{tool}} fetch-iso
+
+# ホストの env.yaml(common.yaml + hosts/<ホスト>.yaml)を検査する
+check host:
+    scripts/with-env.sh {{host}} just -f {{tool}} check-env
+
+# すべてのホストの env.yaml を検査する(道具の版を上げたときに)
+check-all:
+    for f in hosts/*.yaml; do just check "$(basename "$f" .yaml)"; done
+
+# インストール用の ISO を build/<ホスト>.iso に作る(秘密情報が入る。USB に書き込んだら消す)
+iso host:
+    scripts/with-env.sh {{host}} just -f {{tool}} iso build/{{host}}.iso
+
+# 設定とスクリプトの変更をホストに反映する(target はつなぐ先。名前で引けなければ IP を渡す)
+update host target=host:
+    scripts/with-env.sh {{host}} just -f {{tool}} update {{target}}
+
+# ホストの状態と作った版を見る
+status target:
+    just -f {{tool}} status {{target}}
+
+# 台帳のための情報を facts/<ホスト>.yaml に書く(コミットする。秘密情報は入らない)
+facts host target=host:
+    mkdir -p facts
+    just -f {{tool}} facts {{target}} | sed '/^$/d' > facts/{{host}}.yaml
+    @echo "書いた: facts/{{host}}.yaml"
+
+# 構成・first-login・セッションの見張りの記録を見る
+logs target:
+    just -f {{tool}} logs {{target}}
+
+# sysadmin で SSH する
+ssh target:
+    just -f {{tool}} ssh {{target}}
+
+# RDP の接続ファイルを build/<ホスト>.rdp に作る
+rdp target:
+    just -f {{tool}} rdp {{target}}
+    mkdir -p build && mv -f tool/build/{{target}}.rdp build/
+    @echo "移した: build/{{target}}.rdp"
+
+# 移行の書き出し(ログインの情報が入るので、out はこのリポジトリの外の暗号化された場所にする)
+backup target out:
+    just -f {{tool}} backup {{target}} {{out}}
+
+# 移行の取り込み(構成が終わったホストに)
+restore target file:
+    just -f {{tool}} restore {{target}} {{file}}
