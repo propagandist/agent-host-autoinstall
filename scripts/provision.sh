@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# post-install/ のスクリプトを番号順に実行する。初回起動時に agent-host-provision.service から呼ばれる。
+# post-install/ のスクリプトを番号順に実行する。初回起動時に agent-host-provision.service から、just update のときに SSH から呼ばれる。
 # 各スクリプトは冪等なので、構成を変えたあとに手で再実行してよい: sudo /opt/agent-host/provision.sh
 set -euo pipefail
 

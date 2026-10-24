@@ -10,6 +10,7 @@
 
 ```
 README.md                   # 概要と文書の案内
+AGENTS.md                   # ほかのエージェント向けに CLAUDE.md を参照する
 LICENSE                     # Apache License 2.0(標準の全文のまま。書き足さない)
 NOTICE                      # 著作権者の表示(手順書の PDF の発行者もここから入れる)
 justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF、リリース前の確認)。just で一覧
@@ -19,11 +20,11 @@ autoinstall/
   autoinstall.yaml          # 本体(環境固有値はプレースホルダ)
   env.example.yaml          # 環境固有値のサンプル(コミットする)
   env.yaml                  # 実値(.gitignore 対象)
-build/                      # ISO のダウンロード先と build-usb.sh の出力(.gitignore 対象)
+build/                      # 手元の作業の出力(ISO、一時ファイル build/.run.*、移行の書き出し、試験用の env と VM、手順書の PDF。.gitignore 対象)
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
   stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
-  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: env.yaml を build/.env に写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VirtualBox での通しの試験)
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: 実行ごとの build/.run.XXXXXX に env.yaml を写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VirtualBox での通しの試験)
   render-autoinstall.py     # stage.sh から呼ぶ。env.yaml を重ねて検査し(知らないキーはエラー)、autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
@@ -82,7 +83,7 @@ docs/
 - **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE と NOTICE の著作権者表示、それを入れる手順書の PDF の発行者表示、README の「ライセンス / 位置づけ」で PROPAGANDIST の OSS であることを書く 1 か所は除く)。特定の組織や読者を前提にしない(「社内」「社外」「当社」「作業者」と書かず、「LAN」「組織」「利用者」などと書く。組織の予定や判断の経緯はこのリポジトリに書かない)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
-- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるもの(どちらも入れたときの最新で、その後は更新しない)
+- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるものと、env.yaml の `vscode_extensions` で版を書かなかったもの(どれも入れたときの最新で、その後は更新しない)
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと docs/notes.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語

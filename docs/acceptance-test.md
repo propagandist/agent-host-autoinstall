@@ -9,7 +9,7 @@ SPEC.md §7 の手順。まず仮想マシン(KVM/QEMU、Windows では VirtualB
 | レシピ | 確かめること | 要るもの |
 |---|---|---|
 | `just test` | env.yaml の検査(知らないキー、SOPS のまま、書き忘れ、値の形、組み合わせ)、重ね方、生成する env.sh と /opt/agent-host に置くものの形 | ホストは要らない |
-| `just verify <ホスト>` | 下の「構成の確認」のうち、画面を見なくてよいもの(約 100 項目)。固定した版は、そのホストの `/opt/agent-host/post-install/` に書いてある値と比べる。何も変えない(ホストの上では `sudo /opt/agent-host/verify.sh`) | SSH と sudo のパスワード |
+| `just verify <ホスト>` | 下の「構成の確認」のうち、画面を見なくてよいもの(100 項目あまり)。固定した版は、そのホストの `/opt/agent-host/post-install/` に書いてある値と比べる。何も変えない(ホストの上では `sudo /opt/agent-host/verify.sh`) | SSH と sudo のパスワード |
 | `just verify-rdp <ホスト>[:ポート] [env.yaml...]` | env.yaml の `rdp` の認証情報で RDP の認証(NLA)が通ること。画面は開かない(FreeRDP の `+auth-only`) | 手元の Docker か `xfreerdp3` |
 | `just vm-test [env.yaml...]` | VirtualBox の VM に今のスクリプトで作った ISO を入れなおし、下の 1・3・4(認証まで)・8 を人手なしで行い、その都度 `verify` と `verify-rdp` を通す | VirtualBox、試験用の env.yaml(docs/release.md)。1〜2 時間。VM の中身は消える |
 
@@ -38,7 +38,7 @@ sudo ss -tlnp | grep 33
 
 ## 構成の確認(1 のあとに SSH で)
 
-`just verify <ホスト>` が、下の表のうち画面を見なくてよいものをまとめて確かめる(VS Code のメニュー、`hello-world` や `wget` の実行、SFTP、開発用のポート、移行、Zed の拡張機能の中身は対象外)。✗ が出たら、該当する行のコマンドで詳しく見る。
+`just verify <ホスト>` が、下の表のうち画面を見なくてよいものの多くをまとめて確かめる。対象外は、ディスク、ネットワーク、NTP の同期先、VS Code のメニュー、`hello-world` や `wget` の実行、pnpm と `ulimit -n` の実際の値、SFTP、開発用のポート、移行、Zed の拡張機能の中身、Chrome の自動更新の許可元。✗ が出たら、該当する行のコマンドで詳しく見る。
 
 | 確認すること | コマンド | 期待する結果 |
 |---|---|---|
@@ -47,7 +47,10 @@ sudo ss -tlnp | grep 33
 | 自動ログインの設定 | `grep -A3 '^\[daemon\]' /etc/gdm3/custom.conf` | `AutomaticLoginEnable=true` と `AutomaticLogin=agent` |
 | スリープの無効化 | `systemctl is-enabled sleep.target` | `masked` |
 | SSH | `sudo sshd -T \| grep -E 'passwordauthentication\|permitrootlogin'` | どちらも `no` |
-| ufw | `sudo ufw status` | 22/tcp と 3389/tcp が lan_cidrs からだけ ALLOW |
+| ufw | `sudo ufw status` | 22/tcp と 3389/tcp(と dev_ports、IP Messenger を使うときの 2425/udp)が lan_cidrs からだけ ALLOW |
+| sysadmin の鍵とパスワード | `sudo cmp /opt/agent-host/sysadmin_authorized_keys ~sysadmin/.ssh/authorized_keys` | 同じ(env.yaml の `sysadmin` と同じ鍵だけ) |
+| RDP の認証情報の受け渡し | `sudo ls /home/agent/.config/agent-host/` と手元の `just verify-rdp <ホスト>` | `rdp.env` が残っていない(キーリングに入った)。env.yaml の rdp で認証が通る |
+| 壁紙の色と Dock | RDP で見る。`sudo cat /home/agent/.config/agent-host/desktop.applied` | env.yaml の desktop_color の色。入っているエディターが Dock に並ぶ |
 | バージョンの固定 | `apt-mark showhold` | `claude-code`、`containerd.io`、`docker-*`(5 つ)、`gh`、`orca-ide`。選んだときは `code`、`google-cloud-cli`、`azure-cli` も |
 | 既定のブラウザ | `sudo -u agent DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u agent)/bus xdg-settings get default-web-browser` | `google-chrome.desktop` |
 | Chrome の自動更新 | `sudo unattended-upgrade --dry-run --debug 2>&1 \| grep -i 'Google LLC'` | 許可元に `o=Google LLC,a=stable` がある |

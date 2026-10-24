@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# RDP で入って使うときのデスクトップの使い勝手: 端末(Xfce Terminal)とクリップボードの履歴(Clipboard Indicator)。
+# RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、
+# Chrome のポリシー、壁紙の色と Dock(desktop-env.sh に渡し、ログイン中ならその場で入れる)、Files のブックマーク。
 # キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
 set -euo pipefail
 # shellcheck source=../lib/common.sh

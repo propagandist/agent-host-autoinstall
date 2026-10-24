@@ -16,7 +16,7 @@ log() { echo "[agent-host] $*"; }
 # 作業ディレクトリは / にする(root のホームに入れず警告が出るのを避ける)
 agent_run() { (cd / && runuser -u "$AGENT_USER" -- "$@"); }
 
-# 環境固有値(build-usb.sh が生成した env.sh)を読む
+# 環境固有値(render-autoinstall.py が env.yaml から生成した env.sh)を読む
 load_env() {
     [ -r "$AH_ENV" ] || { log "環境固有値 $AH_ENV が読めない"; exit 1; }
     # shellcheck source=/dev/null

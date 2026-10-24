@@ -1,7 +1,7 @@
 # 変更の記録
 
 版は [Semantic Versioning](https://semver.org/lang/ja/) で付ける。
-パッチは固定したバージョンの更新と修正、マイナーは機能や env.yaml の項目の追加、
+パッチは固定したバージョンの更新、修正、文書の直し、マイナーは機能や env.yaml の項目の追加、
 メジャーは env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない変更)。0.x のあいだは、互換性がなくなる変更もマイナーを上げる。
 リリースは VM での受け入れテストが通ったら出す(実機での確認は必須にしない)。実機で問題が出たら hotfix(パッチの版)で直す。しばらく運用して問題がないと判断するまでは 0.x とする。手順は [docs/release.md](docs/release.md)。
 
@@ -14,12 +14,13 @@
 
 ### env.yaml の変更
 - `ups` を足した(UPS を NUT で見る。書かなければ使わない。項目は autoinstall/env.example.yaml)
-- 検査を強めた(#8)。これまで通っていた env.yaml が `just check-env` で止まることがある: 項目の型(並びの項目に文字列、文字列の項目に引用符のない数や true/false)、hostname(英数字と - の 63 文字以内。ドメインは付けない)、`sysadmin.password_hash`(`$6$`・`$5$`・`$y$`・`$2b$` などの形)、SSH の公開鍵の形、`dev_ports` の範囲の順、`notify.ipmsg_broadcast`(IPv4 だけ)
+- **`sysadmin.ssh_authorized_keys` と `sysadmin.password_hash` は、just update のたびにホストへ反映するようになった(#2)。** 版を上げて just update する前に、`ssh_authorized_keys` に今つないでいる鍵が入っているか、`password_hash` が今の sudo のパスワードと同じかを確かめる(ホストで passwd で替えていたら、env.yaml の値に戻る)
+- 検査を強めた(#8)。これまで通っていた env.yaml が `just check-env` で止まることがある: 項目の型(並びの項目に文字列、文字列の項目に引用符のない数や true/false)、hostname(英数字と - の 63 文字以内。ドメインは付けない)、`sysadmin.password_hash`(`$6$`・`$5$`・`$y$`・`$2b$` などの形)、SSH の公開鍵の形(`from="..."` などのオプションの付いた行は書けない)、`dev_ports` の範囲の順、`notify.ipmsg_broadcast`(IPv4 だけ)
 
 ### 追加
 - 機械で確かめる仕組み(docs/acceptance-test.md「機械で確かめる」)
   - `just test`: env.yaml の検査(知らないキー、SOPS のまま、書き忘れ、値の形、組み合わせ)、重ね方、env.sh と /opt/agent-host に置くものの形の試験(tests/)
-  - `just verify <ホスト>`: ホストが仕様どおりかを約 100 項目で確かめる(読むだけ)。固定した版は、そのホストの post-install/ の値と比べる。ホストの上では `sudo /opt/agent-host/verify.sh`
+  - `just verify <ホスト>`: ホストが仕様どおりかを 100 項目あまりで確かめる(読むだけ)。固定した版は、そのホストの post-install/ の値と比べる。ホストの上では `sudo /opt/agent-host/verify.sh`
   - `just verify-rdp <ホスト>[:ポート]`: env.yaml の rdp で RDP の認証(NLA)が通るか(FreeRDP の +auth-only。画面は開かない)
   - `just vm-test`: VirtualBox の VM に入れなおし、検査、電源を切ったあと、セッションが落ちたあとの戻りを通しで確かめる
 - `just release-check` で `just test` も行う
@@ -45,6 +46,7 @@
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 
 ### 変更
+- リポジトリの作業の決まりに、複数のエージェントでのレビューと起票、Issue のトレーラー(Co-Authored-By)を足し、AGENTS.md(CLAUDE.md を参照する)を置いた
 - 1 台を複数の人で共有する前提(デスクトップ共有に入る前に一声かける)をやめ、1 台は 1 人で使う(サブスクリプションを共有しない)前提に文書を直した。複数の人で使うときは人数分のホストを用意する
 - リリースのワークフローの actions/checkout を v5 にした(Node.js 20 の廃止の警告への対応)
 - Intel の VA-API を free 版から full 版にした(36-minimize.sh から 37-gpu.sh に移した)。動いているホストは just update で入れ替わる。NVIDIA の GPU があるホストでドライバーが無ければ、構成の記録に注意が出る(sudo ubuntu-drivers install のあとに再起動)

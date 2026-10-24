@@ -2,9 +2,9 @@
 # 手元の PC から、動いているホストを扱う(just のレシピから使う)。
 #
 # 使い方: scripts/local/host.sh <操作> <ホスト> [引数]
-#   status  <ホスト>                 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
+#   status  <ホスト>                 置いた版と成功した版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
 #   facts   <ホスト>                 台帳のための情報を YAML で出す(sudo のパスワードを聞かれる)
-#   logs    <ホスト>                 構成・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
+#   logs    <ホスト>                 構成・最後の just update・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
 #   verify  <ホスト>                 仕様どおりに構成されているかを確かめる(scripts/verify.sh。何も変えない)
 #   verify-rdp <ホスト>[:ポート] <env.yaml>...  env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP)
 #   update  <ホスト> <env.yaml>...   スクリプトと env.yaml の変更を反映して構成を再実行する(OS は入れなおさない)
@@ -15,7 +15,7 @@ set -euo pipefail
 # shellcheck source=envs.sh
 . "$(dirname "$0")/envs.sh"
 
-usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { awk 'NR > 1 && /^#/ {sub(/^# ?/, ""); print; next} NR > 1 {exit}' "$0" >&2; exit 2; }
 [ $# -ge 2 ] || usage
 op="$1"
 host="$2"
@@ -46,7 +46,7 @@ status)
             ( . /var/lib/agent-host/BUILD-INFO.ok; echo "最後に適用に成功した版: 道具 $tool${config:+、構成 $config}($built)" )
         fi
         if [ -f /var/lib/agent-host/provision-incomplete ]; then
-            echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で見て、直してから just update)"
+            echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で止まったところを見て、直してから just update)"
         elif [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
         else echo "構成: 未完了(サービスは $(systemctl is-active agent-host-provision.service))"; fi
         echo "RDP: $(ss -tln | grep -q ":3389 " && echo "待ち受け中" || echo "止まっている")"
@@ -122,7 +122,10 @@ verify-rdp)
     ;;
 logs)
     ssh -t "${ssh_opts[@]}" "$target" '
-        sudo journalctl -u agent-host-provision.service -o cat --no-pager | grep -E "^\[agent-host\]|注意|^(E|W):" | tail -40
+        echo "--- 初回の構成"; sudo journalctl -u agent-host-provision.service -o cat --no-pager | grep -E "^\[agent-host\]|注意|^(E|W):" | tail -20
+        if sudo test -f /var/log/agent-host-update.log; then
+            echo "--- 最後の just update(/var/log/agent-host-update.log の最後)"; sudo tail -25 /var/log/agent-host-update.log
+        fi
         echo "--- first-login"; sudo tail -15 /home/agent/.local/state/agent-host/first-login.log
         echo "--- セッションの見張り"; sudo journalctl -u agent-host-session-watchdog.service -o cat --no-pager | grep "^\[agent-host\]" | tail -5
     '
@@ -148,7 +151,8 @@ update)
             rm -rf /opt/agent-host.prev; mv /opt/agent-host /opt/agent-host.prev; mv \$t/agent-host /opt/agent-host
             chown -R root:root /opt/agent-host; chmod -R u=rwX,go=rX /opt/agent-host
             chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys /opt/agent-host/sysadmin_authorized_keys
-            DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | grep -E \"^\[agent-host\]|注意|^(E|W):\"
+            DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | tee /var/log/agent-host-update.log |
+                grep -E \"^\[agent-host\]|注意|^(E|W):\"
         "'
     unset PW
     # sysadmin の SSH の鍵は env.yaml の内容に置き換わる(10-users.sh)。今の鍵で入りなおせるかを確かめる

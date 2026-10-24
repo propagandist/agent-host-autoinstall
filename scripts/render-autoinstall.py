@@ -5,7 +5,8 @@
 env.yaml は複数渡せる。前から順に重ね、後のファイルの値が勝つ(辞書は中のキーごとに重ね、並びや値は置き換える)。
 例: 全台で共通の common.yaml に、ホストごとの hosts/agent-host-01.yaml を重ねる。
 知らないキー(書き間違い)はエラーにする。
-出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, ca/*.crt
+出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, sysadmin_authorized_keys, ca/*.crt
+(stage.sh から呼ぶ。stage.sh は build-usb.sh・just check-env・just update が使う)
 """
 import ipaddress
 import os
@@ -327,7 +328,7 @@ def main():
         yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False)
 
     lines = [
-        "# build-usb.sh が env.yaml から生成した環境固有値(秘密情報を含む)",
+        "# render-autoinstall.py が env.yaml から生成した環境固有値(秘密情報を含む)",
         f"AH_HOSTNAME={shlex.quote(str(hostname))}",
         f"AH_SYSADMIN_PASSWORD_HASH={shlex.quote(str(password_hash))}",
         f"AH_LAN_CIDRS={shlex.quote(' '.join(str(c) for c in cidrs))}",
