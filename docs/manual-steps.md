@@ -23,7 +23,10 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    - `network` は固定 IP なら `mode: static` とアドレス・ゲートウェイ・DNS を書く。有線 LAN が 2 つ以上ある機種では `interface` に名前(`enp3s0` など)を書く
    - `ntp_servers` は、社内から ntp.ubuntu.com に届かないときだけ書く
    - `proxy` と `ca_certs` は、社内にプロキシや独自の CA 証明書があるときだけ書く
-   - `editors` は入れたいエディター(vscode / neovim / zed)。`agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
+   - `editors` は入れたいエディター(vscode / neovim / zed)。VS Code は拡張機能も入り(足すなら `vscode_extensions`)、表示が日本語になる。Zed の拡張機能(足すなら `zed_extensions`)は Zed を初めて起動したときに入る
+   - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
+   - `gitea_url` は社内の Gitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
+   - `agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
    - `sysadmin.password_hash` は `mkpasswd -m sha-512`(または `openssl passwd -6`)で作る
 2. 検査して ISO を作る
    ```
@@ -33,7 +36,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    ```
 3. `build/agent-host.iso` を USB メモリに書き込む(Rufus なら「DD イメージ」モード)
 
-できた ISO と USB メモリには、パスワードハッシュと RDP のパスワードが入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
+できた ISO と USB メモリには、パスワードハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
 
 **注意:** この USB から起動すると、確認なしでディスク全体を消してインストールが始まる。対象以外の PC に挿したまま起動しない。インストールが終わって再起動したら、すぐに USB を抜く。
 
@@ -138,7 +141,9 @@ tea login list
 tea whoami
 ```
 
-## 11. Docker Hub へのログイン
+## 11. Docker Hub とクラウドの CLI のログイン
+
+### Docker Hub
 
 社内から 1 つの IP でまとめて外に出ると、ログインなしの Docker Hub からの取得は 6 時間に 100 回までで、エージェントが使うとすぐ当たる。`docker login` する(アクセストークンを使う)。
 

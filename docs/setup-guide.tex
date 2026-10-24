@@ -201,7 +201,8 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \item 遠隔操作: GNOME の「デスクトップ共有」(RDP、ポート 3389)。物理の画面のセッションをそのまま共有する
   \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
   \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
-  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、Google Chrome、エディター(選択)
+  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome、
+        エディター(選択。拡張機能も入る)、クラウドの CLI(選択。AWS・Google Cloud・Azure)
   \item 通知: Slack と IP Messenger(承認待ち・エラー・完了)
 \end{itemize}
 
@@ -284,7 +285,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \section{入っている主なアプリケーション}\label{sec:apps}
 %======================================================================
 構成が終わったホストに入っている主なものと、このホストでの使い方。
-版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents} と \code{editors} で選んだときだけ入る。
+版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds} で選んだときだけ入る。
 
 {\small
 \begin{longtable}{@{}p{0.25\linewidth}p{0.42\linewidth}p{0.27\linewidth}@{}}
@@ -570,7 +571,8 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
   \node[pstep,below=of b1] (b2) {50 自動更新};
   \node[pstep,right=8mm of b1] (c1) {60 開発の道具};
   \node[pstep,below=of c1] (c2) {62 追加のエージェント};
-  \node[pstep,below=of c2] (c3) {65 rootless Docker};
+  \node[pstep,below=of c2] (c2b) {63 クラウドの CLI};
+  \node[pstep,below=of c2b] (c3) {65 rootless Docker};
   \node[pstep,below=of c3] (c4) {70 Orca};
   \node[pstep,below=of c4] (c5) {72 エディター};
   \node[pstep,below=of c5] (c6) {75 Chrome ・ 76 デスクトップ};
@@ -609,7 +611,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
 \code{70-orca.sh} & Orca と、その自動起動 \\
-\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
+\code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
 \code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
@@ -699,6 +701,7 @@ ChatGPT 側でデバイスコードによるサインインが有効でないと
 \subsection{Orca の初回の設定}
 \begin{checklist}
   \item 初回の案内に従い、既定のエージェントを選ぶ。\textbf{Yolo モード(確認なしでコマンドを実行)は最初からオン}なので、使い方の方針に合わせて決める
+  \item 案内に従い、\code{~/.claude} と \code{~/.codex} の設定を取り込む
   \item Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数でも止めている)
   \item Settings → Notifications の「Update available」をオフにする
 \end{checklist}
@@ -709,6 +712,7 @@ opencode auth login     # OpenCode: 使うモデルの API キーや OAuth を�
 copilot                 # Copilot CLI: 起動して /login → デバイスコード
 agy                     # Antigravity CLI: 表示された URL を開き、得たコードを貼り付ける
 \end{term}
+Antigravity CLI のテレメトリは、アカウントの設定(\code{/config})で切り替える。
 
 \subsection{GitHub・Gitea の認証(push する場合)}
 GitHub は gh で認証する。
@@ -1034,7 +1038,8 @@ unset PW
 \code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
-リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは次のとおり(Docker が要る)。
+リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。
+just を使わないときは、スクリプトを直接実行する。
 \begin{local}
 scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
 \end{local}
@@ -1047,7 +1052,9 @@ VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確か�
   \item HDMI のダミープラグでの RDP、BIOS の停電復帰、社内 LAN の外からの到達(テスト 7)
   \item 実際のプロキシ・TLS を検査するプロキシの下での動作
   \item Slack への送信、Claude Code の Remote Control
-  \item Zed の動作(GPU が要る)、RDP のクリップボードでのファイルのコピー
+  \item クラウドの CLI の実際のログイン、社内の CA の証明書を使う Gitea への接続
+  \item Zed での日本語入力、VS Code の日本語の表示(設定は入れた)、RDP のクリップボードでのファイルのコピー
+  \item systemd-oomd がメモリ不足のときに Orca ごと止めないか
 \end{itemize}
 最新の状況は \code{docs/HANDOVER.md} を見る。
 

@@ -72,6 +72,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - ufw:env.yaml の `dev_ports` を社内LANから開ける(開発サーバーを手元の PC から見るため)
 - `agent` の mise(プロジェクトごとの言語のバージョン。shims を PATH に入れる)と、エージェント向けのホストの説明(`~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。既にあれば上書きしない)
 - エディター:env.yaml の `editors` で vscode / neovim / zed から選ぶ
+- VS Code の表示は日本語にする(Language Pack を入れ、`~/.vscode/argv.json` に `"locale": "ja"` を書く)
 - VS Code の拡張機能:日本語の表示、Claude Code、Codex、EditorConfig、YAML、TOML、ShellCheck、Container Tools、Git Graph、GitHub Pull Requests、Python・Pylance・Ruff、ESLint・Prettier を版を固定して入れる。clouds に合わせて AWS Toolkit・Google Cloud Code・Azure Resources・Terraform を足す。env.yaml の `vscode_extensions` で追加できる。自動更新は止める
 - Zed の拡張機能:TOML、Dockerfile、Docker Compose、HTML、Make、SQL、env、Git Firefly(clouds を選んだら Terraform)を、設定の auto_install_extensions で次の起動時に入れる。Zed には版を指定する方法がないので、入ったときの最新にし、その後は auto_update_extensions で更新を止める。env.yaml の `zed_extensions` で追加できる
 - 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
@@ -86,7 +87,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
-- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
+- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`。env.yaml の `gitea_url` を tea のログインの既定の接続先にし、エージェント向けの説明にも載せる)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
@@ -99,7 +100,9 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 4. Claude Code のログイン
 5. Codex のログイン(`codex login --device-auth`。事前に ChatGPT のセキュリティ設定でデバイスコード認証を有効化)
 6. Orca 初回起動、`~/.claude` / `~/.codex` 設定の取り込み、利用統計と更新の通知をオフ
-7. GitHub の認証(`gh auth login`、`gh auth setup-git`)と Docker Hub へのログイン(`docker login`)
+7. GitHub の認証(`gh auth login`、`gh auth setup-git`)、Gitea の認証(`tea login add --git-credentials`)、Docker Hub へのログイン(`docker login`)
+8. 選んだ追加のエージェント(OpenCode・Copilot CLI・Antigravity CLI)とクラウドの CLI(`aws sso login`・`gcloud auth login`・`az login`)のログイン
+9. 通知の確認と、使う場合は Claude Code の Remote Control
 
 2〜3 はスクリプト化した(2 は空パスワードのキーリングを最初から置く、3 は first-login で `grdctl` を実行する)。ただし実機では未確認なので、効かなかったときの手作業を docs/manual-steps.md に残す。
 
@@ -116,6 +119,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 5. Orca から Claude Code / Codex でそれぞれ簡単なタスクを1本ずつ実行できる
 6. RDP 切断 → 10分後に再接続 → タスクが継続している
 7. 社内LAN外(または許可範囲外)から 22 / 3389 に到達できない
+8. GNOME のセッションが落ちても、何もしなくてもセッションと RDP が戻る
 
 ## 8. 設計上の決定と理由
 
@@ -132,12 +136,12 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 ## 9. 未確定事項(実装時に確認)
 
 調べた結果と、まだ確認できていない点は HANDOVER.md「§9 の調査結果」に書く。
-- Ubuntu Desktop 26.04 の autoinstall で、上記要件がすべて表現できるか(Server 版との差分)
-- 26.04 で「自動ログイン + 空パスワードキーリング + デスクトップ共有」が再起動後に確実に有効になるか
-- デスクトップ共有の有効化と RDP 認証情報の設定を `grdctl` でスクリプト化できるか
-- Orca .deb の入手 URL とバージョン固定・自動更新停止の方法
-- Claude Code の Linux 上での推奨インストール方法(npm かネイティブインストーラーか)
-- 社外アクセスの VPN 方式(社内既定の方針に合わせる)
+- [済] Ubuntu Desktop 26.04 の autoinstall で、上記要件がすべて表現できるか(Server 版との差分)
+- [VM で済、実機は未] 26.04 で「自動ログイン + 空パスワードキーリング + デスクトップ共有」が再起動後に確実に有効になるか
+- [済] デスクトップ共有の有効化と RDP 認証情報の設定を `grdctl` でスクリプト化できるか
+- [済] Orca .deb の入手 URL とバージョン固定・自動更新停止の方法
+- [済] Claude Code の Linux 上での推奨インストール方法(公式の apt リポジトリ)
+- [未] 社外アクセスの VPN 方式(社内既定の方針に合わせる)
 
 ## 10. 対象外
 - Orca / Claude Code / Codex の利用ルールやアカウント管理

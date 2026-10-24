@@ -3,6 +3,16 @@
 社内のオンプレPCを、常時稼働の AI エージェントホスト(Ubuntu Desktop 26.04 LTS + Orca + Claude Code + Codex + GNOME デスクトップ共有)として、autoinstall で自動構成するための設定とスクリプト一式。
 USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後も人手を介さず RDP で接続できる状態に戻ることを目指す。
 
+## できること
+
+- USB メモリ 1 本から無人でインストールし、初回起動時に構成する。env.yaml で、ネットワーク、プロキシと CA 証明書、キーボード配列などを指定する
+- GDM の自動ログインと GNOME のデスクトップ共有(RDP)。再起動・停電・セッションの異常終了のあとも、人手なしで RDP に戻る
+- AI エージェント: Orca、Claude Code、Codex、CCManager。選んで OpenCode、GitHub Copilot CLI、Antigravity CLI
+- 開発の道具: Node.js、uv、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome。選んで VS Code(拡張機能と日本語の表示も)、Neovim、Zed(拡張機能も)、AWS・Google Cloud・Azure の CLI
+- 承認待ち・エラー・完了を Slack と IP Messenger に通知する。ディスクの残りを監視する
+- 版の固定、要らないサービスの停止、`just update` での設定の反映、`just backup` / `just restore` での移行
+- 詳細な設定手順書の PDF を、リリースごとに GitHub の Releases に付ける
+
 ## 現状
 
 VirtualBox の仮想マシンで、無人インストールから RDP の接続と受け入れテストまで確かめた。実機ではまだ確かめていない。未確認の点は [docs/HANDOVER.md](docs/HANDOVER.md) を参照。
@@ -37,9 +47,12 @@ just check-env          # env.yaml を検査する
 just fetch-iso          # Ubuntu の ISO を取得して照合する
 just iso                # build/agent-host.iso を作る → Rufus(DD イメージ)で USB に書き込む
 just rdp <ホスト>       # RDP の接続ファイルを作る
-just status <ホスト>    # 状態を見る
+just status <ホスト>    # 状態を見る(just logs <ホスト> で記録、just ssh <ホスト> で入る)
 just update <ホスト>    # スクリプトや env.yaml の変更を反映する(OS は入れなおさない)
 just backup <ホスト>    # 移行の書き出し / just restore <ホスト> <ファイル> で取り込み
+just lint               # shellcheck と構文の検査
+just guide              # 手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live)
+just release-check      # リリースの前の確認(release ブランチで。手順は docs/release.md)
 ```
 
 手作業の手順は [docs/manual-steps.md](docs/manual-steps.md)、詳しくは [docs/setup-guide.tex](docs/setup-guide.tex)(`just guide` で PDF)。
