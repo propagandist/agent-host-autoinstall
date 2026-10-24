@@ -71,6 +71,7 @@ sudo ss -tlnp | grep 33
 | Orca のテレメトリ | RDP の端末で `echo $ORCA_TELEMETRY_DISABLED` | 1 |
 | サービスの最小化 | `systemctl list-units --type=service --state=running`、`command -v snap orca` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない。snap と(読み上げの)orca がない |
 | メモリ | `swapon --show; cat /proc/cmdline` | zram がある。crashkernel がない |
+| GPU による符号化 | `vainfo --display drm --device /dev/dri/renderD128 \| grep EncSlice`、RDP でつないだあと `journalctl -b _UID=$(id -u agent) \| grep HWAccel` | Intel・AMD は `VAProfileH264High` に `VAEntrypointEncSlice`(か `EncSliceLP`)があり、`[HWAccel.VAAPI] Successfully initialized` が出る。NVIDIA は `lsmod \| grep nvidia` と `ldconfig -p \| grep libnvidia-encode`。VM では対象外 |
 | Docker の通信 | RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 取得できる(pasta) |
 | ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |
 | 移行 | 書き出し → 消す → 取り込み(docs/manual-steps.md の 16。just backup → 消す → just restore) | ログインと ~/work が戻る |

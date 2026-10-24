@@ -208,6 +208,14 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)
 
+### GPU による RDP の画面の符号化(2026-10-24 調査)
+
+- gnome-remote-desktop 50.2(Ubuntu 26.04)は libva と libvulkan にリンクしていて、RDP のクライアントが AVC(H.264)に対応していれば、Vulkan で色を変換し VA-API で H.264 を作る経路を、設定なしで試す(50.2 のソース `grd-rdp-renderer.c`・`grd-hwaccel-vaapi.c`。VA-API の `VAProfileH264High` に `VAEntrypointEncSlice` か `EncSliceLP` が要る)。成功すると `[HWAccel.VAAPI] Successfully initialized VAAPI ... vendor: ...` を記録する。NVIDIA は CUDA と NVENC の別の経路(`grd-hwaccel-nvidia.c`)で、成功の記録は出ない
+- Intel の VA-API は、Ubuntu に free 版(`intel-media-va-driver`、universe。`ENABLE_NONFREE_KERNELS=OFF`)と full 版(`intel-media-va-driver-non-free`、multiverse)がある。Intel の media-driver の README の表では、free 版は Broadwell で H.264 を符号化できず、Skylake〜Ice Lake は低電力の符号化(VDEnc。HuC のファームウェアが要る)だけ。パフォーマンスを優先して full 版にした(37-gpu.sh)。multiverse が無ければ free 版に戻す
+- AMD の VA-API(radeonsi)は 26.04 では `mesa-libgallium` に入っている(`mesa-va-drivers` は無くなり、`mesa-libgallium` が Provides する)。Vulkan は `mesa-vulkan-drivers`(libvulkan1 の Recommends)。Ubuntu の Mesa で radeonsi の H.264 の符号化が有効かは未確認
+- NVIDIA は、autoinstall の `drivers: install: true` で、インストールの中で ubuntu-drivers が推奨のドライバーを入れる(初回の起動からそのドライバーで動く。構成の途中で再起動しなくてよい)。Intel・AMD・VM では何も入らないはず。NVIDIA の実機と Secure Boot のときの動作は未確認
+- VirtualBox の VM の GPU(vmsvga、vendor 0x15ad)では符号化できないので、just verify は「対象外」と出す
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -218,6 +226,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
+- 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - systemd-oomd がメモリ不足のときに Orca ごと止めないか
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 

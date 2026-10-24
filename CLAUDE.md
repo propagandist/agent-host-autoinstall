@@ -36,7 +36,8 @@ scripts/
     20-autologin.sh
     30-power.sh
     35-system.sh            # 時刻同期(chrony)、inotify の上限、apport の無効化
-    36-minimize.sh          # 要らないサービスを止める、snap・kdump の削除、zram、電源、VA-API、GRUB
+    36-minimize.sh          # 要らないサービスを止める、snap・kdump の削除、zram、電源、GRUB
+    37-gpu.sh               # RDP の画面の符号化を GPU に任せる(Intel の VA-API の full 版、Vulkan、vainfo)
     40-ssh-ufw.sh
     50-updates.sh
     60-devtools.sh

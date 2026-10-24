@@ -96,6 +96,7 @@ class TestValid(Case):
         self.assertEqual(ai["ssh"]["authorized-keys"], ["ssh-ed25519 AAAAtest sysadmin@test"])
         self.assertEqual(ai["network"]["ethernets"]["lan"], {"match": {"name": "en*"}, "dhcp4": True})
         self.assertNotIn("proxy", ai)
+        self.assertEqual(ai["drivers"], {"install": True})  # NVIDIA などのドライバーをインストールの中で入れる
 
     def test_example_is_rejected_until_filled(self):
         r, _ = self.render(os.path.join(REPO, "autoinstall", "env.example.yaml"))
