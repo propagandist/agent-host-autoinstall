@@ -6,7 +6,6 @@ set -euo pipefail
 
 state_dir="$HOME/.config/agent-host"
 done_mark="$state_dir/first-login.done"
-creds="$state_dir/rdp.env"
 autostart="$HOME/.config/autostart/agent-host-first-login.desktop"
 log_file="$HOME/.local/state/agent-host/first-login.log"
 
@@ -95,13 +94,8 @@ fi
 grdctl rdp set-tls-cert "$cert_dir/tls.crt"
 grdctl rdp set-tls-key "$cert_dir/tls.key"
 
-# 認証情報はログインキーリングに保存される。キーリングがロックされているとここで失敗する
-if [ -f "$creds" ]; then
-    # shellcheck source=/dev/null
-    . "$creds"
-    grdctl rdp set-credentials "$RDP_USER" "$RDP_PASSWORD"
-    rm -f "$creds"
-fi
+# 認証情報(80-agent-session.sh が渡した rdp.env)をキーリングに入れる。ログインのたびの自動起動でも同じものが動く
+"$(dirname "$0")/rdp-credentials.sh"
 
 # 既定では閲覧のみなので操作を許可する。ポートは 3389 に固定する(使用中でも別ポートへずらさない)
 grdctl rdp disable-view-only

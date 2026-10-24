@@ -30,12 +30,12 @@ iso out="build/agent-host.iso" +envs=env:
 # shellcheck と構文の検査
 lint:
     scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/notify/agent-host-ups-notify scripts/migrate/agent-host-* scripts/watchdog/agent-host-* examples/fleet/scripts/*.sh'
-    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py", "tests/test_render.py")]'
+    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py")]'
     @echo "検査は問題ない"
 
 # env.yaml の検査と、/opt/agent-host に置くものの試験(tests/。ホストは要らない)
 test:
-    scripts/local/in-ubuntu.sh python3-yaml - python3 -m unittest discover -s tests -v
+    scripts/local/in-ubuntu.sh "python3-yaml git zstd" - python3 -m unittest discover -s tests -v
 
 # 詳細な設定手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live で作る。初回はイメージの作成に数分かかる)
 guide:

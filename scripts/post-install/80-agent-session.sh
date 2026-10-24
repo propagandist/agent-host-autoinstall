@@ -62,8 +62,8 @@ for entry in "${xdg_dirs[@]}"; do
     read -r key en ja <<<"$entry"
     if [ -d "$AGENT_HOME/$ja" ]; then
         if [ ! -e "$AGENT_HOME/$en" ]; then
-            mv "$AGENT_HOME/$ja" "$AGENT_HOME/$en"
-        elif rmdir "$AGENT_HOME/$ja" 2>/dev/null; then
+            agent_run mv -T "$AGENT_HOME/$ja" "$AGENT_HOME/$en"
+        elif agent_run rmdir "$AGENT_HOME/$ja" 2>/dev/null; then
             :
         else
             log "注意: $AGENT_HOME/$ja と $en の両方に中身があるので、$ja を手で整理する"
@@ -84,7 +84,7 @@ EOF
 # Files のサイドバーのブックマークも英語名に合わせる
 bookmarks="$AGENT_HOME/.config/gtk-3.0/bookmarks"
 if [ -f "$bookmarks" ]; then
-    python3 - "$bookmarks" "${xdg_dirs[@]}" <<'PY'
+    agent_run python3 - "$bookmarks" "${xdg_dirs[@]}" <<'PY'
 import sys
 from urllib.parse import quote
 path, entries = sys.argv[1], sys.argv[2:]
@@ -144,7 +144,7 @@ fi
 # agent のホーム以下の mise.toml は信頼する(確認で止まらないように。エージェントはどのみち任意のコードを動かす)
 # environment.d はファイル名の順に読まれ、/usr/lib/environment.d/99-environment.conf(= /etc/environment)が
 # PATH を固定の値で上書きする。それより後に読まれる名前(990-snapd.conf よりも後)にする(26.04 で確認済み)
-rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
+agent_run rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
 write_agent_file 644 "$AGENT_HOME/.config/environment.d/995-mise.conf" <<'EOF'
 PATH=${HOME}/.local/share/mise/shims:${HOME}/.local/bin:${PATH}
 MISE_TRUSTED_CONFIG_PATHS=${HOME}
@@ -157,11 +157,12 @@ EOF
 if [ -n "${AH_GITEA_URL:-}" ]; then
     printf 'GITEA_SERVER_URL=%s\n' "$AH_GITEA_URL" | write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-gitea.conf"
 else
-    rm -f "$AGENT_HOME/.config/environment.d/60-gitea.conf"
+    agent_run rm -f "$AGENT_HOME/.config/environment.d/60-gitea.conf"
 fi
 if ! grep -q 'mise activate bash' "$AGENT_HOME/.bashrc" 2>/dev/null; then
     # shellcheck disable=SC2016  # .bashrc にはそのまま書く(展開はログイン時)
-    printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' >>"$AGENT_HOME/.bashrc"
+    printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' |
+        agent_run sh -c 'cat >>"$1"' sh "$AGENT_HOME/.bashrc"
 fi
 
 # --- エージェントへのホストの説明 ---
@@ -217,14 +218,24 @@ if systemctl is-active --quiet "user@$agent_uid.service"; then
     fi
 fi
 
+# --- RDP の認証情報 ---
+# env.yaml の rdp が前に渡したものと違えば渡しなおす(初回は first-login が、以後はログインのたびの自動起動が入れる)。
+# agent がログイン中なら、その場でセッションに入れる(キーリングが開いているので入る)
+if queue_rdp_credentials; then
+    log "RDP の認証情報を渡した"
+    if [ -f "$done_mark" ] && [ -S "/run/user/$agent_uid/bus" ] &&
+        loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
+        if agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$agent_uid" \
+            DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$agent_uid/bus" "$AH_ROOT/first-login/rdp-credentials.sh"; then
+            log "ログイン中の $AGENT_USER のセッションに RDP の認証情報を入れた"
+        else
+            log "注意: RDP の認証情報をその場では入れられなかった。次のログインで入る"
+        fi
+    fi
+fi
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
-    # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)
-    {
-        printf 'RDP_USER=%q\n' "$AH_RDP_USER"
-        printf 'RDP_PASSWORD=%q\n' "$AH_RDP_PASSWORD"
-    } | write_agent_file 600 "$state_dir/rdp.env"
-
     write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-first-login.desktop" <<EOF
 [Desktop Entry]
 Type=Application

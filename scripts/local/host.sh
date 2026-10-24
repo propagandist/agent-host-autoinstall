@@ -144,10 +144,16 @@ update)
             t=\$(mktemp -d); tar -xzf - -C \$t
             rm -rf /opt/agent-host.prev; mv /opt/agent-host /opt/agent-host.prev; mv \$t/agent-host /opt/agent-host
             chown -R root:root /opt/agent-host; chmod -R u=rwX,go=rX /opt/agent-host
-            chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys
+            chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys /opt/agent-host/sysadmin_authorized_keys
             DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | grep -E \"^\[agent-host\]|注意|^(E|W):\"
         "'
     unset PW
+    # sysadmin の SSH の鍵は env.yaml の内容に置き換わる(10-users.sh)。今の鍵で入りなおせるかを確かめる
+    if ! ssh "${ssh_opts[@]}" "$target" true; then
+        echo "注意: 反映のあと、今の鍵で $target に入れない。env.yaml の sysadmin.ssh_authorized_keys に、" >&2
+        echo "      この PC の鍵が入っているかを確かめる(入れなければ、ホストの画面から ~sysadmin/.ssh/authorized_keys を直す)" >&2
+        exit 1
+    fi
     ;;
 backup)
     out="$(resolve_path "${1:-build/backups/$host-$(date +%Y%m%d-%H%M).tar.zst}")"

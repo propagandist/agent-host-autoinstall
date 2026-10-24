@@ -31,7 +31,7 @@ mkdir -p "$stage"
 # 1. autoinstall.yaml と env.sh・公開鍵・CA 証明書を生成する
 python3 "$repo/scripts/render-autoinstall.py" "$repo/autoinstall/autoinstall.yaml" "${env_yamls[@]}" "$render"
 cp "$render/autoinstall.yaml" "$out/autoinstall.yaml"
-cp "$render/env.sh" "$render/agent_authorized_keys" "$stage/"
+cp "$render/env.sh" "$render/agent_authorized_keys" "$render/sysadmin_authorized_keys" "$stage/"
 cp -a "$render/ca" "$stage/ca"
 rm -rf "$render"
 
@@ -42,7 +42,7 @@ cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" "$repo/scr
 find "$stage" -name '__pycache__' -prune -exec rm -rf {} +
 find "$stage" -type f \( -name '*.sh' -o -path '*/notify/*' -o -path '*/migrate/*' -o -path '*/watchdog/*' \) \
     -exec chmod 755 {} +
-chmod 600 "$stage/env.sh" "$stage/agent_authorized_keys"
+chmod 600 "$stage/env.sh" "$stage/agent_authorized_keys" "$stage/sysadmin_authorized_keys"
 
 # 3. 作った版の記録(just status と just facts で見る。秘密情報は入れない)
 if [ -n "$build_info" ]; then

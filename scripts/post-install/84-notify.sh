@@ -26,7 +26,7 @@ chmod 640 /etc/agent-host/notify.env
 #   StopFailure: API のエラーで止まったとき
 claude_settings="$AGENT_HOME/.claude/settings.json"
 [ -f "$claude_settings" ] || printf '{}\n' | write_agent_file 644 "$claude_settings"
-python3 - "$claude_settings" <<'PY'
+agent_run python3 - "$claude_settings" <<'PY'
 import json, sys
 path = sys.argv[1]
 with open(path, encoding="utf-8") as f:
@@ -49,12 +49,11 @@ with open(path, "w", encoding="utf-8") as f:
     json.dump(settings, f, ensure_ascii=False, indent=2)
     f.write("\n")
 PY
-chown "$AGENT_USER:$AGENT_USER" "$claude_settings"
 
 # --- Codex の notify(config.toml の最上位。最初のテーブルより前に置く) ---
 codex_conf="$AGENT_HOME/.codex/config.toml"
 if [ -f "$codex_conf" ] && ! grep -q '^notify *=' "$codex_conf"; then
-    python3 - "$codex_conf" <<'PY'
+    agent_run python3 - "$codex_conf" <<'PY'
 import sys
 path = sys.argv[1]
 lines = open(path, encoding="utf-8").read().splitlines()

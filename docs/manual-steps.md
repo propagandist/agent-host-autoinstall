@@ -241,6 +241,8 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
+- sysadmin の SSH の鍵とパスワードは、env.yaml の `sysadmin` に置き換わる(ホストで手で足した鍵や `passwd` で替えたパスワードは戻る)。鍵を替えるときは、今つないでいる鍵を外さない順で行う。反映のあと、入りなおせるかを確かめ、入れなければ止まって知らせる
+- RDP の認証情報(env.yaml の `rdp`)を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる(古いものは使えなくなる)
 - NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
 - どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
@@ -249,7 +251,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 ## 16. 環境を入れ替える(OS の入れなおし、機種の交換)
 
-ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。
 
 1. Orca とエージェントの作業を止める(書き出しの途中で書き換わらないように)
 2. 書き出す。sudo のパスワードを 1 回聞かれる。ホストには保存されない
@@ -258,12 +260,25 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
    ```
 3. Docker のボリュームに残したいデータがあれば、手で書き出す(例: `docker run --rm -v <ボリューム>:/v -v $PWD:/b alpine tar czf /b/<ボリューム>.tgz -C /v .`)
 4. 同じ env.yaml で `just iso` を作り、新しいホストを入れる
-5. 構成が終わったら取り込み、再起動する
+5. 取り込むまでは、一時の known_hosts でつなぐ(下の「ホスト鍵」)
+   - 新しいホストの画面(RDP の端末でもよい)で、新しいホスト鍵の指紋を見る
+     ```
+     ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
+     ```
+   - 手元の PC で、一時の known_hosts を使うようにする(ほかに `AGENT_HOST_SSH_OPTS` を使っていれば後ろに足す)
+     ```
+     export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
+     just status <ホスト>   # 最初に出る指紋が、上で見たものと同じなら yes
+     ```
+6. 構成が終わったら取り込み、再起動する
    ```
    just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
-   just ssh <ホスト>      # sudo systemctl reboot
+   unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate   # 取り込むと元のホスト鍵に戻るので、一時のものは要らない
+   just ssh <ホスト>      # sudo systemctl reboot(元の known_hosts でつながる)
    ```
-6. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
+7. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
+
+**ホスト鍵:** 入れなおすと SSH のホスト鍵が新しくなり、取り込むと書き出したときの鍵に戻る(sshd も再起動する)。そのため、取り込むまでは手元の known_hosts の鍵と合わず、`just status` も `just restore` も「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まる。known_hosts の古い鍵は消さない(消すと、取り込んだあとにもう一度食い違う)。`StrictHostKeyChecking=no` などで確かめずにつなぐと、書き出し(ログインの情報が入る)と sudo のパスワードを、確かめていない相手に送ることになるので使わない。
 
 **書き出したファイルにはログインの情報が入る。暗号化された場所に移し、取り込んだら消す。**
 

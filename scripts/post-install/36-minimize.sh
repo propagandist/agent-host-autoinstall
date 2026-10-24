@@ -69,7 +69,8 @@ if dpkg-query -W -f='${Status}' snapd 2>/dev/null | grep -q 'install ok installe
     # 初回起動の直後は snap の初期化(seed)が終わっていないことがあるので待つ
     snap wait system seed.loaded || true
     apt-get purge -y snapd firefox
-    rm -rf /var/cache/snapd /root/snap "$AGENT_HOME/snap"
+    rm -rf /var/cache/snapd /root/snap
+    agent_run rm -rf "$AGENT_HOME/snap"
 fi
 cat >/etc/apt/preferences.d/agent-host-no-snapd.pref <<'EOF'
 # agent-host-autoinstall が置いた設定: snapd を入れない(36-minimize.sh)

@@ -14,7 +14,7 @@
 
 | 項目 | 内容 |
 |---|---|
-| OS | Ubuntu Desktop 26.04 LTS(Wayland のみ。xrdp は使えないため不採用) |
+| OS | Ubuntu Desktop 26.04 LTS(GNOME のセッションは Wayland のみ。xrdp は別のセッションを作り、GNOME の画面の前のセッションを共有できないため不採用) |
 | 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc(autoinstall.yaml と first-login で固定) |
 | ハードウェア | x86_64 の物理PC。メモリ 32GB 以上、NVMe SSD 推奨 |
 | 画面 | 物理モニターなし運用。HDMI ダミープラグを挿す |
@@ -87,7 +87,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。agent のファイルの索引作り、予定表、Xwayland の常時起動などを止める。snap と snapd(apt でも入らないように止める)、kdump、使わないパッケージ(画面の読み上げ・点字、印刷のドライバー、sssd、VPN・モデム、Bluetooth、中国語の入力、whoopsie・apport・ubuntu-report・ubuntu-insights)を消す。cups 本体はデスクトップのまとめの必須なので、消さずに止める
 - 資源の最適化:zram(メモリの半分)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の画面の符号化を GPU に任せる(gnome-remote-desktop の Vulkan と VA-API による H.264。Intel は VA-API の full 版、AMD は Mesa、NVIDIA はインストールの中でプロプライエタリ ドライバーを入れて NVENC)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、構成の最後に apt のキャッシュと古いダウンロードを消す
 - デスクトップ:端末は Xfce Terminal(右クリックで貼り付け、選択でコピー)、Caps Lock は無効(caps:none)、クリップボードの履歴は Clipboard Indicator、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
-- 移行:agent-host-backup / agent-host-restore で、ホストの身元・ログインと設定・~/work を移す(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない)
+- 移行:agent-host-backup / agent-host-restore で、ホストの身元・ログインと設定・~/work を移す(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない。~/work からは実際に見つけた node_modules・__pycache__・.venv だけを除き、名前だけでは除かない)
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を LAN だけ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
@@ -135,7 +135,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 |---|---|
 | エージェントの作業環境は Orca | Linux の .deb、Claude Code と Codex の併用、worktree ごとの並列、MIT、アカウント不要、.deb 版は自分で更新しない(版を固定できる)、利用統計を止められる、の条件をすべて満たし、開発がもっとも活発。代替の比較は notes.md「Orca を選んだ理由」。GUI が使えないときの予備に TUI の CCManager を入れる |
 | Ubuntu Desktop 26.04 LTS | 常時稼働でもGUIが必要。Server + デスクトップ追加より手直しが少ない |
-| xrdp ではなく GNOME デスクトップ共有 | 26.04 では xrdp が使えない。物理セッション共有なので、自動ログイン + Orca 自動起動と両立し、再起動後も人手不要 |
+| xrdp ではなく GNOME デスクトップ共有 | xrdp は別のセッションを作るので、自動ログインで起動した Orca が見えない。また Ubuntu の GNOME のセッションは 25.10 から Wayland だけで、xrdp の Xorg のセッションでは GNOME が動かない(Xfce などは動く)。デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立し、再起動後も人手不要 |
 | 「リモートログイン」モードは使わない | 再起動後にログインするまでOrcaが動かない。併用するとデスクトップ共有が3390番に移り混乱する |
 | `agent` のキーリングを空パスワードに | 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めないため。`agent` は専用ユーザーで秘密情報を置かない前提で許容 |
 | HDMI ダミープラグ | モニターなしだと描画されない機種がある |

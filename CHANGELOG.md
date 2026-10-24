@@ -26,6 +26,12 @@
 - Orca Mobile(スマホから Orca を操作するアプリ)の使い方と注意を手順に書いた(LAN なら dev_ports に 6768、外からは VPN か Orca Relay)。設定の追加はなし
 
 ### 修正
+- `just update` で root が agent のホームを書き換えるとき、agent の置いたシンボリックリンク(末端・途中のディレクトリ)をたどって、ホームの外の root のファイルを書き換えたり所有者を変えたりできた。agent のホームへの書き込みは、すべて agent の権限で行う(#1)
+- `sysadmin.ssh_authorized_keys` と `sysadmin.password_hash` を替えて `just update` しても反映されず、退任した人の鍵とパスワードが残った。`just update` のたびに env.yaml に合わせる(手で足した鍵は消える。反映のあと入りなおせるかを確かめる)(#2)
+- 移行の書き出しが名前だけ(dist、target、venv、.cache など)で除いていたため、~/work の同じ名前のディレクトリの中の未コミットの変更・未追跡のファイル、同じ名前のファイル、同じ名前のブランチが消えた。~/work の中で見つけた node_modules・__pycache__・.venv のパスと、Orca のキャッシュだけを除き、除いたものを取り込みの最後に出す(#4)
+- 入れなおしたホストは SSH のホスト鍵が新しく、移行の手順どおりに進めると取り込みの前に「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まった。取り込むまでは一時の known_hosts でつなぎ、指紋を新しいホストの画面で照らす手順を、手順書・manual-steps・fleet.md に書いた(#11)
+- xrdp を採らなかった理由を、「Ubuntu 26.04 は Wayland だけで xrdp が使えない」から、「xrdp は別のセッションを作るので自動ログインした Orca が見えない。GNOME のセッションは 25.10 から Wayland だけで xrdp では動かない(Xfce などは動く)」に直した(#14)
+- `rdp.password` を替えて `just update` しても、古い RDP の認証情報が有効なままだった。替えたら渡しなおし、ログイン中ならその場で、そうでなければ次のログインで入れ替える。移行の取り込みのあとも、このホストの認証情報を入れなおす(#3)
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 
 ### 変更

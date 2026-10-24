@@ -262,6 +262,7 @@ def main():
     lines = [
         "# build-usb.sh が env.yaml から生成した環境固有値(秘密情報を含む)",
         f"AH_HOSTNAME={shlex.quote(str(hostname))}",
+        f"AH_SYSADMIN_PASSWORD_HASH={shlex.quote(str(password_hash))}",
         f"AH_LAN_CIDRS={shlex.quote(' '.join(str(c) for c in cidrs))}",
         f"AH_RDP_USER={shlex.quote(str(rdp_user))}",
         f"AH_RDP_PASSWORD={shlex.quote(str(rdp_password))}",
@@ -292,7 +293,9 @@ def main():
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
 
-    # 公開鍵と CA 証明書は行をまたぐのでファイルで渡す
+    # 公開鍵と CA 証明書は行をまたぐのでファイルで渡す。sysadmin の鍵は just update でも置き換える(10-users.sh)
+    with open(os.path.join(out_dir, "sysadmin_authorized_keys"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("".join(str(k).strip() + "\n" for k in keys))
     with open(os.path.join(out_dir, "agent_authorized_keys"), "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(str(k).strip() + "\n" for k in agent_keys))
     ca_dir = os.path.join(out_dir, "ca")
