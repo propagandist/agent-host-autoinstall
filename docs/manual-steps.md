@@ -38,6 +38,8 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
 
 できた ISO と USB メモリには、パスワードハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
 
+env.yaml は複数のファイルに分けて重ねられる(`just check-env common.yaml host.yaml`、`just iso build/x.iso common.yaml host.yaml`。後のファイルの値が勝つ)。ホストが 2 台以上になったら、env.yaml を別の非公開リポジトリで管理する([fleet.md](fleet.md))。
+
 **注意:** この USB から起動すると、確認なしでディスク全体を消してインストールが始まる。対象以外の PC に挿したまま起動しない。インストールが終わって再起動したら、すぐに USB を抜く。
 
 ## 1. BIOS
@@ -202,6 +204,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
+- どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
 - agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
 
@@ -270,7 +273,7 @@ sudo cat /home/agent/.local/state/agent-host/first-login.log
 
 ### 設定やスクリプトを変えたとき
 
-`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>` で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh と agent_authorized_keys は 600、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
+`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>`(env.yaml は複数並べられる)で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh と agent_authorized_keys は 600、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
 
 ### 移行の書き出しと取り込み
 

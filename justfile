@@ -6,6 +6,10 @@ set windows-shell := ["C:/Program Files/Git/bin/bash.exe", "-euo", "pipefail", "
 env := "autoinstall/env.yaml"
 ubuntu := "ubuntu-26.04.1-desktop-amd64.iso"
 
+# 相対パスの引数(env.yaml、出力先、書き出したファイル)を、just を呼んだディレクトリから見るため(scripts/local/envs.sh)。
+# 構成リポジトリから just -f tool/justfile ... で呼んでも、構成リポジトリの hosts/ などを渡せる(docs/fleet.md)
+export AGENT_HOST_CALLER_DIR := invocation_directory()
+
 _default:
     @just --list --unsorted
 
@@ -15,20 +19,17 @@ fetch-iso:
     curl -fL -C - -o build/{{ubuntu}} https://releases.ubuntu.com/26.04/{{ubuntu}}
     cd build && curl -fsSL https://releases.ubuntu.com/26.04/SHA256SUMS | grep ' \*{{ubuntu}}$' | sha256sum -c
 
-# env.yaml を検査する(値の形と CHANGE_ME の残り)
-check-env env=env:
-    rm -rf build/.check-env
-    scripts/local/in-ubuntu.sh python3-yaml python3 python3 scripts/render-autoinstall.py autoinstall/autoinstall.yaml {{env}} build/.check-env
-    rm -rf build/.check-env
-    @echo "{{env}} は問題ない"
+# env.yaml を検査する(値の形、CHANGE_ME の残り、知らないキー)。複数渡すと前から順に重ねる(後のファイルの値が勝つ)
+check-env +envs=env:
+    scripts/local/iso.sh check {{envs}}
 
-# インストール用の ISO を作る(USB には Rufus の DD イメージのモードで書き込む)
-iso out="build/agent-host.iso" env=env:
-    scripts/local/in-ubuntu.sh "xorriso python3-yaml" "xorriso python3" bash scripts/build-usb.sh build/{{ubuntu}} {{out}} {{env}}
+# インストール用の ISO を作る(USB には Rufus の DD イメージのモードで書き込む)。env.yaml は複数渡せる
+iso out="build/agent-host.iso" +envs=env:
+    scripts/local/iso.sh build build/{{ubuntu}} {{out}} {{envs}}
 
 # shellcheck と構文の検査
 lint:
-    scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/migrate/agent-host-* scripts/watchdog/agent-host-*'
+    scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/migrate/agent-host-* scripts/watchdog/agent-host-* examples/fleet/scripts/*.sh'
     scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py")]'
     @echo "検査は問題ない"
 
@@ -55,17 +56,21 @@ rdp host:
 ssh host:
     ssh ${AGENT_HOST_SSH_OPTS:-} sysadmin@{{host}}
 
-# ホストの状態を見る(構成、RDP、セッション、ディスク、メモリ、失敗した unit)
+# ホストの状態を見る(作った版、構成、RDP、セッション、ディスク、メモリ、失敗した unit)
 status host:
     scripts/local/host.sh status {{host}}
+
+# 台帳のためにホストの情報を YAML で出す(機種、シリアル、MAC、ディスク、メモリ、OS、作った版、鍵の指紋)
+facts host:
+    scripts/local/host.sh facts {{host}}
 
 # 構成・first-login・セッションの見張りの記録を見る
 logs host:
     scripts/local/host.sh logs {{host}}
 
-# スクリプトと env.yaml の変更をホストに反映して構成を再実行する(OS は入れなおさない)
-update host env=env:
-    scripts/local/host.sh update {{host}} {{env}}
+# スクリプトと env.yaml の変更をホストに反映して構成を再実行する(OS は入れなおさない)。env.yaml は複数渡せる
+update host +envs=env:
+    scripts/local/host.sh update {{host}} {{envs}}
 
 # 移行の書き出し(既定は build/backups/。ログインの情報が入る)
 backup host out="":

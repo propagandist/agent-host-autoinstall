@@ -2,31 +2,41 @@
 # Ubuntu Desktop 26.04 の ISO に、env.yaml を埋めた autoinstall.yaml と同梱スクリプトを入れた ISO を作る。
 # できた ISO を USB メモリに書き込む(Rufus なら「DD イメージ」モード、Linux なら dd)。
 #
-# 使い方: scripts/build-usb.sh <元のISO> <出力ISO> [env.yaml]
+# 使い方: scripts/build-usb.sh [--build-info <ファイル>] <元のISO> <出力ISO> [env.yaml...]
+#   env.yaml は複数渡せる(前から順に重ねる。省くと autoinstall/env.yaml)
 # 必要なもの(Linux / WSL): xorriso, python3, python3-yaml
 #
 # 出力 ISO には env.yaml の秘密情報(パスワードハッシュ、RDP パスワード)が入る。扱いに注意する。
 set -euo pipefail
 
-usage() { echo "使い方: $0 <元のISO> <出力ISO> [env.yaml]" >&2; exit 2; }
+usage() { echo "使い方: $0 [--build-info <ファイル>] <元のISO> <出力ISO> [env.yaml...]" >&2; exit 2; }
+stage_opts=()
+if [ "${1:-}" = --build-info ]; then
+    stage_opts=(--build-info "${2:?}")
+    shift 2
+fi
 [ $# -ge 2 ] || usage
 
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 src_iso="$1"
 out_iso="$2"
-env_yaml="${3:-$repo/autoinstall/env.yaml}"
+shift 2
+env_yamls=("$@")
+[ ${#env_yamls[@]} -gt 0 ] || env_yamls=("$repo/autoinstall/env.yaml")
 
 for cmd in xorriso python3; do
     command -v "$cmd" >/dev/null || { echo "$cmd がない(apt install xorriso python3-yaml)" >&2; exit 1; }
 done
 [ -f "$src_iso" ] || { echo "元のISO $src_iso がない" >&2; exit 1; }
-[ -f "$env_yaml" ] || { echo "$env_yaml がない(env.example.yaml をコピーして作る)" >&2; exit 1; }
+for f in "${env_yamls[@]}"; do
+    [ -f "$f" ] || { echo "$f がない(env.example.yaml をコピーして作る)" >&2; exit 1; }
+done
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
 # 1〜2. env.yaml から autoinstall.yaml と env.sh などを作り、/opt/agent-host に置くものをそろえる
-"$repo/scripts/stage.sh" "$env_yaml" "$work"
+"$repo/scripts/stage.sh" "${stage_opts[@]}" "${env_yamls[@]}" "$work"
 stage="$work/agent-host"
 
 # 3. grub.cfg の linux 行に autoinstall を足す(確認画面を出さないため)

@@ -21,8 +21,8 @@ build/                      # ISO のダウンロード先と build-usb.sh の�
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
   stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
-  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、host.sh: ホストの操作、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る)
-  render-autoinstall.py     # build-usb.sh から呼ぶ。autoinstall.yaml と env.sh を生成
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: env.yaml を build/.env に写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る)
+  render-autoinstall.py     # stage.sh から呼ぶ。env.yaml を重ねて検査し(知らないキーはエラー)、autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
   systemd/                  # agent-host-provision.service
@@ -52,6 +52,8 @@ scripts/
   migrate/                  # 環境を入れ替えるときの書き出し(agent-host-backup)と取り込み(agent-host-restore)
   watchdog/                 # agent のセッションが落ちたら GDM を再起動する見張り(20-autologin.sh が置く)
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
+examples/
+  fleet/                    # 構成リポジトリのひな形(docs/fleet.md)
 docs/
   SPEC.md                   # 仕様
   HANDOVER.md               # 経緯と次の作業
@@ -62,6 +64,7 @@ docs/
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順
   release.md                # リリースの手順(GitFlow の release、版の付け方、成果物)
+  fleet.md                  # 実機の構成管理(構成リポジトリ、SOPS と age、ホストの追加・設定の変更・版上げ・移行)
 ```
 
 構成は実装の都合で変えてよいが、変えたら SPEC.md と整合させること。
