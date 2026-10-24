@@ -54,7 +54,7 @@ merge_agent_json() {
     if [ ! -f "$path" ]; then
         printf '{}\n' | write_agent_file 644 "$path"
     fi
-    python3 - "$path" "$wanted" <<'EOF'
+    agent_run python3 - "$path" "$wanted" <<'EOF'
 import json
 import sys
 
@@ -139,7 +139,7 @@ if selected vscode; then
     if [ ! -f "$argv" ]; then
         printf '{\n\t"locale": "ja"\n}\n' | write_agent_file 644 "$argv"
     elif ! grep -q '"locale"' "$argv"; then
-        sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
+        agent_run sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
     fi
     # 入っている Language Pack の一覧(~/.config/Code/languagepacks.json)は、VS Code が最初の起動の途中で作る。
     # 表示言語は起動の最初に決まるので、そのままだと最初の起動だけ英語になる(VirtualBox で確認)。

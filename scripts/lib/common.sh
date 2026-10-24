@@ -10,6 +10,12 @@ AGENT_HOME=/home/agent
 
 log() { echo "[agent-host] $*"; }
 
+# agent の権限でコマンドを実行する。agent のホームの中は root で読み書きしない。
+# agent が置いたシンボリックリンク(末端でも途中のディレクトリでも)を root がたどると、
+# ホームの外の root のファイルを書き換えたり所有者を変えたりできてしまうため(Issue #1)。
+# 作業ディレクトリは / にする(root のホームに入れず警告が出るのを避ける)
+agent_run() { (cd / && runuser -u "$AGENT_USER" -- "$@"); }
+
 # 環境固有値(build-usb.sh が生成した env.sh)を読む
 load_env() {
     [ -r "$AH_ENV" ] || { log "環境固有値 $AH_ENV が読めない"; exit 1; }
@@ -19,8 +25,14 @@ load_env() {
 
 # ini 形式のファイルの [section] に key=value を設定する。
 # 既にある行(コメントアウトされた行を含む)は置き換え、なければ section の末尾に足す。
+# agent のホームの中のファイルは、先頭に --as-agent を付けて agent の権限で書く
 ini_set() {
-    python3 - "$@" <<'PY'
+    local run=()
+    if [ "${1:-}" = --as-agent ]; then
+        run=(agent_run)
+        shift
+    fi
+    "${run[@]}" python3 - "$@" <<'PY'
 import re, sys
 path, sec, key, val = sys.argv[1:]
 try:
@@ -85,13 +97,13 @@ npm_global() {
     log "$pkg $version を入れた"
 }
 
-# 標準入力の内容を agent のホーム配下のファイルに書き、所有者を agent にする。
-# 途中のディレクトリも agent の所有で作る。
+# 標準入力の内容を agent のホーム配下のファイルに書く。途中のディレクトリも含めて、すべて agent の権限で行う
+# (root で書くと、agent が置いたリンクをたどってホームの外に書けてしまう。Issue #1)。
+# 同じディレクトリに一時ファイルを作ってから置き換えるので、末端がリンクでもリンク先は変えない
 write_agent_file() {
-    local mode="$1" dest="$2" tmp
-    runuser -u "$AGENT_USER" -- mkdir -p "$(dirname "$dest")"
-    tmp="$(mktemp)"
-    cat >"$tmp"
-    install -o "$AGENT_USER" -g "$AGENT_USER" -m "$mode" "$tmp" "$dest"
-    rm -f "$tmp"
+    local mode="$1" dest="$2"
+    agent_run mkdir -p "$(dirname "$dest")"
+    # shellcheck disable=SC2016  # agent の sh の中で展開する
+    agent_run sh -c 'tmp="$(mktemp "$1.XXXXXX")" && cat >"$tmp" && chmod "$2" "$tmp" && mv -fT "$tmp" "$1"' \
+        sh "$dest" "$mode"
 }

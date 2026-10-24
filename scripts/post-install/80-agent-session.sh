@@ -62,8 +62,8 @@ for entry in "${xdg_dirs[@]}"; do
     read -r key en ja <<<"$entry"
     if [ -d "$AGENT_HOME/$ja" ]; then
         if [ ! -e "$AGENT_HOME/$en" ]; then
-            mv "$AGENT_HOME/$ja" "$AGENT_HOME/$en"
-        elif rmdir "$AGENT_HOME/$ja" 2>/dev/null; then
+            agent_run mv -T "$AGENT_HOME/$ja" "$AGENT_HOME/$en"
+        elif agent_run rmdir "$AGENT_HOME/$ja" 2>/dev/null; then
             :
         else
             log "注意: $AGENT_HOME/$ja と $en の両方に中身があるので、$ja を手で整理する"
@@ -84,7 +84,7 @@ EOF
 # Files のサイドバーのブックマークも英語名に合わせる
 bookmarks="$AGENT_HOME/.config/gtk-3.0/bookmarks"
 if [ -f "$bookmarks" ]; then
-    python3 - "$bookmarks" "${xdg_dirs[@]}" <<'PY'
+    agent_run python3 - "$bookmarks" "${xdg_dirs[@]}" <<'PY'
 import sys
 from urllib.parse import quote
 path, entries = sys.argv[1], sys.argv[2:]
@@ -144,7 +144,7 @@ fi
 # agent のホーム以下の mise.toml は信頼する(確認で止まらないように。エージェントはどのみち任意のコードを動かす)
 # environment.d はファイル名の順に読まれ、/usr/lib/environment.d/99-environment.conf(= /etc/environment)が
 # PATH を固定の値で上書きする。それより後に読まれる名前(990-snapd.conf よりも後)にする(26.04 で確認済み)
-rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
+agent_run rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
 write_agent_file 644 "$AGENT_HOME/.config/environment.d/995-mise.conf" <<'EOF'
 PATH=${HOME}/.local/share/mise/shims:${HOME}/.local/bin:${PATH}
 MISE_TRUSTED_CONFIG_PATHS=${HOME}
@@ -157,11 +157,12 @@ EOF
 if [ -n "${AH_GITEA_URL:-}" ]; then
     printf 'GITEA_SERVER_URL=%s\n' "$AH_GITEA_URL" | write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-gitea.conf"
 else
-    rm -f "$AGENT_HOME/.config/environment.d/60-gitea.conf"
+    agent_run rm -f "$AGENT_HOME/.config/environment.d/60-gitea.conf"
 fi
 if ! grep -q 'mise activate bash' "$AGENT_HOME/.bashrc" 2>/dev/null; then
     # shellcheck disable=SC2016  # .bashrc にはそのまま書く(展開はログイン時)
-    printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' >>"$AGENT_HOME/.bashrc"
+    printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' |
+        agent_run sh -c 'cat >>"$1"' sh "$AGENT_HOME/.bashrc"
 fi
 
 # --- エージェントへのホストの説明 ---

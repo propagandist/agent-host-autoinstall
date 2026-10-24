@@ -64,6 +64,7 @@ if [ ! -f "$bookmarks" ]; then
         write_agent_file 664 "$bookmarks"
 fi
 if ! grep -q "^file://$AGENT_HOME/work " "$bookmarks"; then
-    printf 'file://%s/work work\n' "$AGENT_HOME" >>"$bookmarks"
+    # shellcheck disable=SC2016  # agent の sh の中で展開する
+    agent_run sh -c 'printf "file://%s/work work\n" "$2" >>"$1"' sh "$bookmarks" "$AGENT_HOME"
 fi
 log "Chrome のポリシー、壁紙の色、~/work のブックマークを設定した"
