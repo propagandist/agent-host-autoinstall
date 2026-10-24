@@ -97,12 +97,29 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
 
+### Orca を選んだ理由(2026-10-24 の調査)
+
+この用途で要る条件は次のとおり。Linux で動く(できれば .deb)、Claude Code と Codex を同じ画面で使える、エージェントごとに git の worktree を分けて並べられる、OSS、アカウントなしで使える、自分では更新を適用しない(版を固定できる)、利用統計を止められる、sudo のない agent で動く、RDP(Wayland)の画面で使える、開発が続いている。
+
+- **Orca**(stablyai/orca、MIT): 条件をすべて満たした。.deb 版は自分では更新を適用せず、通知と apt のコマンドを出すだけ(公式の文書)。利用統計(PostHog)は既定でオンだが、設定と `ORCA_TELEMETRY_DISABLED=1` で止まる。対応エージェントは Claude Code・Codex・OpenCode・Copilot ほか端末で動くもの。SSH の worktree とヘッドレスの `orca serve`、スマホのアプリ(Orca Mobile)もある。調べた時点で、GitHub のスターは約 10 万、直近 1 週間にデスクトップ版のリリースが 7 本と、候補の中でもっとも活発だった。VirtualBox の RDP の画面で、Wayland ネイティブで動くことを確かめた
+- **Emdash**(Apache-2.0): いちばん近い。Linux の .deb、Claude Code と Codex、worktree、SSH に対応し、利用統計も止められる。ただし更新の確認が 1 時間ごとで、止める設定がソースに見当たらず、Orca より良くなる点がなかった
+- **Nimbalyst**(MIT。Crystal の後継): Linux の .deb、Claude Code と Codex、worktree に対応し、利用統計も止められる。更新の確認と通知を止められるかは確かめられず、Orca より良くなる点が見当たらなかった
+- **Superset**: Elastic License 2.0(ソースは公開されているが OSS ではない)。Linux は AppImage だけで実験的の扱い。更新の確認(4 時間ごと)を止める `DISABLE_UPDATE_CHECK` は macOS でしか効かない(ソース)。利用統計の止め方の文書がない
+- **Warp**: 無料のプランでは、利用統計を止めると AI の機能が使えない。.deb を入れると apt のリポジトリが登録され、自動で更新される
+- **Conductor**: Mac だけ
+- **Crystal**、**Vibe Kanban**: 開発が終わっている(Crystal は 2026-02、Vibe Kanban は運営が 2026-04 に終了を発表)
+- **Sculptor**: Codex への対応が明記されていない
+- **Zed**: エディターとして選べるようにした(env.yaml の editors)。エージェントの並列(Parallel Agents)もあるが、作業の中心にするには、調べた時点で GPU のない RDP での描画が未確認だった(のちに VM で動くことは確かめた)
+- **TUI(Claude Squad、CCManager、Agent of Empires)**: 端末だけで使えるのは強み。ただ、エージェントの作業を並べて見比べるには GUI のほうが向くので、主にはしない。GUI が落ちたときや RDP がつながらないときの予備に、MIT で tmux が要らず npm で版を固定できる CCManager を入れた(Claude Squad は AGPL-3.0 で tmux が要る)
+- Orca の弱点: 更新の確認の通信(1 日 1 回と 30 分ごとの nudge.json)は止められない(v1.4.237 のソース)。.deb 版は自分で更新しないので、出るのは通知だけ。確認なしでコマンドを実行する「Yolo モード」が最初からオン(README の「利用上の注意」)
+- 出典: github.com/stablyai/orca、onorca.dev/docs(install・telemetry・settings)、github.com/generalaction/emdash、github.com/Nimbalyst/nimbalyst、github.com/superset-sh/superset、docs.warp.dev、conductor.build/docs、vibekanban.com/shutdown、github.com/kbwo/ccmanager、github.com/smtg-ai/claude-squad
+
 ### 開発環境の追加(2026-10-24)
 - agent に sudo がないので、エージェントが要る道具は構成で入れるか、mise(言語のバージョン)と rootless Docker(サービス)で済ませる。その事実を agent の `~/.claude/CLAUDE.md` と `~/.codex/AGENTS.md` に書いて置く
 - 版を固定して足したもの: uv 0.13.5、mise 2026.10.18(どちらもリリースの tar を SHA256 照合)、CCManager 4.4.9(npm)、VS Code 1.143.1(Microsoft の apt、hold)、Zed 1.25.3(リリースの tar)。apt で足したもの: python3-dev、pkg-config、libssl-dev、fd-find、tree、htop、tmux、sqlite3、shellcheck、zip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd、libnss3-tools、neovim(選んだとき)
 - env.yaml に足した項目: proxy、ca_certs、editors、agent_ssh_authorized_keys(agent は SFTP 専用)、dev_ports
 - Orca: `ORCA_TELEMETRY_DISABLED=1` を agent の environment.d に置く。利用統計と「Update available」の通知は設定画面でもオフにする(手順書)。更新の確認の通信(1 日 1 回と 30 分ごとの nudge.json)は止める手段がない(v1.4.237 のソースで確認)
-- Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査)。予備の TUI として CCManager を入れた
+- Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査。下の「Orca を選んだ理由」)。予備の TUI として CCManager を入れた
 - 未確認: プロキシと CA 証明書の実際の動作(VirtualBox ではプロキシなし。CA は試験用の自己署名で登録まで確認する)、(VS Code の debconf と、Zed の GPU なしでの動作は、のちに確認済み。下の節を参照)RDP のクリップボードでのファイルのコピー
 
 ### VirtualBox での確認(2026-10-24、入れ直しと feature/dev-env)

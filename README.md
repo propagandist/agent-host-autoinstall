@@ -21,6 +21,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
 
 | 選んだもの | 選ばなかったもの | 理由 |
 |---|---|---|
+| Orca(複数のエージェントを worktree ごとに並べる GUI) | Emdash、Nimbalyst、Superset、Warp、Conductor、Claude Squad などの TUI | Linux の .deb があり、Claude Code と Codex の両方を使え、MIT で、アカウントなしで使え、自分では更新を適用せず版を固定でき、利用統計を止められ、開発がいちばん活発だった。ほかは Mac 専用・Linux が実験的・開発の終了・更新の確認や利用統計を止められない、のどれかに当たった(2026-10-24 の比較。docs/notes.md)。端末だけで使える予備に CCManager も入れる |
 | Ubuntu の Desktop 版 | Server 版 | エージェントの作業を並べて見る GUI(Orca)を使うため。autoinstall は Desktop 版でも使える |
 | GNOME のデスクトップ共有 | xrdp、GNOME のリモートログイン | Ubuntu 26.04 は Wayland だけで xrdp が使えない。リモートログインは別のセッションを作るので、再起動のあとに自動で起動した Orca が見えない |
 | 空パスワードのログインキーリング | 自動ログインのたびに手でキーリングを開く | 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない(upstream で未解決)。安全性と引き換えの妥協で、下の前提があるときだけ許す |
