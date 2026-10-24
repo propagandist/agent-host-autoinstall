@@ -98,12 +98,21 @@ Linux の基本的な操作(端末、SSH、apt)ができることを前提とす
 \end{itemize}
 
 \subsection{作業用の PC}
-ISO を作るために、次のどれかが要る。
+手元の PC での作業は just(\url{https://just.systems/})で行う。リポジトリの直下で \code{just} を実行すると、
+レシピの一覧が出る。Linux の道具(xorriso、shellcheck など)が手元になければ、Docker の Ubuntu 26.04 の中で動く。
 \begin{itemize}
-  \item Linux(Ubuntu など)に \code{xorriso} と \code{python3-yaml} を入れたもの
-  \item Windows なら Docker Desktop(Ubuntu 26.04 のコンテナの中で作る。\ref{sec:build} 節)
+  \item just
+  \item Windows なら Git Bash(\code{C:/Program Files/Git/bin/bash.exe})と Docker Desktop。
+        Linux なら \code{xorriso}・\code{python3-yaml}・\code{shellcheck} があれば Docker は要らない
+  \item USB への書き込みに、Windows なら Rufus(DD イメージのモード)
+  \item 手順書の PDF を作るなら LuaLaTeX(TeX Live)
 \end{itemize}
-USB への書き込みには、Windows なら Rufus(DD イメージのモード)を使う。
+just を使わないときのコマンドは、付録「just を使わない場合」にある。
+
+試験用の VM などで SSH のポートや鍵を変えるときは、環境変数で渡す。
+\begin{cmd}
+export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
+\end{cmd}
 
 \subsection{ネットワークの情報}
 \noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
@@ -224,48 +233,15 @@ rdp:
 \section{インストール用の USB を作る}\label{sec:build}
 %======================================================================
 
-\subsection{just で行う場合}
-手元の PC に just があれば、この節の作業は次のコマンドで済む。Linux の道具(xorriso、shellcheck など)が
-手元になければ、Docker の Ubuntu 26.04 の中で動く(Windows は Git Bash と Docker Desktop)。
-
+\subsection{ISO を作る}
 \begin{cmd}
 just check-env          # env.yaml を検査する
-just fetch-iso          # Ubuntu の ISO を build/ に取得して照合する
+just fetch-iso          # Ubuntu の ISO を build/ に取得して SHA256 を照合する
 just iso                # build/agent-host.iso を作る
-just rdp <ホスト>       # RDP の接続ファイルを build/<ホスト>.rdp に作る
 \end{cmd}
 
-インストール後のホストの扱いも just にある。\code{just status}(状態)、\code{just logs}(記録)、
-\code{just update}(スクリプトや env.yaml の変更を反映して構成を再実行。OS は入れなおさない)、
-\code{just backup} / \code{just restore}(移行)。SSH のオプションは環境変数 \code{AGENT_HOST_SSH_OPTS} で足せる。
-\code{just update} は env.yaml のホスト名と、つないだホストの名前が違うと止まる。
-
-\subsection{Ubuntu の ISO を取得する}
-\url{https://releases.ubuntu.com/26.04/} から \code{ubuntu-26.04.1-desktop-amd64.iso} を取得し、
-同じ場所の \code{SHA256SUMS} で照合する。リポジトリの \code{build/} に置くとよい(\code{.gitignore} の対象)。
-
-\begin{cmd}
-sha256sum -c --ignore-missing SHA256SUMS
-\end{cmd}
-
-\subsection{ISO を作る(Linux)}
-\begin{cmd}
-sudo apt install xorriso python3-yaml
-scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
-    build/agent-host.iso autoinstall/env.yaml
-\end{cmd}
-
-\subsection{ISO を作る(Windows + Docker Desktop)}
-Git Bash で、リポジトリの直下から実行する。
-\begin{cmd}
-MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
-  ubuntu:26.04 bash -c 'apt-get update -qq &&
-  apt-get install -y -qq xorriso python3-yaml &&
-  bash scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
-    build/agent-host.iso autoinstall/env.yaml'
-\end{cmd}
-
-\subsection{build-usb.sh がすること}
+\subsection{just iso がすること}
+\code{scripts/build-usb.sh} を呼ぶ。
 \begin{enumerate}
   \item env.yaml を検査し、値を埋めた \code{autoinstall.yaml} と、スクリプト用の \code{env.sh}・公開鍵・CA 証明書を作る
   \item ISO の直下に \code{/autoinstall.yaml} と、スクリプト一式 \code{/agent-host/} を足す
@@ -274,7 +250,8 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
 \end{enumerate}
 
 \subsection{USB に書き込む}
-Rufus なら「DD イメージ」のモードで書き込む。Linux なら \code{dd} を使う。
+\code{build/agent-host.iso} を、Rufus なら「DD イメージ」のモードで書き込む。Linux なら \code{dd} を使う。
+env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
 
 \begin{caution}
 できた ISO と USB には、パスワードのハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。
@@ -345,18 +322,13 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \end{longtable}
 
 \subsection{結果を確かめる}
-手元の PC から SSH で入る。
 \begin{cmd}
-ssh sysadmin@<ホスト>
-systemctl status agent-host-provision.service    # active (exited) なら成功
-journalctl -u agent-host-provision.service        # 構成の記録
-sudo cat /home/agent/.local/state/agent-host/first-login.log
+just status <ホスト>    # 構成・RDP・セッション・ディスク・メモリ・失敗した unit
+just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
 \end{cmd}
 
-構成が失敗したときは、原因を直してから再実行する。スクリプトは冪等で、何度流しても同じ状態になる。
-\begin{cmd}
-sudo /opt/agent-host/provision.sh
-\end{cmd}
+構成が失敗したときは、原因を直してから \code{just update <ホスト>} で再実行する。
+スクリプトは冪等で、何度流しても同じ状態になる。
 
 first-login の記録に \code{RDP server certificate is invalid} が出ることがあるが、最終的な状態は正常で、
 RDP も待ち受ける(原因は未調査)。
@@ -364,13 +336,15 @@ RDP も待ち受ける(原因は未調査)。
 %======================================================================
 \section{初回の手作業}
 %======================================================================
-以降は、手元の PC の「リモート デスクトップ接続」(mstsc)で \code{<ホスト>:3389} に、
-env.yaml の \code{rdp} の認証情報で入って行う。初回は証明書の警告が出る(自己署名のため)。
+以降は、手元の PC から RDP で \code{agent} のデスクトップに入って行う。
 
-\subsection{RDP の接続の設定}
-\code{docs/agent-host.rdp.example} をコピーして \code{full address} をホスト名に直し、ダブルクリックで接続する。
-Windows キーを常にホストへ送り、クリップボードを共有する設定になっている。
-初回の証明書の警告で「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
+\subsection{RDP でつなぐ}
+\begin{cmd}
+just rdp <ホスト>       # build/<ホスト>.rdp を作る。ダブルクリックで接続する
+\end{cmd}
+ユーザーとパスワードは env.yaml の \code{rdp} の値。Windows キーを常にホストへ送り、クリップボードを共有し、
+色は 24 ビット(同じ 26.04 で mstsc の 32 ビットは遅いという報告がある)の設定になっている。
+初回は証明書の警告が出る(自己署名のため)。「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
 
 \begin{caution}
 デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける。
@@ -492,50 +466,44 @@ sudo -u agent XDG_RUNTIME_DIR=/run/user/$(id -u agent) \
 unattended-upgrades はセキュリティ更新を自動で入れるが、作業中のエージェントを止めないよう自動では再起動しない。
 カーネルなどの更新は再起動するまで反映されないので、\textbf{月 1 回、エージェントが作業していない時間に再起動する}。
 \begin{cmd}
+just ssh <ホスト>
 [ -f /var/run/reboot-required ] && cat /var/run/reboot-required.pkgs
 sudo systemctl reboot
 \end{cmd}
 再起動後は何もしなくても RDP で接続できる状態に戻る。
 
-\subsection{バージョンを上げる}
-Google Chrome 以外は版を固定し、apt のものは hold している。上げるときは、スクリプトの先頭の値
-(版と SHA256)を直し、リポジトリを更新してから、ホストの \code{/opt/agent-host} に反映して再実行する。
+\subsection{設定やバージョンを変える}
+env.yaml を直したとき、スクリプトや固定するバージョン(スクリプトの先頭の版と SHA256)を直したときは、
+OS を入れなおさずに反映できる。
 \begin{cmd}
-sudo /opt/agent-host/provision.sh
+just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 \end{cmd}
-Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる。
-
-\subsection{設定を変える}
-インストール後に環境の値を変えるときは、ホストの \code{/opt/agent-host/env.sh}(root だけが読める)を直して
-再実行する。公開鍵は \code{/opt/agent-host/agent_authorized_keys}、CA 証明書は \code{/opt/agent-host/ca/} にある。
-ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} から外したものは手で消す。
-\begin{cmd}
-sudo ufw status numbered
-sudo ufw delete <番号>
-\end{cmd}
+\begin{itemize}
+  \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
+  \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
+  \item ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} から外したものは手で消す
+        (\code{just ssh} → \code{sudo ufw status numbered} → \code{sudo ufw delete <番号>})
+  \item agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
+  \item Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
+\end{itemize}
 
 \subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
 ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、\code{~/work} と Orca の worktree を移す。
 ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
-\code{sysadmin} の sudo はパスワードが要り、標準入力は書き出しの受け渡しに使うので、
-パスワードは標準入力の先頭の 1 行で渡す。手元の PC(Linux、WSL、Git Bash)で行う。
+どちらも sudo のパスワードを 1 回聞かれる。
 
 \begin{enumerate}
   \item Orca とエージェントの作業を止める
   \item 書き出す(ホストには保存されない)
 \begin{cmd}
-read -rsp "sysadmin のパスワード: " PW; echo
-printf '%s\n' "$PW" | ssh sysadmin@<ホスト> \
-    'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+just backup <ホスト>    # build/backups/<ホスト>-<日時>.tar.zst に書き出す
 \end{cmd}
   \item Docker のボリュームに残したいデータがあれば、手で書き出す
-  \item 同じ env.yaml で作った ISO で、新しいホストを入れる(env.yaml は安全な場所に保管しておく)
+  \item 同じ env.yaml で \code{just iso} を作り、新しいホストを入れる
   \item 構成が終わったら取り込み、再起動する
 \begin{cmd}
-{ printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } |
-    ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
-ssh -t sysadmin@<ホスト> 'sudo systemctl reboot'
-unset PW
+just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
+just ssh <ホスト>       # sudo systemctl reboot
 \end{cmd}
   \item 受け入れテストの 4・5 を行う
 \end{enumerate}
@@ -552,7 +520,7 @@ unset PW
 \endhead
 RDP がつながらない & \code{ss -tlnp | grep 33} で待ち受けを見る。first-login の記録を見る。画面がロックされていないか。リモートログインを有効にしていないか(3390 に移る) \\
 ログイン画面のまま & GNOME のセッションが落ちた。見張りが 2〜3 分で GDM を再起動して戻し、通知する。\code{journalctl -u agent-host-session-watchdog} で確かめる \\
-構成サービスが失敗した &\code{journalctl -u agent-host-provision.service} で止まったスクリプトを見て、直して \code{provision.sh} を再実行する \\
+構成サービスが失敗した & \code{just logs} で止まったスクリプトを見て、直して \code{just update} で再実行する \\
 エージェントが apt を試して失敗する & \code{agent} には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
 mise のコマンドが見つからない & 再ログイン(再起動)で環境が入る。\code{systemctl --user show-environment} で PATH を確かめる \\
 Docker のイメージが取れない & \code{docker login} をしたか。プロキシの下なら env.yaml の \code{proxy} \\
@@ -612,6 +580,57 @@ Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更
 \code{~agent/.local/state/agent-host/first-login.log} & first-login の記録 \\
 \bottomrule
 \end{longtable}
+
+%======================================================================
+\section{just を使わない場合}
+%======================================================================
+just のレシピがしていることを手で行うときのコマンド。リポジトリの直下で実行する。
+
+\subsection{ISO を作る}
+Linux(\code{xorriso} と \code{python3-yaml} が要る):
+\begin{cmd}
+curl -fLO https://releases.ubuntu.com/26.04/ubuntu-26.04.1-desktop-amd64.iso
+curl -fsSL https://releases.ubuntu.com/26.04/SHA256SUMS | sha256sum -c --ignore-missing
+scripts/build-usb.sh ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml
+\end{cmd}
+Windows では、Git Bash から Docker の Ubuntu の中で同じことをする。
+\begin{cmd}
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
+  ubuntu:26.04 bash -c 'apt-get update -qq &&
+  apt-get install -y -qq xorriso python3-yaml &&
+  bash scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml'
+\end{cmd}
+
+\subsection{状態と記録を見る}
+\begin{cmd}
+ssh sysadmin@<ホスト>
+test -f /var/lib/agent-host/provisioned && echo 構成済み
+ss -tln | grep 3389
+sudo journalctl -u agent-host-provision.service
+sudo cat /home/agent/.local/state/agent-host/first-login.log
+\end{cmd}
+
+\subsection{設定やスクリプトを変えたとき}
+\code{scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>} で \code{<作業ディレクトリ>/agent-host/} を作り、
+ホストの \code{/opt/agent-host} と入れ替えてから(\code{env.sh} と \code{agent_authorized_keys} は 600、所有者は root)、
+\code{sudo /opt/agent-host/provision.sh} を実行する。
+
+\subsection{移行の書き出しと取り込み}
+\code{sysadmin} の sudo はパスワードが要り、標準入力は書き出しの受け渡しに使うので、
+パスワードは標準入力の先頭の 1 行で渡す。
+\begin{cmd}
+read -rsp "sysadmin のパスワード: " PW; echo
+printf '%s\n' "$PW" | ssh sysadmin@<ホスト> \
+    'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+{ printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } |
+    ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
+unset PW
+\end{cmd}
+
+\subsection{RDP の接続ファイル}
+\code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
 
 %======================================================================
 \section{確認できていないこと}
