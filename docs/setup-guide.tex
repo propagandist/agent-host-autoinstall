@@ -659,6 +659,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
 \code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
+\code{85-ups.sh} & env.yaml の \code{ups} で選んだ UPS を NUT で見る。バッテリーが少ないと終了し、USB でつないだときは UPS の出力を止めて、電源が戻ったら起動させる。停電と復電を通知する \\
 \code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
 \bottomrule
 \end{longtable}}
