@@ -10,6 +10,8 @@ Linux か WSL で行う。xorriso と python3-yaml が要る。
    - `keyboard_layout` は RDP で使う人のキーボードに合わせる(101/104 の英字配列なら `us`、106/109 なら `jp`)
    - `network` は固定 IP なら `mode: static` とアドレス・ゲートウェイ・DNS を書く。有線 LAN が 2 つ以上ある機種では `interface` に名前(`enp3s0` など)を書く
    - `ntp_servers` は、社内から ntp.ubuntu.com に届かないときだけ書く
+   - `proxy` と `ca_certs` は、社内にプロキシや独自の CA 証明書があるときだけ書く
+   - `editors` は入れたいエディター(vscode / neovim / zed)。`agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
    - `sysadmin.password_hash` は `mkpasswd -m sha-512` で作る
 2. Ubuntu Desktop 26.04 LTS の ISO を用意し、次を実行する
    ```
@@ -71,9 +73,57 @@ RDP で agent のデスクトップに入り、ターミナルで `claude` を�
 
 1. Orca は自動起動している。初回の案内に従う
 2. `~/.claude` / `~/.codex` の設定を取り込む
-3. 自動更新の設定があればオフにする。.deb 版は更新を自分では適用しないが、更新の通知は出る。通知を止める設定は見つかっていない(HANDOVER.md)
+3. Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数 ORCA_TELEMETRY_DISABLED=1 でも止めているが、設定にも残す)
+4. Settings → Notifications の「Update available」をオフにする。.deb 版は自分では更新しない。更新の確認の通信そのものは止められない(HANDOVER.md)
 
-## 8. 定期的な再起動(運用)
+## 8. GitHub の認証(push する場合)
+
+どのアカウントで認証するかを先に決める(エージェント専用のアカウントか、権限を絞ったトークンが無難)。RDP で agent の端末から:
+
+```
+gh auth login        # GitHub.com → HTTPS → ブラウザ(デバイスコード)で認証
+gh auth setup-git    # git の push に gh の認証を使う
+gh auth status
+```
+
+## 9. Docker Hub へのログイン
+
+社内から 1 つの IP でまとめて外に出ると、ログインなしの Docker Hub からの取得は 6 時間に 100 回までで、エージェントが使うとすぐ当たる。RDP で agent の端末から `docker login` する(アクセストークンを使う)。
+
+## 10. ファイルのやり取り(SFTP)
+
+env.yaml の `agent_ssh_authorized_keys` に公開鍵を書いた人は、WinSCP などで agent に SFTP で入れる(シェルには入れない)。
+
+- ホスト: `<ホスト>`、ポート 22、ユーザー `agent`、認証は秘密鍵
+- 作業の置き場所は `/home/agent/work`
+
+小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(VirtualBox では未確認)。
+
+## 11. 追加のエージェントのログイン(env.yaml の agents で選んだものだけ)
+
+RDP で agent の端末から行う。
+
+- OpenCode: `opencode auth login` で、使うモデルのプロバイダーの API キーや OAuth を設定する
+- GitHub Copilot CLI: `copilot` を起動し `/login` → デバイスコード(github.com/login/device)。Copilot の契約が要る
+- Antigravity CLI: `agy` を起動し、表示された URL を手元のブラウザで開き、得たコードを端末に貼り付ける。テレメトリはアカウント側の `/config` で切り替える
+
+## 12. 通知の確認(env.yaml の notify を書いた場合)
+
+```
+agent-notify approval テスト "通知のテストです"
+```
+
+Slack と IP Messenger の両方に届くことを確かめる(done は Slack だけ)。IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
+
+## 13. スマホからの操作(Claude Code の Remote Control)
+
+Claude Code に Pro / Max / Team / Enterprise のアカウントでログインしているときだけ使える。通信は Anthropic のサービスを通る。
+
+1. RDP で agent の端末から、作業するディレクトリで `claude remote-control`(または動いているセッションで `/remote-control`)。初回は確認に `y` で答える
+2. 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
+3. スマホへのプッシュ通知: Claude アプリに同じアカウントでログインし、端末で `/config` から「Push when actions required」などをオンにする
+
+## 14. 定期的な再起動(運用)
 
 unattended-upgrades はセキュリティ更新を自動で入れるが、自動では再起動しない(作業中のエージェントを止めないため)。カーネルなどの更新は再起動するまで反映されないので、月 1 回、エージェントが作業していない時間に sysadmin で再起動する。
 

@@ -71,6 +71,19 @@ download_verified() {
     mv "$dest.part" "$dest"
 }
 
+# npm のパッケージを版を指定して全体に入れ、コマンドを /usr/local/bin に置く(Node.js は 60-devtools.sh で入る)
+npm_global() {
+    local pkg="$1" version="$2" bin="$3" prefix current
+    prefix="$(npm prefix -g)"
+    current="$(npm ls -g --depth=0 --json "$pkg" 2>/dev/null |
+        python3 -c 'import json,sys; print(json.load(sys.stdin).get("dependencies",{}).get(sys.argv[1],{}).get("version",""))' "$pkg" || true)"
+    if [ "$current" != "$version" ]; then
+        npm install -g "$pkg@$version"
+    fi
+    ln -sfn "$prefix/bin/$bin" "/usr/local/bin/$bin"
+    log "$pkg $version を入れた"
+}
+
 # 標準入力の内容を agent のホーム配下のファイルに書き、所有者を agent にする。
 # 途中のディレクトリも agent の所有で作る。
 write_agent_file() {

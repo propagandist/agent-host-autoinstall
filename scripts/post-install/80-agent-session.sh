@@ -115,6 +115,72 @@ Exec=update-notifier
 Hidden=true
 EOF
 
+# --- プロキシと CA 証明書(05-proxy-ca.sh の続き) ---
+# agent の systemd(ユーザー)には /etc/environment が入らないことがあるので、同じ値を environment.d にも置く
+# (rootless Docker のイメージ取得などに効かせる)
+agent_env="$AGENT_HOME/.config/environment.d/50-proxy-ca.conf"
+block="$(sed -n '/^# >>> agent-host-autoinstall$/,/^# <<< agent-host-autoinstall$/p' /etc/environment |
+    grep -v '^#' | tr -d '"' || true)"
+if [ -n "$block" ]; then
+    printf '%s\n' "$block" | write_agent_file 644 "$agent_env"
+else
+    rm -f "$agent_env"
+fi
+# Chrome は CA 証明書をシステムのストアではなく、ユーザーごとの NSS のデータベースから読む
+if compgen -G "/usr/local/share/ca-certificates/agent-host/*.crt" >/dev/null; then
+    nssdb="$AGENT_HOME/.pki/nssdb"
+    if [ ! -f "$nssdb/cert9.db" ]; then
+        runuser -u "$AGENT_USER" -- mkdir -p "$nssdb"
+        runuser -u "$AGENT_USER" -- certutil -N --empty-password -d "sql:$nssdb"
+    fi
+    for crt in /usr/local/share/ca-certificates/agent-host/*.crt; do
+        runuser -u "$AGENT_USER" -- certutil -A -d "sql:$nssdb" -t "C,," -n "$(basename "$crt" .crt)" -i "$crt"
+    done
+    log "agent の Chrome に社内の CA 証明書を登録した"
+fi
+
+# --- mise(プロジェクトごとの言語のバージョン) ---
+# GUI のアプリ(Orca)や非対話のシェルからも使えるよう、shims を PATH に入れる。対話のシェルでは activate も使う。
+# agent のホーム以下の mise.toml は信頼する(確認で止まらないように。エージェントはどのみち任意のコードを動かす)
+# environment.d はファイル名の順に読まれ、/usr/lib/environment.d/99-environment.conf(= /etc/environment)が
+# PATH を固定の値で上書きする。それより後に読まれる名前(990-snapd.conf よりも後)にする(26.04 で確認済み)
+rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
+write_agent_file 644 "$AGENT_HOME/.config/environment.d/995-mise.conf" <<'EOF'
+PATH=${HOME}/.local/share/mise/shims:${HOME}/.local/bin:${PATH}
+MISE_TRUSTED_CONFIG_PATHS=${HOME}
+COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+EOF
+# 上の COREPACK_ENABLE_DOWNLOAD_PROMPT: pnpm / yarn の初回の取得で確認を出さない(エージェントが端末で止まらないように)
+if ! grep -q 'mise activate bash' "$AGENT_HOME/.bashrc" 2>/dev/null; then
+    # shellcheck disable=SC2016  # .bashrc にはそのまま書く(展開はログイン時)
+    printf '\n# agent-host-autoinstall: mise を有効にする\neval "$(mise activate bash)"\n' >>"$AGENT_HOME/.bashrc"
+fi
+
+# --- エージェントへのホストの説明 ---
+# 利用ルールではなく、環境の事実だけを書く。既にあるときは上書きしない(人が書き足すため)
+agent_notes="$(cat <<'EOF'
+# このホストについて
+
+agent-host-autoinstall が置いた説明。環境の事実だけを書いている。
+
+- このマシンは常時稼働の AI エージェント用ホスト(Ubuntu Desktop 26.04 LTS)。人が画面を見ていないことが多い
+- あなたは agent ユーザーで、sudo は使えない。apt でのインストールはできないので、試さない
+- 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
+- Python は uv(`uv venv`、`uv pip install`、`uv run`)を使える。pnpm と yarn は corepack で使える
+- データベースなどのサービスは rootless Docker(`docker compose`)で動かす。1024 未満のポートは待ち受けできない
+- 入っている主な道具: git、gh、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
+- GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
+- 作業は ~/work の下で行う
+EOF
+)"
+for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
+    if [ ! -f "$notes" ]; then
+        printf '%s\n' "$agent_notes" | write_agent_file 644 "$notes"
+    fi
+done
+runuser -u "$AGENT_USER" -- mkdir -p "$AGENT_HOME/work"
+log "mise の有効化と、エージェントへのホストの説明を置いた"
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
     # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)
