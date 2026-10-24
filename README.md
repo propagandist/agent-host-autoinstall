@@ -20,6 +20,7 @@ USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後�
 |---|---|
 | [docs/SPEC.md](docs/SPEC.md) | 仕様(目的、対象環境、要件、設計上の決定、未確定事項) |
 | [docs/HANDOVER.md](docs/HANDOVER.md) | これまでの経緯と次にやること |
+| [docs/setup-guide.tex](docs/setup-guide.tex) | 詳細な設定手順書(準備から運用まで)。PDF は `latexmk -lualatex -outdir=build/setup-guide docs/setup-guide.tex` で作る |
 | [docs/manual-steps.md](docs/manual-steps.md) | USB の作り方と、手作業の手順 |
 | [docs/acceptance-test.md](docs/acceptance-test.md) | 受け入れテスト |
 | [CLAUDE.md](CLAUDE.md) | 作業ルール(ディレクトリ構成、秘密情報の扱い、検証、ブランチ運用) |

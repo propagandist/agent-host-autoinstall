@@ -1,0 +1,557 @@
+% 常時稼働 AI エージェントホスト 設定手順書
+% ビルド: latexmk -lualatex -outdir=build/setup-guide docs/setup-guide.tex
+\documentclass[a4paper,10pt]{ltjsarticle}
+\usepackage[margin=22mm]{geometry}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{longtable}
+\usepackage{fancyvrb}
+\usepackage[hidelinks,pdfusetitle]{hyperref}
+
+% コマンド・パス・値(_ などをそのまま書ける)
+\newcommand{\code}[1]{\texttt{\detokenize{#1}}}
+% コマンドの例
+\DefineVerbatimEnvironment{cmd}{Verbatim}{frame=single,framesep=2mm,fontsize=\small,rulecolor=\color{gray}}
+% 注意書きの囲み
+\newenvironment{caution}{%
+  \par\smallskip\noindent\begin{minipage}{\linewidth}\hrule\smallskip\noindent\textbf{注意}\quad}{%
+  \smallskip\hrule\end{minipage}\par\smallskip}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\title{常時稼働 AI エージェントホスト\\設定手順書}
+\author{agent-host-autoinstall}
+\date{2026年10月(VirtualBox で検証した版)}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+%======================================================================
+\section{はじめに}
+%======================================================================
+
+\subsection{この手順書の目的}
+社内のオンプレミスの PC を、AI コーディングエージェント(Claude Code、Codex ほか)を
+Orca で並列に動かす「常時稼働のエージェントホスト」にするための手順をまとめる。
+USB メモリ 1 本からほぼ無人でインストールでき、再起動や停電のあとも人手を介さずに、
+RDP で接続できる状態に戻ることを目指す。
+
+仕様は \code{docs/SPEC.md}、経緯と未確認の事項は \code{docs/HANDOVER.md} にある。
+この手順書と食い違ったときは、リポジトリの文書とスクリプトを正とする。
+
+\subsection{対象読者}
+このリポジトリを使ってホストを用意する社内の管理者・作業者。
+Linux の基本的な操作(端末、SSH、apt)ができることを前提とする。
+
+\subsection{できあがる環境}
+\begin{itemize}
+  \item OS: Ubuntu Desktop 26.04 LTS(GNOME 50、Wayland のみ)
+  \item 遠隔操作: GNOME の「デスクトップ共有」(RDP、ポート 3389)。物理の画面のセッションをそのまま共有する
+  \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
+  \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
+  \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、Google Chrome、エディター(選択)
+  \item 通知: Slack と IP Messenger(承認待ち・エラー・完了)
+\end{itemize}
+
+\subsection{ユーザー}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\toprule
+ユーザー & 用途 & sudo & ログイン \\
+\midrule
+\code{sysadmin} & OS の管理・更新 & あり & SSH(鍵認証のみ)。コンソール \\
+\code{agent} & Orca とエージェントの実行 & なし & GDM の自動ログイン。SSH は SFTP 専用(鍵を登録した人だけ) \\
+\bottomrule
+\end{tabularx}}
+
+\code{admin} は Ubuntu の予約名でインストーラーに拒否されるため、管理ユーザーは \code{sysadmin} にしている。
+\code{agent} には個人の秘密情報を置かない。
+
+\subsection{起動の流れ}
+\begin{enumerate}
+  \item 電源が入る(BIOS の設定で、停電から復帰したときも自動で入る)
+  \item GDM が \code{agent} で自動ログインする(ログインキーリングは空パスワードなので自動で開く)
+  \item デスクトップ共有(RDP)が 3389 番で待ち受ける
+  \item Orca が自動で起動する
+  \item 社内 LAN の PC から RDP で \code{agent} のデスクトップに入る
+\end{enumerate}
+
+\subsection{セキュリティ上の前提}
+空パスワードのキーリングと自動ログインは、社内 LAN に限ったホストで、秘密情報を置かない専用ユーザー
+\code{agent} が使うことを前提に許している。SSH(22)と RDP(3389)はインターネットに開けない。
+社外からは VPN 経由とする。
+
+%======================================================================
+\section{準備するもの}
+%======================================================================
+
+\subsection{ハードウェア}
+\begin{itemize}
+  \item x86\_64 の PC。メモリ 32GB 以上、NVMe SSD を推奨。
+        ディスクは全体を消して使う。
+  \item HDMI のダミープラグ。モニターなしでも描画させるため。
+        RDP の解像度はプラグの解像度になる(手元からは変えられない)ので、
+        \textbf{1920×1080 のもの}を選ぶ。
+  \item USB メモリ(8GB 以上)
+  \item 有線 LAN。インストール中にネットワークが要る(Desktop の ISO には openssh-server が入っていない)
+\end{itemize}
+
+\subsection{作業用の PC}
+ISO を作るために、次のどれかが要る。
+\begin{itemize}
+  \item Linux(Ubuntu など)に \code{xorriso} と \code{python3-yaml} を入れたもの
+  \item Windows なら Docker Desktop(Ubuntu 26.04 のコンテナの中で作る。\ref{sec:build} 節)
+\end{itemize}
+USB への書き込みには、Windows なら Rufus(DD イメージのモード)を使う。
+
+\subsection{ネットワークの情報}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+項目 & 内容 \\
+\midrule
+IP アドレス & 固定にする(または DHCP の予約)。プレフィックス付きで(例 \code{192.0.2.10/24}) \\
+ゲートウェイ・DNS & 固定 IP のときに要る \\
+社内 LAN の範囲 & SSH・RDP を許可する範囲(CIDR)。これ以外からは拒否する \\
+プロキシ・CA 証明書 & 社内に HTTP プロキシや TLS を検査するプロキシがある場合だけ \\
+NTP サーバー & 社内から ntp.ubuntu.com に届かない場合だけ \\
+\bottomrule
+\end{tabularx}}
+
+\subsection{アカウントと契約}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\toprule
+用途 & 内容 \\
+\midrule
+Claude Code & Anthropic のアカウント(スマホからの操作には Pro / Max / Team / Enterprise) \\
+Codex & ChatGPT のアカウント。\textbf{設定 → セキュリティで「Codex、Excel、PowerPoint、Word のデバイスコードによるサインイン」を有効にしておく} \\
+GitHub & push する場合。エージェント専用のアカウントか、権限を絞ったトークンが無難 \\
+Docker Hub & ログインなしの取得は 6 時間に 100 回まで。エージェントが使うとすぐ当たるのでアカウントを用意する \\
+Slack & 通知を送るチャンネルの Incoming Webhook の URL \\
+追加のエージェント & Copilot CLI は Copilot の契約、Antigravity CLI は Google のアカウント、OpenCode は使うモデルの API キーなど \\
+\bottomrule
+\end{tabularx}}
+
+\begin{caution}
+どのアカウントで \code{agent} にログインするかは先に決める。ログインしたアカウントの設定
+(たとえば Claude のスキル)は \code{agent} のホームに同期される。
+\end{caution}
+
+%======================================================================
+\section{env.yaml を作る}
+%======================================================================
+
+環境ごとの値(秘密情報を含む)は \code{autoinstall/env.yaml} に書く。
+このファイルは \code{.gitignore} の対象で、コミットしない。サンプルをコピーして作る。
+
+\begin{cmd}
+cp autoinstall/env.example.yaml autoinstall/env.yaml
+\end{cmd}
+
+\code{CHANGE_ME} が残っていたり、値の形が正しくなかったりすると、ISO の作成は止まる。
+
+\subsection{項目の一覧}
+\begin{longtable}{@{}p{0.34\linewidth}p{0.61\linewidth}@{}}
+\toprule
+項目 & 内容 \\
+\midrule
+\endhead
+\code{hostname} & ホスト名 \\
+\code{keyboard_layout} & \code{us} か \code{jp}。\textbf{RDP で使う人のキーボードに合わせる}(101/104 の英字配列なら \code{us}、106/109 なら \code{jp})。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるため \\
+\code{network.mode} & \code{dhcp} か \code{static} \\
+\code{network.interface} & 設定する有線 LAN。既定の \code{en*} はすべての有線 LAN に当てはまる。2 つ以上ある機種では名前(\code{enp3s0} など)を書く \\
+\code{network.address} など & static のとき: \code{address}(プレフィックス付き)、\code{gateway}、\code{dns}(並び)、\code{search}(任意) \\
+\code{proxy.url} & 社内のプロキシ(例 \code{http://proxy.example.internal:8080})。空なら使わない \\
+\code{proxy.no_proxy} & プロキシを通さない宛先 \\
+\code{ca_certs} & 社内の CA 証明書(PEM)の並び。空なら何もしない \\
+\code{ntp_servers} & 足す NTP サーバー。空なら Ubuntu の既定と DHCP で配られたもの \\
+\code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
+\code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
+\code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
+\code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
+\code{notify.ipmsg_to} & IP Messenger で知らせる PC の IP アドレスの並び \\
+\code{agent_ssh_authorized_keys} & SFTP で \code{agent} に入る人の公開鍵。空なら入れない \\
+\code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3999"})。1024 以上 \\
+\code{lan_cidrs} & SSH・RDP・\code{dev_ports} を許可する社内 LAN の範囲 \\
+\code{sysadmin.password_hash} & \code{sysadmin} のパスワードのハッシュ(sudo とコンソールで使う) \\
+\code{sysadmin.ssh_authorized_keys} & \code{sysadmin} の SSH の公開鍵 \\
+\code{rdp.username}, \code{rdp.password} & デスクトップ共有(RDP)の認証情報 \\
+\bottomrule
+\end{longtable}
+
+\subsection{パスワードのハッシュを作る}
+\begin{cmd}
+mkpasswd -m sha-512          # whois パッケージ
+openssl passwd -6            # openssl でもよい
+\end{cmd}
+
+\subsection{例(固定 IP、プロキシなし)}
+\begin{cmd}
+hostname: agent-host-01
+keyboard_layout: us
+network:
+  mode: static
+  interface: "en*"
+  address: 192.0.2.10/24
+  gateway: 192.0.2.1
+  dns: [192.0.2.53]
+proxy:
+  url: ""
+  no_proxy: "localhost,127.0.0.1,::1"
+ca_certs: []
+ntp_servers: []
+git_user_name: agent-host-01
+git_user_email: agent-host-01@example.invalid
+editors: [vscode]
+agents: [opencode]
+notify:
+  slack_webhook_url: "https://hooks.slack.com/services/..."
+  ipmsg_to: [192.0.2.21]
+agent_ssh_authorized_keys: ["ssh-ed25519 AAAA... user@pc"]
+dev_ports: ["3000:3999"]
+lan_cidrs: [192.0.2.0/24]
+sysadmin:
+  password_hash: "$6$..."
+  ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@pc"]
+rdp:
+  username: agent
+  password: "..."
+\end{cmd}
+
+%======================================================================
+\section{インストール用の USB を作る}\label{sec:build}
+%======================================================================
+
+\subsection{Ubuntu の ISO を取得する}
+\url{https://releases.ubuntu.com/26.04/} から \code{ubuntu-26.04.1-desktop-amd64.iso} を取得し、
+同じ場所の \code{SHA256SUMS} で照合する。リポジトリの \code{build/} に置くとよい(\code{.gitignore} の対象)。
+
+\begin{cmd}
+sha256sum -c --ignore-missing SHA256SUMS
+\end{cmd}
+
+\subsection{ISO を作る(Linux)}
+\begin{cmd}
+sudo apt install xorriso python3-yaml
+scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml
+\end{cmd}
+
+\subsection{ISO を作る(Windows + Docker Desktop)}
+Git Bash で、リポジトリの直下から実行する。
+\begin{cmd}
+MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo \
+  ubuntu:26.04 bash -c 'apt-get update -qq &&
+  apt-get install -y -qq xorriso python3-yaml &&
+  bash scripts/build-usb.sh build/ubuntu-26.04.1-desktop-amd64.iso \
+    build/agent-host.iso autoinstall/env.yaml'
+\end{cmd}
+
+\subsection{build-usb.sh がすること}
+\begin{enumerate}
+  \item env.yaml を検査し、値を埋めた \code{autoinstall.yaml} と、スクリプト用の \code{env.sh}・公開鍵・CA 証明書を作る
+  \item ISO の直下に \code{/autoinstall.yaml} と、スクリプト一式 \code{/agent-host/} を足す
+  \item grub.cfg の起動行に \code{autoinstall} を足す(確認画面を出さないため)
+  \item 元の ISO の起動の構成(BIOS と UEFI)を保ったまま書き出す
+\end{enumerate}
+
+\subsection{USB に書き込む}
+Rufus なら「DD イメージ」のモードで書き込む。Linux なら \code{dd} を使う。
+
+\begin{caution}
+できた ISO と USB には、パスワードのハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。
+使い終わったら消す。この USB から起動すると、\textbf{確認なしでディスク全体を消してインストールが始まる}。
+対象以外の PC に挿したまま起動しない。
+\end{caution}
+
+%======================================================================
+\section{BIOS の設定}
+%======================================================================
+\begin{itemize}
+  \item 「Restore on AC Power Loss」(名称は機種による)を \textbf{Power On} にする
+  \item UEFI で起動する。USB から起動できるようにする
+  \item HDMI のダミープラグを挿す
+\end{itemize}
+
+%======================================================================
+\section{インストール}
+%======================================================================
+\begin{enumerate}
+  \item USB から起動する。確認画面は出ずにインストールが始まる
+  \item インストーラーがディスク全体を LVM で使い、\code{sysadmin} を作り、openssh-server を入れる
+  \item 最後に同梱のスクリプトを \code{/opt/agent-host} に置き、初回起動時の構成サービスを有効にして再起動する
+  \item \textbf{再起動したら USB を抜く}
+\end{enumerate}
+
+VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかった。実機ではもっと速い。
+
+\begin{caution}
+インストール中、ライブ環境のログイン画面(「Live session user」)で止まって見えることがある。
+インストールは裏で進んでいる。気になるなら Enter でログインすると進み具合が見える。
+\end{caution}
+
+%======================================================================
+\section{初回起動の構成}
+%======================================================================
+
+\subsection{何が起きるか}
+初回の起動で \code{agent-host-provision.service} が、GDM より前に
+\code{/opt/agent-host/post-install/} のスクリプトを番号順に実行する。
+ネットワークから各ツールを取得するので数分〜十数分かかる。終わるまで画面はログインに進まない。
+終わると \code{agent} で自動ログインし、first-login がデスクトップ共有を有効にし、Orca が起動する。
+
+\begin{longtable}{@{}p{0.25\linewidth}p{0.70\linewidth}@{}}
+\toprule
+スクリプト & すること \\
+\midrule
+\endhead
+\code{05-proxy-ca.sh} & 社内のプロキシと CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
+\code{10-users.sh} & \code{agent} を作る(sudo なし、パスワードなし、ホームは 700) \\
+\code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf) \\
+\code{30-power.sh} & スリープ・休止を無効にする \\
+\code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
+\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を社内 LAN だけに許可 \\
+\code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
+\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、uv、mise \\
+\code{62-agents.sh} & 選んだ追加のエージェント \\
+\code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
+\code{70-orca.sh} & Orca と、その自動起動 \\
+\code{72-editors.sh} & 選んだエディター \\
+\code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
+\code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
+\code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify) \\
+\bottomrule
+\end{longtable}
+
+\subsection{結果を確かめる}
+手元の PC から SSH で入る。
+\begin{cmd}
+ssh sysadmin@<ホスト>
+systemctl status agent-host-provision.service    # active (exited) なら成功
+journalctl -u agent-host-provision.service        # 構成の記録
+sudo cat /home/agent/.local/state/agent-host/first-login.log
+\end{cmd}
+
+構成が失敗したときは、原因を直してから再実行する。スクリプトは冪等で、何度流しても同じ状態になる。
+\begin{cmd}
+sudo /opt/agent-host/provision.sh
+\end{cmd}
+
+first-login の記録に \code{RDP server certificate is invalid} が出ることがあるが、最終的な状態は正常で、
+RDP も待ち受ける(原因は未調査)。
+
+%======================================================================
+\section{初回の手作業}
+%======================================================================
+以降は、手元の PC の「リモート デスクトップ接続」(mstsc)で \code{<ホスト>:3389} に、
+env.yaml の \code{rdp} の認証情報で入って行う。初回は証明書の警告が出る(自己署名のため)。
+
+\subsection{日本語入力}
+\textbf{Ctrl+Space} で日本語入力(Mozc)と英字を切り替える。Super+Space でもよいが、
+Windows キーは mstsc の既定では手元の Windows に取られる。
+
+\subsection{Claude Code のログイン}
+端末で \code{claude} を起動し、案内に従う。ブラウザ(Chrome)が開くので、そこでログインする。
+
+\subsection{Codex のログイン}
+\begin{cmd}
+codex login --device-auth
+\end{cmd}
+表示された URL とコードを、手元の PC のブラウザで入力する。
+デバイスコードによるサインインが有効でないと、その旨のメッセージが出て止まる(「準備するもの」のアカウントの表を参照)。
+
+\subsection{Orca の初回の設定}
+\begin{enumerate}
+  \item 初回の案内に従い、既定のエージェントを選ぶ。\textbf{Yolo モード(確認なしでコマンドを実行)は最初からオン}なので、使い方の方針に合わせて決める
+  \item Settings → Privacy の「Share anonymous usage data」をオフにする(環境変数でも止めている)
+  \item Settings → Notifications の「Update available」をオフにする
+\end{enumerate}
+
+\subsection{追加のエージェントのログイン(選んだものだけ)}
+\begin{itemize}
+  \item OpenCode: \code{opencode auth login} で、使うモデルの API キーや OAuth を設定する
+  \item GitHub Copilot CLI: \code{copilot} を起動し \code{/login} → デバイスコード
+  \item Antigravity CLI: \code{agy} を起動し、表示された URL を手元のブラウザで開き、得たコードを貼り付ける
+\end{itemize}
+
+\subsection{GitHub の認証(push する場合)}
+\begin{cmd}
+gh auth login        # GitHub.com → HTTPS → ブラウザ(デバイスコード)
+gh auth setup-git    # git の push に gh の認証を使う
+gh auth status
+\end{cmd}
+
+\subsection{Docker Hub へのログイン}
+\begin{cmd}
+docker login         # アクセストークンを使う
+docker run --rm hello-world
+\end{cmd}
+
+\subsection{通知の確認}
+\begin{cmd}
+agent-notify approval テスト "通知のテストです"
+\end{cmd}
+承認待ち(approval)とエラー(error)は Slack と IP Messenger の両方に、完了(done)は Slack だけに届く。
+IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
+IP Messenger のメッセージは暗号化されないので、本文に秘密情報を入れない。
+
+\subsection{スマホからの操作(Claude Code の Remote Control)}
+Pro / Max / Team / Enterprise のアカウントでログインしているときだけ使える。通信は Anthropic のサービスを通る。
+\begin{enumerate}
+  \item 作業するディレクトリで \code{claude remote-control}(動いているセッションなら \code{/remote-control})。初回は確認に \code{y}
+  \item 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
+  \item プッシュ通知: Claude アプリに同じアカウントでログインし、端末の \code{/config} で「Push when actions required」などをオンにする
+\end{enumerate}
+
+\subsection{ファイルのやり取り}
+\begin{itemize}
+  \item SFTP: env.yaml に公開鍵を書いた人は、WinSCP などでホスト、ポート 22、ユーザー \code{agent}、秘密鍵で入る。作業の置き場所は \code{/home/agent/work}。シェルには入れない
+  \item 小さなファイルは RDP のクリップボードでも渡せる(未検証)
+\end{itemize}
+
+\subsection{自動化が効かなかったときだけ}
+\paragraph{ログインキーリング}
+first-login の記録に \code{set-credentials} の失敗が出ていたら、キーリングが開いていない。
+「パスワードと鍵」(seahorse)で「ログイン」キーリングのパスワードを空にし、
+\code{/opt/agent-host/first-login/first-login.sh} を実行する。
+
+\paragraph{デスクトップ共有}
+設定 → システム → リモートデスクトップ →「デスクトップ共有」と「リモート操作」をオンにし、
+認証情報を env.yaml の \code{rdp} の値にする。「リモートログイン」は\textbf{オンにしない}
+(デスクトップ共有が 3390 番に移る)。
+
+%======================================================================
+\section{受け入れテスト}
+%======================================================================
+\begin{longtable}{@{}p{0.04\linewidth}p{0.30\linewidth}p{0.60\linewidth}@{}}
+\toprule
+\# & 確認すること & 合格の条件 \\
+\midrule
+\endhead
+1 & 無人でインストールできる & 確認画面なしで終わり、\code{agent} で自動ログインする \\
+2 & 手作業を終えられる & 各ログインが終わる \\
+3 & 停電から自動で復帰する & 電源ケーブルを抜き差しすると、何もしなくても起動し自動ログインする \\
+4 & 再起動後、何もせずに RDP がつながる & Orca が起動済みの画面が出る。Ctrl+Space で日本語を打て、記号がキーの刻印どおりに出る \\
+5 & エージェントが動く & Orca から Claude Code と Codex で、簡単なタスクがそれぞれ終わる \\
+6 & 切断しても作業が続く & RDP を切断し 10 分後に再接続しても、ロックされずタスクが続いている \\
+7 & 社内 LAN の外から到達できない & \code{lan_cidrs} の外から 22・3389 に届かない \\
+\bottomrule
+\end{longtable}
+
+構成の確認は SSH で行う(詳細は \code{docs/acceptance-test.md})。
+\begin{cmd}
+df -h /; sudo vgs                      # ルートがディスクのほぼ全部
+ip -4 addr; ip route                   # env.yaml の network どおり
+apt-mark showhold                      # 版を固定したパッケージ
+sudo ufw status                        # 22/3389/dev_ports が lan_cidrs だけ
+sudo -u agent XDG_RUNTIME_DIR=/run/user/$(id -u agent) \
+    systemctl --user show-environment  # mise の PATH、DOCKER_HOST など
+\end{cmd}
+
+%======================================================================
+\section{運用}
+%======================================================================
+
+\subsection{定期的な再起動}
+unattended-upgrades はセキュリティ更新を自動で入れるが、作業中のエージェントを止めないよう自動では再起動しない。
+カーネルなどの更新は再起動するまで反映されないので、\textbf{月 1 回、エージェントが作業していない時間に再起動する}。
+\begin{cmd}
+[ -f /var/run/reboot-required ] && cat /var/run/reboot-required.pkgs
+sudo systemctl reboot
+\end{cmd}
+再起動後は何もしなくても RDP で接続できる状態に戻る。
+
+\subsection{バージョンを上げる}
+Google Chrome 以外は版を固定し、apt のものは hold している。上げるときは、スクリプトの先頭の値
+(版と SHA256)を直し、リポジトリを更新してから、ホストの \code{/opt/agent-host} に反映して再実行する。
+\begin{cmd}
+sudo /opt/agent-host/provision.sh
+\end{cmd}
+Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる。
+
+\subsection{設定を変える}
+インストール後に環境の値を変えるときは、ホストの \code{/opt/agent-host/env.sh}(root だけが読める)を直して
+再実行する。公開鍵は \code{/opt/agent-host/agent_authorized_keys}、CA 証明書は \code{/opt/agent-host/ca/} にある。
+ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} から外したものは手で消す。
+\begin{cmd}
+sudo ufw status numbered
+sudo ufw delete <番号>
+\end{cmd}
+
+\subsection{困ったとき}
+\begin{longtable}{@{}p{0.30\linewidth}p{0.65\linewidth}@{}}
+\toprule
+症状 & 見るところ・対処 \\
+\midrule
+\endhead
+RDP がつながらない & \code{ss -tlnp | grep 33} で待ち受けを見る。first-login の記録を見る。画面がロックされていないか。リモートログインを有効にしていないか(3390 に移る) \\
+構成サービスが失敗した & \code{journalctl -u agent-host-provision.service} で止まったスクリプトを見て、直して \code{provision.sh} を再実行する \\
+エージェントが apt を試して失敗する & \code{agent} には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
+mise のコマンドが見つからない & 再ログイン(再起動)で環境が入る。\code{systemctl --user show-environment} で PATH を確かめる \\
+Docker のイメージが取れない & \code{docker login} をしたか。プロキシの下なら env.yaml の \code{proxy} \\
+EMFILE / ファイル監視の上限 & \code{ulimit -n}(65536)と \code{fs.inotify.max_user_watches}(524288) \\
+\bottomrule
+\end{longtable}
+
+%======================================================================
+\appendix
+\section{固定しているバージョン}
+%======================================================================
+2026-10-24 時点。値はスクリプトの先頭にある。
+
+\begin{longtable}{@{}p{0.30\linewidth}p{0.30\linewidth}p{0.35\linewidth}@{}}
+\toprule
+ソフトウェア & 版 & 入れ方 \\
+\midrule
+\endhead
+Node.js & 24.22.1 & 公式の tar.xz(SHA256) \\
+Claude Code & 2.1.308-1 & 公式 apt、hold \\
+Codex & 0.164.0 & npm \\
+CCManager & 4.4.9 & npm \\
+GitHub CLI & 2.103.2 & リリースの .deb(SHA256)、hold \\
+uv & 0.13.5 & リリースの tar(SHA256) \\
+mise & 2026.10.18 & リリースの tar(SHA256) \\
+OpenCode & 1.19.4 & npm \\
+GitHub Copilot CLI & 1.0.103 & npm \\
+Antigravity CLI & 1.4.6 & リリースの tar(SHA256) \\
+Docker & 29.9.2 ほか & 公式 apt、hold \\
+Orca & 1.4.237 & リリースの .deb(SHA256)、hold \\
+VS Code & 1.143.1 & Microsoft の apt、hold \\
+Zed & 1.25.3 & リリースの tar(SHA256) \\
+Google Chrome & 固定しない & Google の apt、自動更新 \\
+\bottomrule
+\end{longtable}
+
+%======================================================================
+\section{ホスト上のファイルの配置}
+%======================================================================
+\begin{longtable}{@{}p{0.45\linewidth}p{0.50\linewidth}@{}}
+\toprule
+場所 & 内容 \\
+\midrule
+\endhead
+\code{/opt/agent-host/} & 構成スクリプト一式と env.sh(秘密情報) \\
+\code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
+\code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
+\code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
+\code{/etc/gdm3/custom.conf} & 自動ログイン \\
+\code{/etc/ssh/sshd_config.d/10-agent-host.conf} & SSH の設定 \\
+\code{~agent/.config/environment.d/} & \code{agent} のセッションの環境変数(mise、Docker、Orca など) \\
+\code{~agent/.claude/CLAUDE.md} & エージェント向けのホストの説明(Codex は \code{~/.codex/AGENTS.md}) \\
+\code{~agent/.local/state/agent-host/first-login.log} & first-login の記録 \\
+\bottomrule
+\end{longtable}
+
+%======================================================================
+\section{確認できていないこと}
+%======================================================================
+VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確かめた。次は実機で確かめる。
+\begin{itemize}
+  \item HDMI のダミープラグでの RDP、BIOS の停電復帰、社内 LAN の外からの到達(テスト 7)
+  \item 実際のプロキシ・TLS を検査するプロキシの下での動作
+  \item Slack への送信、Claude Code の Remote Control
+  \item Zed の動作(GPU が要る)、RDP のクリップボードでのファイルのコピー
+\end{itemize}
+最新の状況は \code{docs/HANDOVER.md} を見る。
+
+\end{document}
