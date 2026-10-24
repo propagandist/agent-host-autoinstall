@@ -36,7 +36,9 @@
 \renewcommand{\headfont}{\headstyle\color{accent}}
 
 % 版(just guide が build/setup-guide/guide-version.tex に日付とコミットを書く)
-\InputIfFileExists{guide-version.tex}{}{\newcommand{\guideversion}{版の情報なし}}
+\InputIfFileExists{guide-version.tex}{}{%
+  \newcommand{\guidedate}{(不明)}\newcommand{\guiderev}{(不明)}\newcommand{\guideversion}{版の情報なし}%
+  \newcommand{\guiderepo}{(なし)}\newcommand{\guidecopyright}{(なし)}}
 
 %----------------------------------------------------------------------
 % 文中のコマンド・パス・値(_ などをそのまま書ける)
@@ -942,5 +944,49 @@ VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確か�
   \item Zed の動作(GPU が要る)、RDP のクリップボードでのファイルのコピー
 \end{itemize}
 最新の状況は \code{docs/HANDOVER.md} を見る。
+
+%======================================================================
+% 奥付
+%======================================================================
+\clearpage
+\thispagestyle{empty}
+\phantomsection\addcontentsline{toc}{section}{奥付}
+\vspace*{\fill}
+\begin{center}
+\begin{minipage}{0.86\linewidth}
+  {\headstyle\color{accent}\fontsize{17}{24}\selectfont 常時稼働 AI エージェントホスト 設定手順書}\par
+  \vspace{2pt}
+  {\small\color{gray}agent-host-autoinstall}\par
+  \vspace{6pt}
+  {\color{accent}\hrule height 1pt}
+  \vspace{8pt}
+  {\small
+  \renewcommand{\arraystretch}{1.45}
+  \begin{tabularx}{\linewidth}{@{}>{\headstyle\color{accent}}l@{\hspace{1.2em}}L@{}}
+    作成日 & \guidedate \\
+    版 & \guiderev \\
+    対象 & Ubuntu Desktop 26.04.1 LTS。固定しているバージョンは付録 A \\
+    リポジトリ & \expandafter\url\expandafter{\guiderepo} \\
+    ライセンス & MIT License(\guidecopyright) \\
+    組版 & LuaLaTeX(TeX Live 2025、luatexja、原ノ味フォント)、図は TikZ \\
+    表紙 & 絵は Google Gemini(gemini-3-pro-image)で生成し、文字は組版で重ねた \\
+  \end{tabularx}}
+  \vspace{4pt}
+  {\color{accent}\hrule height 0.4pt}
+  \vspace{8pt}
+  {\scriptsize\color{gray}\setlength{\parindent}{0pt}\linespread{1.3}\selectfont
+  本書は VirtualBox の仮想マシンで確かめた内容に基づく。実機での動作は付録 D の項目を確かめてから使うこと。
+  本書とリポジトリの文書・スクリプトが食い違うときは、リポジトリを正とする。
+  本書の内容に従って構成・運用した結果については、ライセンスのとおり、作成者は責任を負わない。\par
+  \vspace{4pt}
+  Ubuntu は Canonical Ltd. の登録商標。Claude と Claude Code は Anthropic, PBC の、ChatGPT と Codex は OpenAI の、
+  GitHub と GitHub Copilot は GitHub, Inc. の、Google Chrome、Gemini、Antigravity は Google LLC の、
+  Windows と Visual Studio Code は Microsoft Corporation の、Docker は Docker, Inc. の、Slack は Slack Technologies, LLC の商標または登録商標。
+  その他、本書に記載の会社名・製品名は、各社の商標または登録商標。本文では ™ と ® を省いた。\par}
+  \vspace{4pt}
+  {\color{accent}\hrule height 1pt}
+\end{minipage}
+\end{center}
+\vspace{18mm}
 
 \end{document}
