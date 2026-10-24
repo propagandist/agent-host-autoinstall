@@ -45,6 +45,7 @@
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 
 ### 変更
+- 1 台を複数の人で共有する前提(デスクトップ共有に入る前に一声かける)をやめ、1 台は 1 人で使う(サブスクリプションを共有しない)前提に文書を直した。複数の人で使うときは人数分のホストを用意する
 - リリースのワークフローの actions/checkout を v5 にした(Node.js 20 の廃止の警告への対応)
 - Intel の VA-API を free 版から full 版にした(36-minimize.sh から 37-gpu.sh に移した)。動いているホストは just update で入れ替わる。NVIDIA の GPU があるホストでドライバーが無ければ、構成の記録に注意が出る(sudo ubuntu-drivers install のあとに再起動)
 

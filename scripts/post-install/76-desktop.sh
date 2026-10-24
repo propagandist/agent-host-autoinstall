@@ -41,7 +41,7 @@ chmod -R u=rwX,go=rX "$ext_dir"
 log "Clipboard Indicator(版 71)を入れた"
 
 # --- Chrome: 利用統計・パスワードの保存・宣伝を止め、初回の案内を出さない ---
-# パスワードを保存させないのは、agent に個人の秘密情報を置かない前提(SPEC.md §4)に合わせるため
+# パスワードを保存させないのは、agent に置く秘密を各サービスのログインだけにする前提(SPEC.md §4)に合わせるため
 install -d -m 755 /etc/opt/chrome/policies/managed
 cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
 {

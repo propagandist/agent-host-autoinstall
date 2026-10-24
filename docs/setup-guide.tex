@@ -321,7 +321,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \end{tabularx}}
 
 \code{admin} は Ubuntu の予約名でインストーラーに拒否されるため、管理ユーザーは \code{sysadmin} にしている。
-\code{agent} には個人の秘密情報を置かない。
+\code{agent} はこのホストを使う 1 人のためのユーザーで、置く秘密はその人の各サービスのログインだけにする(複数の人で共有しない)。
 
 \subsection{起動の流れ}
 \begin{figure}[htbp]
@@ -480,6 +480,8 @@ NTP サーバー & その LAN から ntp.ubuntu.com に届かない場合だけ 
 \end{tabularx}}
 
 \subsection{アカウントと契約}
+どれも、このホストを使う本人のアカウントと契約を使う(複数の人で共有しない)。
+
 \noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
 \toprule\headrow
 用途 & 内容 \\
@@ -789,7 +791,9 @@ just rdp <ホスト>       # build/<ホスト>.rdp を作る(Windows のリモ�
 初回は証明書の警告が出る(自己署名のため)。mstsc では「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
 
 \begin{caution}
-デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける。
+このホストは 1 人で使う。Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない
+(規約に反するおそれがある)。複数の人で使うときは、人数分のホストを用意する(2 台目からは構成リポジトリでまとめて管理できる。
+\ref{sec:fleet} 節)。デスクトップ共有は画面の前のセッションをそのまま映すので、入るのは本人だけ。
 \end{caution}
 
 \subsection{日本語入力と使い勝手}
