@@ -13,7 +13,7 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 
 # --- Intel の VA-API(full 版) ---
-if apt-cache policy intel-media-va-driver-non-free | grep -q 'Candidate: [0-9]'; then
+if LC_ALL=C apt-cache policy intel-media-va-driver-non-free | grep -q "Candidate: [0-9]"; then
     apt-get install -y intel-media-va-driver-non-free
     log "Intel の VA-API の full 版を入れた"
 else
@@ -23,7 +23,7 @@ else
 fi
 
 # --- Vulkan のドライバーと、確かめる道具(vainfo。just verify が使う) ---
-apt-get install -y mesa-vulkan-drivers libva-utils
+apt-get install -y mesa-vulkan-drivers vainfo
 
 # --- NVIDIA ---
 # 新しく入れたホストは autoinstall の drivers で入る。それより前に入れたホストや、あとから GPU を挿したときは手で入れる

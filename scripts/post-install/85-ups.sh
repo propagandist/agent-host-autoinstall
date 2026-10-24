@@ -39,7 +39,8 @@ install -d -m 750 -o root -g nut /etc/nut
 write_nut() {
     local name="$1" tmp
     tmp="$(mktemp)"
-    { echo "# agent-host-autoinstall が置いた設定(env.yaml の ups。85-ups.sh)"; cat; } >"$tmp"
+    # NUT は設定の ASCII 以外の文字を捨てる(コメントでも警告が出る)ので、中身は英語にする
+    { echo "# Written by agent-host-autoinstall (85-ups.sh) from env.yaml ups"; cat; } >"$tmp"
     install -m 640 -o root -g nut "$tmp" "/etc/nut/$name"
     rm -f "$tmp"
 }
@@ -52,7 +53,7 @@ maxretry = 3
 [$AH_UPS_NAME]
     driver = "$AH_UPS_DRIVER"
     port = "$AH_UPS_PORT"
-    desc = "$AH_HOSTNAME の UPS"
+    desc = "UPS of $AH_HOSTNAME"
 EOF
     # upsd はこの PC の中からだけ受け付ける(LAN の他の機器に配らない)
     printf 'LISTEN 127.0.0.1 3493\nLISTEN ::1 3493\n' | write_nut upsd.conf
@@ -102,7 +103,10 @@ if [ -f /etc/agent-host/notify.env ]; then
     setfacl -m u:nut:r /etc/agent-host/notify.env
 fi
 
-# 起動する(設定を変えたときに読み直させる)
+# 起動する(設定を変えたときに読み直させる)。
+# パッケージを入れた時点で、設定が空の upsd が起動して失敗を繰り返し、起動の回数の上限に掛かっている
+# ことがある(VirtualBox で確認)。失敗の記録を消してから起動する
+systemctl reset-failed 'nut-*' >/dev/null 2>&1 || true
 if [ "$mode" = usb ]; then
     systemctl enable nut.target nut-driver-enumerator.path nut-driver-enumerator.service \
         nut-server.service nut-monitor.service >/dev/null

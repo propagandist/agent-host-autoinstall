@@ -203,7 +203,7 @@ dinfo="$(as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" docker info 
 if [[ "$dinfo" == *rootless* ]]; then ok "agent の docker が rootless で応える"; else ng "agent の docker が rootless で応える" "$dinfo"; fi
 
 section "GPU(RDP の画面の符号化)"
-check "vainfo(libva-utils)が入っている" installed libva-utils
+check "vainfo が入っている" installed vainfo
 check "Vulkan のドライバー(mesa-vulkan-drivers)が入っている" installed mesa-vulkan-drivers
 render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1)"
 gpu_vendor=""
