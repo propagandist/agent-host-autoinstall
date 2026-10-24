@@ -1146,7 +1146,7 @@ EMFILE / ファイル監視の上限 & \code{ulimit -n}(65536)と \code{fs.inoti
 \appendix
 \section{固定しているバージョン}
 %======================================================================
-2026-10-24 時点。値はスクリプトの先頭にある。
+2026-10-25 時点。値はスクリプトの先頭にある。
 
 {\small
 \begin{longtable}{@{}p{0.32\linewidth}p{0.28\linewidth}p{0.35\linewidth}@{}}
@@ -1176,7 +1176,8 @@ Zed & 1.25.3 & リリースの tar(SHA256) \\
 Zed の拡張機能 & 固定しない & zed.dev(初めて入れたときの最新。その後は更新しない) \\
 Google Chrome & 固定しない & Google の apt、自動更新 \\
 Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
-Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
+Xfce Terminal、Neovim、passt、NUT(UPS)、Intel の VA-API(full 版)、Mesa の Vulkan ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
+NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨する版 & インストーラーの ubuntu-drivers \\
 \bottomrule
 \end{longtable}}
 
@@ -1191,7 +1192,12 @@ Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更
 \endhead
 \code{/opt/agent-host/} & 構成スクリプト一式と env.sh(秘密情報) \\
 \code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
-\code{/opt/agent-host/BUILD-INFO} & 作った版(道具の版、構成の版、使った env のファイル名、作った日時) \\
+\code{/var/lib/agent-host/provision-incomplete} & 構成の実行中の印(残っていれば前回の実行が失敗か中断) \\
+\code{/opt/agent-host/BUILD-INFO} & 置いた版(道具の版、構成の版、使った env のファイル名、作った日時) \\
+\code{/var/lib/agent-host/BUILD-INFO.ok} & 構成が最後まで成功した版 \\
+\code{/var/lib/agent-host/rdp-credentials.sha256} & 渡した RDP の認証情報の印(root だけが読める) \\
+\code{/opt/agent-host/verify.sh} & 仕様どおりかを確かめる(\code{just verify} と同じ) \\
+\code{/etc/nut/} & UPS の設定(env.yaml の \code{ups} を書いたとき。root と nut だけが読める) \\
 \code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
 \code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\

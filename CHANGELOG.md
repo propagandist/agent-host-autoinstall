@@ -10,6 +10,8 @@
 
 ## [未リリース]
 
+## [0.2.0] - 2026-10-25 — 機械で確かめる版
+
 ### env.yaml の変更
 - `ups` を足した(UPS を NUT で見る。書かなければ使わない。項目は autoinstall/env.example.yaml)
 - 検査を強めた(#8)。これまで通っていた env.yaml が `just check-env` で止まることがある: 項目の型(並びの項目に文字列、文字列の項目に引用符のない数や true/false)、hostname(英数字と - の 63 文字以内。ドメインは付けない)、`sysadmin.password_hash`(`$6$`・`$5$`・`$y$`・`$2b$` などの形)、SSH の公開鍵の形、`dev_ports` の範囲の順、`notify.ipmsg_broadcast`(IPv4 だけ)
@@ -45,6 +47,12 @@
 ### 変更
 - リリースのワークフローの actions/checkout を v5 にした(Node.js 20 の廃止の警告への対応)
 - Intel の VA-API を free 版から full 版にした(36-minimize.sh から 37-gpu.sh に移した)。動いているホストは just update で入れ替わる。NVIDIA の GPU があるホストでドライバーが無ければ、構成の記録に注意が出る(sudo ubuntu-drivers install のあとに再起動)
+
+### 確認した環境
+- VirtualBox 7.2 の VM(UEFI、メモリ 4GB、CPU 1)。`just vm-test` で新しく入れなおし、`just verify`・`just verify-rdp`、電源を切ったあと、gnome-shell を落としたあとの戻りを確かめた(結果は docs/notes.md)
+- 動いている VM に `just update` で反映し、sysadmin の鍵とパスワード、RDP のパスワード、壁紙の色の入れ替え、更新の失敗と回復、UPS(NUT の dummy-ups)の停電・復電の通知と強制終了を確かめた
+- GPU による符号化は、VM に GPU がないので確かめていない(verify は「対象外」と出す)
+- 実機は未確認(ダミープラグでの RDP、電源が戻ったときの起動、LAN の外から届かないこと、プロキシと TLS を検査するプロキシ、Slack、クラウドへのログイン、実際の UPS、実機の GPU、Orca Mobile のペアリング)。問題が出たら hotfix で直す
 
 ## [0.1.0] - 2026-10-24 — 最初の版
 

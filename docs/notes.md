@@ -9,6 +9,7 @@
 - ISO は ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った。USB からの起動から構成の完了まで約 47〜67 分、再起動から RDP の待ち受けまで約 80 秒
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
+- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの約 120 項目)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
