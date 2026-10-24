@@ -97,6 +97,18 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
 
+### 専用の PC を置く理由(2026-10-25 の調査)
+
+エージェントをどこで動かすかを比べた。各社の文書は 2026-10-25 に読んだもの。
+
+- **手元の PC**: エージェントの CLI は手元で動くので、閉じる・スリープ・再起動で止まる。確認なしで動かすと、私的なファイルや個人のログイン情報(SSH の鍵、ブラウザーのログイン、パスワードの管理ソフトなど)と同じ環境で動くことになる
+- **Claude Code の cloud sessions**(code.claude.com/docs/en/claude-code-on-the-web): Anthropic が管理する隔離された VM で動き、手元を閉じても続く。Pro・Max・Team と一部の Enterprise で使え、利用の上限はほかの Claude の利用と共有。リポジトリの clone と PR の作成は GitHub が要る(Team・Enterprise は GitHub Enterprise Server も)。GitLab などは手元から送れるが、そのリモートには push で戻せない。ネットワークは既定で制限され、許可した先にだけ届く。組織が自前の実行環境(self-hosted environment)を用意すれば、そちらで動かせる。使わない時間が続くと VM が片付けられ、動いていたコマンドは戻らない。組織が IP の許可リストを使っていると失敗する
+- **Codex cloud**(learn.chatgpt.com/docs/cloud): 作業ごとに作業場所があり、手元が眠っていても続く。手順は GitHub のリポジトリを選ぶところから始まる。インターネットへの接続は環境ごとに設定する。どのプランで使えるか、時間の上限、LAN の中に届くかは、読んだ範囲では書かれていなかった
+- **クラウドの VM**: Orca は SSH の先や VPS でも動く(Orca の文書の Ways to run)。費用は比べていない。LAN の資源には VPN が要る。このリポジトリの autoinstall は物理の PC に USB から入れる前提で、クラウドの VM のイメージでは試していない
+- **Orca の想定**(Orca の文書の Remote Orca Servers、v1.4.237 のソースの docs): Remote Orca Server では、作業する側がプロジェクト・worktree・端末・タブ・エージェントのアカウントとセッションを持ち、クライアントは画面になる。クライアントのノート PC が眠っても、つながりが切れても、エージェントは動き続ける。ログインは作業する側で行い、ノート PC のログインは引き継がれない。Remote Orca Servers はベータで、Tailscale か信頼できる LAN の中で使うことを勧めている。画面のない Linux では `orca-ide serve` で同じことができる
+- この構成は、その「作業する側」を、OS の自動ログイン・キーリング・RDP・セッションの見張り・UPS まで含めて人手なしで保つもの。画面のない `orca serve` ではなくデスクトップと RDP にしたのは、ログインにブラウザーが要るため(Claude Code は Chrome でログインした。受け入れテスト 2)、手元に何も入れずに Windows のリモート デスクトップ接続でつなげるため、人が同じデスクトップで手を入れられるため
+- 未確認: このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと(LAN なら env.yaml の dev_ports に 6768 を足すことになるはず)
+
 ### Orca を選んだ理由(2026-10-24 の調査)
 
 この用途で要る条件は次のとおり。Linux で動く(できれば .deb)、Claude Code と Codex を同じ画面で使える、エージェントごとに git の worktree を分けて並べられる、OSS、アカウントなしで使える、自分では更新を適用しない(版を固定できる)、利用統計を止められる、sudo のない agent で動く、RDP(Wayland)の画面で使える、開発が続いている。
