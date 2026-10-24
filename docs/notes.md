@@ -207,6 +207,14 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - NVIDIA は、autoinstall の `drivers: install: true` で、インストールの中で ubuntu-drivers が推奨のドライバーを入れる(初回の起動からそのドライバーで動く。構成の途中で再起動しなくてよい)。Intel・AMD・VM では何も入らないはず。NVIDIA の実機と Secure Boot のときの動作は未確認
 - VirtualBox の VM の GPU(vmsvga、vendor 0x15ad)では符号化できないので、just verify は「対象外」と出す
 
+### UPS(2026-10-24 追加)
+
+- Ubuntu 26.04 の NUT は 2.8.4(nut-server・nut-client)。`/usr/lib/systemd/system-shutdown/nutshutdown` が、終了の最後に `upsmon -K`(POWERDOWNFLAG の `/etc/killpower` があるか)を見て `upsdrvctl shutdown` で UPS の出力を止める。`nut.conf` が `MODE=none` なら何もしない(パッケージのスクリプトで確認)
+- 先に PC を正しく終了しても、UPS が出力を出し続けると、BIOS の「電源が戻ったら起動」の条件(電源がいったん切れること)が満たされず、復電しても起動しない。usb では primary の upsmon が `/etc/killpower` を作り、上の流れで出力を止めさせる。netclient(secondary)では出力を止めるのは NUT サーバーの側
+- upsmon は `RUN_AS_USER nut` で動き、NOTIFYCMD も nut で動く。通知の送り先(`/etc/agent-host/notify.env`、640 root:agent)は ACL で nut にだけ読ませる(`setfacl -m u:nut:r`)。84-notify.sh が書きなおしても同じファイルなので ACL は残り、85-ups.sh も毎回付けなおす
+- upsd は 127.0.0.1 と ::1 だけで待ち受ける(LAN の他の機器には配らない。配るなら別に設定する)。upsmon が upsd に入るパスワードはホストで作り、`/var/lib/agent-host/ups-upsmon.password` に置く
+- 未確認: 実際の UPS での終了・出力の停止・復電での起動。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -217,6 +225,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
+- 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了まで)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - systemd-oomd がメモリ不足のときに Orca ごと止めないか
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ

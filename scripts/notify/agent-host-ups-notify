@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# NUT の upsmon が UPS の状態の変化を知らせてくるときに呼ぶ(upsmon.conf の NOTIFYCMD。85-ups.sh が置く)。
+# upsmon は nut のユーザーで動き、NOTIFYTYPE(ONBATT など)と UPSNAME を環境変数で、文を引数で渡す。
+# 停電と終了は agent-notify の error(Slack と IP Messenger)、戻ったことは done(Slack だけ)で知らせる。
+set -euo pipefail
+
+type="${NOTIFYTYPE:-}"
+ups="${UPSNAME:-UPS}"
+host="$(hostname)"
+case "$type" in
+ONBATT) kind="error" title="停電: UPS のバッテリーで動いている" ;;
+LOWBATT) kind="error" title="UPS のバッテリーが少ない。まもなく終了する" ;;
+FSD) kind="error" title="UPS: 終了の指示を受けた。まもなく終了する" ;;
+SHUTDOWN) kind="error" title="UPS のため終了する" ;;
+COMMBAD | NOCOMM) kind="error" title="UPS の状態を読めない" ;;
+REPLBATT) kind="error" title="UPS のバッテリーの交換時期" ;;
+ONLINE) kind="done" title="UPS: 電源が戻った" ;;
+COMMOK) kind="done" title="UPS の状態をまた読めるようになった" ;;
+*) kind="error" title="UPS: ${type:-不明な通知}" ;;
+esac
+# 送れなくても upsmon を止めない(agent-notify は常に 0 で終わる)
+/usr/local/bin/agent-notify "$kind" "$title" "$host($ups): ${1:-}" || true

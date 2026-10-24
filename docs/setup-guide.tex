@@ -558,7 +558,25 @@ env.yaml は安全な場所に保管しておく(入れなおしや移行で使�
   \item 「Restore on AC Power Loss」(名称は機種による)を \textbf{Power On} にする
   \item UEFI で起動する。USB から起動できるようにする
   \item HDMI のダミープラグを挿す
+  \item (UPS を使うとき)UPS の「電源が戻ったら出力を戻す」(自動再起動)を有効にする
 \end{checklist}
+
+\subsection{UPS(env.yaml の ups を書いた場合)}
+\code{85-ups.sh} が NUT(Network UPS Tools)で UPS を見て、バッテリーが少なくなるか NUT サーバーが指示したら、正しく終了する。
+\noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\toprule\headrow
+\code{ups.mode} & つなぎ方 & 電源が戻ったあと \\
+\midrule
+\code{usb} & UPS をこの PC につなぐ。\code{driver} と \code{port} は NUT の対応表で確かめる(多くは \code{usbhid-ups} と \code{auto}) &
+  終了の最後に UPS の出力を止める。電源が戻ると UPS が出力を戻し、BIOS の設定で PC が起動する \\
+\code{netclient} & NAS など、別の機器の NUT サーバーを見る(secondary の監視用のユーザー) &
+  出力を止めるのは NUT サーバーの側。そちらで、電源が戻ったら出力が戻るようにする \\
+\bottomrule
+\end{tabularx}}
+\begin{itemize}
+  \item 停電・バッテリーが少ない・まもなく終了は Slack と IP Messenger に、電源が戻ったことは Slack に届く
+  \item \code{just verify <ホスト>} の「UPS」に、UPS の状態(\code{OL} は電源から給電)が出る
+\end{itemize}
 
 %======================================================================
 \section{インストール}

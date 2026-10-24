@@ -294,6 +294,33 @@ if selected "${AH_EDITORS:-}" neovim; then
     check "Neovim が入っている" installed neovim
 fi
 
+section "UPS(env.yaml の ups: ${AH_UPS_MODE:-none})"
+case "${AH_UPS_MODE:-none}" in
+none)
+    eq "UPS を見ていない" "$(systemctl is-active nut-monitor.service 2>/dev/null || true)" inactive
+    ;;
+usb | netclient)
+    check "upsmon が動いている" systemctl is-active nut-monitor.service
+    if [ "$AH_UPS_MODE" = usb ]; then
+        check "upsd が動いている(127.0.0.1 だけ)" bash -c "ss -tlnH | awk '{print \$4}' | grep -qx '127.0.0.1:3493' && ! ss -tlnH | awk '{print \$4}' | grep -qE '^(0\\.0\\.0\\.0|\\*|\\[::\\]):3493\$'"
+        target="$AH_UPS_NAME@localhost"
+        check "終了の最後に UPS の出力を止める(nutshutdown)" test -x /usr/lib/systemd/system-shutdown/nutshutdown
+        eq "UPS の出力を止めるのは終了のときだけ(/etc/killpower がない)" "$(test -e /etc/killpower && echo ある || echo ない)" ない
+    else
+        target="$AH_UPS_NAME@$AH_UPS_SERVER"
+    fi
+    status="$(upsc "$target" ups.status 2>/dev/null || true)"
+    case " $status " in
+    *" OL "*) ok "UPS の状態を読める($target: $status)" ;;
+    "  ") ng "UPS の状態を読める" "upsc $target で読めない" ;;
+    *) ng "UPS は電源から給電している" "$target: $status(OB はバッテリー運転、LB はバッテリーが少ない)" ;;
+    esac
+    check "upsmon の設定は root と nut だけが読める" bash -c "[ \"\$(stat -c '%a %U:%G' /etc/nut/upsmon.conf)\" = '640 root:nut' ]"
+    check "UPS の通知を agent-notify に渡す" grep -q '^NOTIFYCMD /usr/local/sbin/agent-host-ups-notify' /etc/nut/upsmon.conf
+    check "nut が通知の送り先を読める(ACL)" bash -c "getfacl -p /etc/agent-host/notify.env 2>/dev/null | grep -q '^user:nut:r'"
+    ;;
+esac
+
 section "エージェントへの説明と通知"
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
     check "${notes#"$AGENT_HOME"/} がある" grep -q 'agent-host-autoinstall' "$notes"

@@ -38,6 +38,7 @@ KNOWN_KEYS = {
     "agents": None,
     "clouds": None,
     "notify": {"slack_webhook_url", "ipmsg_to", "ipmsg_broadcast"},
+    "ups": {"mode", "driver", "port", "server", "name", "username", "password"},
     "agent_ssh_authorized_keys": None,
     "dev_ports": None,
     "lan_cidrs": None,
@@ -208,6 +209,33 @@ def main():
         except ValueError:
             fail(f"notify.ipmsg_broadcast の {a} が IP アドレスとして読めない")
 
+    ups = env.get("ups") or {}
+    ups_mode = str(ups.get("mode") or "none")
+    ups_driver = str(ups.get("driver") or "usbhid-ups")
+    ups_port = str(ups.get("port") or "auto")
+    ups_server = str(ups.get("server") or "")
+    ups_name = str(ups.get("name") or "ups")
+    ups_user = str(ups.get("username") or "")
+    ups_password = str(ups.get("password") or "")
+    if ups_mode not in ("none", "usb", "netclient"):
+        fail("ups.mode は none・usb・netclient のどれかにする")
+    if not re.fullmatch(r"[a-z0-9_-]+", ups_driver):
+        fail("ups.driver は NUT のドライバーの名前(usbhid-ups など)にする")
+    if not re.fullmatch(r"[^\s\"]+", ups_port):
+        fail("ups.port は auto か、空白を含まないポート(/dev/ttyS0 など)にする")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", ups_name):
+        fail("ups.name は英数字と _ . - だけにする")
+    if ups_mode == "netclient":
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]+", ups_server):
+            fail("ups.mode が netclient のときは ups.server に NUT サーバーのアドレスを書く")
+        if not ups_user or not ups_password:
+            fail("ups.mode が netclient のときは ups.username と ups.password が要る")
+        for key, value in (("username", ups_user), ("password", ups_password)):
+            if re.search(r"[\s\"]", value):
+                fail(f"ups.{key} に空白と \" は使えない")
+            if "CHANGE_ME" in value:
+                fail(f"env.yaml の ups.{key} に CHANGE_ME が残っている")
+
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
     if keyboard_layout not in ("us", "jp"):
@@ -253,6 +281,13 @@ def main():
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
         f"AH_IPMSG_TO={shlex.quote(' '.join(ipmsg_to))}",
         f"AH_IPMSG_BROADCAST={shlex.quote(' '.join(ipmsg_broadcast))}",
+        f"AH_UPS_MODE={shlex.quote(ups_mode)}",
+        f"AH_UPS_DRIVER={shlex.quote(ups_driver)}",
+        f"AH_UPS_PORT={shlex.quote(ups_port)}",
+        f"AH_UPS_SERVER={shlex.quote(ups_server)}",
+        f"AH_UPS_NAME={shlex.quote(ups_name)}",
+        f"AH_UPS_USER={shlex.quote(ups_user)}",
+        f"AH_UPS_PASSWORD={shlex.quote(ups_password)}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
