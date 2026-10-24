@@ -277,12 +277,31 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \caption{起動から RDP まで。点線の箱は初回だけ動く}
 \end{figure}
 
-\subsection{セキュリティ上の前提}
+\subsection{利用上の注意と免責}
+この構成は、利便性と引き換えに安全性を下げている部分がある。次を読み、自分の環境と組織の規程に合うかを判断したうえで使う。
+まずは仮想マシンで試すことを勧める。
+
 \begin{caution}
-空パスワードのキーリングと自動ログインは、LAN に限ったホストで、秘密情報を置かない専用ユーザー
-\code{agent} が使うことを前提に許している。SSH(22)と RDP(3389)はインターネットに開けない。
-LAN の外からは VPN 経由とする。
+\textbf{無保証で提供する。利用は自己責任とする。}この手順書とリポジトリの設定・スクリプトを使ったことで生じたデータの消失、
+セキュリティ上の問題、費用その他の損害について、作成者は責任を負わない(Apache License 2.0 の第 7 条・第 8 条)。
 \end{caution}
+
+\paragraph{守る前提}
+\begin{itemize}
+  \item \textbf{LAN の中だけで使う。}SSH(22)と RDP(3389)は \code{lan_cidrs} の範囲だけに許可する。インターネットに開けず、LAN の外からは VPN などを通す
+  \item \textbf{PC は関係者だけが触れる場所に置く。}自動ログインのため画面のロックを止めている。モニターとキーボードをつなげば、誰でも \code{agent} のデスクトップを操作できる
+  \item \textbf{\code{agent} に置く秘密は、各サービスのログインの情報だけにする。}ログインキーリングは空パスワードで、ディスクも暗号化しない。PC やディスクを持ち出されれば中身を読まれる
+\end{itemize}
+
+\paragraph{知っておくこと}
+\begin{itemize}
+  \item \textbf{エージェントは確認なしで動く。}Orca の確認なしでコマンドを実行するモードは最初からオン。sudo は渡さないが、作業のディレクトリのファイルの削除、ログイン済みのサービスへの push や送信、API の利用料の発生は起こりうる
+  \item \textbf{コードとデータは外部のサービスに送られる。}送ってよい情報かは、組織の規程や契約で確かめる
+  \item \textbf{版を固定したソフトには、セキュリティ更新が自動では入らない。}apt で hold したものと、Node.js・npm で入れたツールは、利用者が版を上げて反映する(\ref{sec:versions} 節)。OS のセキュリティ更新と Google Chrome は自動で入る
+  \item \textbf{ほかのソフトとサービスの規約・ライセンスは、利用者が同意するもの。}インストールのときに各社の配布元から取得する(再配布はしない)。契約が要るものもある
+  \item \textbf{止められない通信がある。}たとえば Orca の更新の確認は止める手段がない
+  \item \textbf{秘密情報が入るファイルがある。}ISO と USB、env.yaml、移行の書き出し、ホストの \code{/opt/agent-host/env.sh}。IP Messenger の通知は暗号化されない
+\end{itemize}
 
 %======================================================================
 \section{入っている主なアプリケーション}\label{sec:apps}
@@ -870,9 +889,14 @@ sudo systemctl reboot
 \end{host}
 再起動後は何もしなくても RDP で接続できる状態に戻る。
 
-\subsection{設定やバージョンを変える}
+\subsection{設定やバージョンを変える}\label{sec:versions}
 env.yaml を直したとき、スクリプトや固定するバージョン(スクリプトの先頭の版と SHA256)を直したときは、
 OS を入れなおさずに反映できる。
+\begin{caution}
+版を固定したソフト(apt で hold した Claude Code、Docker、GitHub CLI、Orca、VS Code、クラウドの CLI と、
+Node.js・npm で入れたツール)には、セキュリティ更新が自動では入らない。各ソフトのセキュリティ情報を見て、
+スクリプトの先頭の版を上げ、ここの手順で反映する(付録 A に固定している版の一覧がある)。
+\end{caution}
 \begin{local}
 just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 \end{local}
@@ -1143,7 +1167,7 @@ scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
   {\scriptsize\color{gray}\setlength{\parindent}{0pt}\linespread{1.3}\selectfont
   本書は VirtualBox の仮想マシンで確かめた内容に基づく。実機での動作は付録 D の項目を確かめてから使うこと。
   本書とリポジトリの文書・スクリプトが食い違うときは、リポジトリを正とする。
-  本書の内容に従って構成・運用した結果については、ライセンスのとおり、作成者は責任を負わない。\par
+  本書とリポジトリは無保証で提供する。利用は自己責任とし、本書の内容に従って構成・運用したことで生じたデータの消失、セキュリティ上の問題、費用その他の損害について、作成者は責任を負わない(Apache License 2.0 の第 7 条・第 8 条)。本書で名前を挙げたソフトやサービスの提供元とは関係がなく、承認も受けていない。\par
   \vspace{4pt}
   Ubuntu は Canonical Ltd. の登録商標。Claude と Claude Code は Anthropic, PBC の、ChatGPT と Codex は OpenAI の、
   GitHub と GitHub Copilot は GitHub, Inc. の、Google Chrome、Gemini、Antigravity は Google LLC の、
