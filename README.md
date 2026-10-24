@@ -55,7 +55,7 @@ just update <ホスト>    # スクリプトや env.yaml の変更を反映す�
 just backup <ホスト>    # 移行の書き出し / just restore <ホスト> <ファイル> で取り込み
 just lint               # shellcheck と構文の検査
 just guide              # 手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live)
-just release-check      # リリースの前の確認(release ブランチで。手順は docs/release.md)
+just release-check      # リリースの前の確認(release か hotfix のブランチで。手順は docs/release.md)
 ```
 
 手作業の手順は [docs/manual-steps.md](docs/manual-steps.md)、詳しくは [docs/setup-guide.tex](docs/setup-guide.tex)(`just guide` で PDF)。
