@@ -106,6 +106,18 @@
 - Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査)。予備の TUI として CCManager を入れた
 - 未確認: プロキシと CA 証明書の実際の動作(VirtualBox ではプロキシなし。CA は試験用の自己署名で登録まで確認する)、VS Code のパッケージが debconf の `code/add-microsoft-repo false` で自分のリポジトリ定義を足さないか、Zed の GPU なしでの動作、RDP のクリップボードでのファイルのコピー
 
+### VirtualBox での確認(2026-10-24、入れ直しと feature/dev-env)
+- 新規インストールで確認済み: sizing-policy: all(ルート 37GB、VG の空き 0)、env.yaml の network(固定 IP。インストーラーが /etc/netplan/00-installer-config.yaml に renderer NetworkManager で書き、NetworkManager の接続 netplan-lan になる)、英語のフォルダー名、gnome-initial-setup が出ない、us 配列 + mozc-on、rootless Docker の hello-world
+- インストール中、ライブ環境の GDM が自動ログインせずログイン画面で止まったことがある。インストール自体は裏で進んでいた(Enter で入るとコピー中だった)。原因は未調査
+- インストーラーは最後に ISO を取り出す。VirtualBox で入れ直すときは ISO を入れ直す
+- first-login の "RDP server certificate is invalid" は、TLS の証明書を先に設定しても出る。最終的な状態は正常(原因は未調査)
+- feature/dev-env を動いている VM に流して確認済み: 追加のエージェント(OpenCode、Copilot CLI、Antigravity CLI)、エディター(VS Code、Neovim、Zed)、mise、uv、pnpm、CCManager、SFTP 専用、試験用の CA 証明書の登録(システム、/etc/environment、agent の environment.d、Chrome の NSS)、Claude Code の hooks と Codex の notify(Orca が入れた hooks は残る)、2 回目の実行で設定が二重にならない
+- VS Code は debconf の `code code/add-microsoft-repo boolean false` で、パッケージが自分のリポジトリ定義を足さなかった(確認済み)
+- environment.d はファイル名の順に読まれ、`/usr/lib/environment.d/99-environment.conf`(= /etc/environment)が PATH を固定の値で上書きする。PATH を足すファイルは `995-` で始める(確認済み)
+- Orca(Electron)は /proc/<pid>/environ が読めない(プロセス名の書き換えのため)。環境変数は `systemctl --user show-environment` で確かめる
+- corepack は pnpm / yarn の初回に取得の確認を出すことがある。`COREPACK_ENABLE_DOWNLOAD_PROMPT=0` を agent の環境に入れた
+- 未確認: Slack と IP Messenger への実際の送信、プロキシの下での動作、Remote Control
+
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)
 
