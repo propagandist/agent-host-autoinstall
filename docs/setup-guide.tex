@@ -101,6 +101,7 @@
 % ヘッダーとフッター
 %----------------------------------------------------------------------
 \pagestyle{fancy}
+\renewcommand{\sectionmark}[1]{\markboth{\thesection\quad #1}{}}  % 章の名前を大文字にしない
 \fancyhf{}
 \fancyhead[L]{\small\color{gray}\leftmark}
 \fancyhead[R]{\small\color{gray}常時稼働 AI エージェントホスト 設定手順書}
@@ -277,6 +278,55 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \end{caution}
 
 %======================================================================
+\section{入っている主なアプリケーション}\label{sec:apps}
+%======================================================================
+構成が終わったホストに入っている主なものと、このホストでの使い方。
+版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents} と \code{editors} で選んだときだけ入る。
+
+{\small
+\begin{longtable}{@{}p{0.25\linewidth}p{0.42\linewidth}p{0.27\linewidth}@{}}
+\toprule\headrow
+名前 & 何をするものか & 使い方 \\
+\midrule
+\endhead
+\multicolumn{3}{@{}l}{\headstyle\color{accent}AI エージェント} \\
+Orca & 複数のコーディングエージェントを、git の worktree ごとに並べて動かし、見比べる画面(ADE) & ログインすると自動で起動する。作業の中心 \\
+Claude Code & Anthropic のコーディングエージェント(端末で動く) & \code{claude}。Orca からも呼ぶ \\
+Codex & OpenAI のコーディングエージェント(端末で動く) & \code{codex}。Orca からも呼ぶ \\
+CCManager & 複数の Claude Code・Codex のセッションを、worktree ごとに切り替えて管理する端末の道具 & \code{ccmanager} \\
+OpenCode(選択) & 使うモデルを選べるオープンソースのコーディングエージェント & \code{opencode} \\
+GitHub Copilot CLI(選択) & GitHub のコーディングエージェント(端末で動く) & \code{copilot} \\
+Antigravity CLI(選択) & Google のコーディングエージェント(端末で動く) & \code{agy} \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}開発の道具} \\
+Node.js、npm & JavaScript の実行環境とパッケージ管理 & \code{node}、\code{npm}、\code{npx} \\
+uv & Python とパッケージ・仮想環境の管理 & \code{uv}、\code{uvx} \\
+mise & 言語の版の切り替え(Go、Rust、Java など、sudo なしで入れる) & \code{mise use go@1.24} など \\
+Docker(rootless) & コンテナ。agent 専用で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
+GitHub CLI & GitHub の操作(PR、Issue、認証) & \code{gh} \\
+git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具 & エージェントがそのまま使う \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}エディター(選択)} \\
+Visual Studio Code & 定番の GUI エディター & \code{code}。Dock から \\
+Neovim & 端末で使うエディター & \code{nvim} \\
+Zed & 軽くて速い GUI エディター(GPU が要る) & \code{zed}。Dock から \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}デスクトップ} \\
+Google Chrome & 既定のブラウザ。エージェントのログインや画面の確認に使う & Dock から \\
+Xfce Terminal & 軽い端末。右クリックで貼り付け、選択でコピー & \key{Ctrl}+\key{Alt}+\key{T} \\
+Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え \\
+Clipboard Indicator & クリップボードの履歴 & 上部のバーから選ぶ \\
+\addlinespace
+\multicolumn{3}{@{}l}{\headstyle\color{accent}遠隔操作・通知・運用} \\
+GNOME デスクトップ共有 & 画面を RDP で共有する(GNOME の標準の機能) & 手元の mstsc で接続(\ref{sec:rdp} 節) \\
+OpenSSH & 管理用の SSH と、agent のファイルのやり取り(SFTP) & \code{just ssh}、WinSCP など \\
+agent-notify & 承認待ち・エラー・完了を Slack と IP Messenger に知らせる & エージェントが自動で呼ぶ \\
+見張りと監視 & セッションが落ちたら戻す。ディスクの残りを知らせる & 自動で動く \\
+agent-host-backup ほか & 環境を入れ替えるときの書き出しと取り込み & \code{just backup}、\code{just restore} \\
+\bottomrule
+\end{longtable}}
+
+%======================================================================
 \section{準備するもの}
 %======================================================================
 
@@ -296,7 +346,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \item just
   \item Windows なら Git Bash(\code{C:/Program Files/Git/bin/bash.exe})と Docker Desktop。
         Linux なら \code{xorriso}・\code{python3-yaml}・\code{shellcheck} があれば Docker は要らない
-  \item USB への書き込みに、Windows なら Rufus(DD イメージのモード)
+  \item USB への書き込みに、Windows なら Rufus\footnote{\url{https://rufus.ie/}}(DD イメージのモード)
 \end{checklist}
 just を使わないときのコマンドは、付録「just を使わない場合」にある。
 
