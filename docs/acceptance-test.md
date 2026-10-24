@@ -51,7 +51,7 @@ sudo ss -tlnp | grep 33
 | 開発の道具 | RDP の端末で `mise --version; uv --version; pnpm --version; ccmanager --version; ulimit -n` | それぞれ動く。ulimit -n は 65536 |
 | エージェントへの説明 | `sudo cat /home/agent/.claude/CLAUDE.md` | 「このホストについて」が置かれている |
 | Orca のテレメトリ | RDP の端末で `echo $ORCA_TELEMETRY_DISABLED` | 1 |
-| サービスの最小化 | `systemctl list-units --type=service --state=running` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない |
+| サービスの最小化 | `systemctl list-units --type=service --state=running`、`command -v snap orca` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない。snap と(読み上げの)orca がない |
 | メモリ | `swapon --show; cat /proc/cmdline` | zram がある。crashkernel がない |
 | Docker の通信 | RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 取得できる(pasta) |
 | ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |

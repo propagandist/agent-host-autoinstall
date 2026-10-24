@@ -62,14 +62,43 @@ hide_autostart org.gnome.Evolution-alarm-notify geoclue-demo-agent ubuntu-advant
     ibus-mozc-launch-xwayland
 log "要らないサービスを止めた"
 
-# 7. snap のアプリ(Chrome が既定のブラウザ。agent は App Center から入れられない)。snapd はほかの snap が使うので残す
-# 初回起動の直後は snap の初期化(seed)が終わっていないことがあるので待つ
-snap wait system seed.loaded
-for snap in firefox snap-store firmware-updater; do
-    if snap list "$snap" >/dev/null 2>&1; then
-        snap remove --purge "$snap"
+# 7. snap と snapd(Chrome が既定のブラウザで、snap で入れるものはない。snapd の常駐と、snap 一式の約 1.3GB を減らす)。
+# snapd を消すと、入っている snap(セキュリティセンター、権限の確認、ハードウェアの検査など)も消える。
+# firefox のパッケージは snap を入れるための中身のないものなので一緒に消す。apt でまた入らないように止める
+if dpkg-query -W -f='${Status}' snapd 2>/dev/null | grep -q 'install ok installed'; then
+    # 初回起動の直後は snap の初期化(seed)が終わっていないことがあるので待つ
+    snap wait system seed.loaded || true
+    apt-get purge -y snapd firefox
+    rm -rf /var/cache/snapd /root/snap "$AGENT_HOME/snap"
+fi
+cat >/etc/apt/preferences.d/agent-host-no-snapd.pref <<'EOF'
+# agent-host-autoinstall が置いた設定: snapd を入れない(36-minimize.sh)
+Package: snapd
+Pin: release a=*
+Pin-Priority: -10
+EOF
+
+# 7b. 使わないパッケージ(止めるだけでなく消す)
+#   画面の読み上げ・点字(読み上げの orca は /usr/bin/orca で、Orca(orca-ide)と名前がぶつかる)、印刷のドライバー、
+#   AD・LDAP(sssd)、VPN・モデム、Bluetooth、中国語の入力、エラーと利用状況の報告。
+#   cups 本体はデスクトップのまとめ(ubuntu-desktop-minimal)の必須なので残す(1. で止めている)。
+#   whoopsie-preferences と apport-symptoms は消すと GNOME の画面まで外れるので残す
+purge_pkgs=()
+mapfile -t purge_pkgs < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' \
+    orca speech-dispatcher speech-dispatcher-audio-plugins speech-dispatcher-espeak-ng espeak-ng-data brltty \
+    hplip hplip-data 'printer-driver-*' bluez-cups \
+    'sssd*' openvpn pptp-linux ppp modemmanager bluez bluez-obexd 'ibus-table*' \
+    whoopsie apport apport-gtk apport-core-dump-handler ubuntu-report ubuntu-insights 2>/dev/null |
+    awk '$1 == "ii" {print $2}')
+if [ "${#purge_pkgs[@]}" -gt 0 ]; then
+    # 念のため、デスクトップを巻き込まないことを確かめてから消す
+    if apt-get -s purge "${purge_pkgs[@]}" | grep -qE '^Purg (ubuntu-desktop-minimal|gdm3|gnome-shell|gnome-control-center|network-manager) '; then
+        log "注意: 使わないパッケージを消すとデスクトップまで外れるので、消さなかった"
+    else
+        apt-get purge -y "${purge_pkgs[@]}"
+        log "使わないパッケージを ${#purge_pkgs[@]} 個消した"
     fi
-done
+fi
 
 # 8. kdump(クラッシュ時の調査用。32〜64GB の機種で 1GB のメモリを常に予約する)
 if dpkg-query -W -f='${Status}' kdump-tools 2>/dev/null | grep -q 'install ok installed'; then
