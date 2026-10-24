@@ -38,7 +38,7 @@
 % 版(just guide が build/setup-guide/guide-version.tex に日付とコミットを書く)
 \InputIfFileExists{guide-version.tex}{}{%
   \newcommand{\guidedate}{(不明)}\newcommand{\guiderev}{(不明)}\newcommand{\guideversion}{版の情報なし}%
-  \newcommand{\guiderepo}{(なし)}\newcommand{\guidecopyright}{(なし)}}
+  \newcommand{\guiderepo}{(なし)}\newcommand{\guidecopyright}{(なし)}\newcommand{\guideholder}{(なし)}}
 
 %----------------------------------------------------------------------
 % 文中のコマンド・パス・値(_ などをそのまま書ける)
@@ -150,6 +150,8 @@
   \node[anchor=north west,font=\gtfamily\small,text=white!65!coverbg,align=left]
     at ([xshift=2.2cm,yshift=2.9cm]current page.south west)
     {版: \guideversion\\VirtualBox で検証した内容に基づく。リポジトリの文書とスクリプトを正とする。};
+  \node[anchor=north east,font=\headstyle\normalsize,text=white]
+    at ([xshift=-2.2cm,yshift=2.9cm]current page.south east) {\guideholder};
 \end{tikzpicture}
 \end{titlepage}
 
@@ -963,6 +965,7 @@ VirtualBox(Windows 10、Hyper-V 有効のため NEM モード、CPU 1)で確か�
   {\small
   \renewcommand{\arraystretch}{1.45}
   \begin{tabularx}{\linewidth}{@{}>{\headstyle\color{accent}}l@{\hspace{1.2em}}L@{}}
+    発行 & \guideholder \\
     作成日 & \guidedate \\
     版 & \guiderev \\
     対象 & Ubuntu Desktop 26.04.1 LTS。固定しているバージョンは付録 A \\

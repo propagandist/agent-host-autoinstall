@@ -15,12 +15,14 @@ else
     repo_url="$(git remote get-url origin 2>/dev/null | sed -e 's#^git@\([^:]*\):#https://\1/#' -e 's#\.git$##' || true)"
 fi
 copyright="$(grep -m1 '^Copyright' LICENSE 2>/dev/null | sed 's/(c)/©/' || true)"
+holder="$(printf '%s' "$copyright" | sed 's/^Copyright © [0-9-]* //')"
 {
     printf '\\newcommand{\\guidedate}{%s}\n' "$date"
     printf '\\newcommand{\\guiderev}{%s}\n' "$rev"
     printf '\\newcommand{\\guideversion}{%s 版(%s)}\n' "$date" "$rev"
     printf '\\newcommand{\\guiderepo}{%s}\n' "${repo_url:-(なし)}"
     printf '\\newcommand{\\guidecopyright}{%s}\n' "${copyright:-(なし)}"
+    printf '\\newcommand{\\guideholder}{%s}\n' "${holder:-(なし)}"
 } >"$out/guide-version.tex"
 
 docker build -q -t agent-host-guide -f docs/guide.Dockerfile docs >/dev/null
