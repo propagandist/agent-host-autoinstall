@@ -21,6 +21,9 @@ CLAUDE_CODE_KEY_FPR=31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
 # (SHA256 はリリースの gh_<ver>_checksums.txt)
 GH_VERSION=2.103.2
 GH_SHA256=30463d8e1fdce73f178f76b0082b7ab0657b0740b87274890e831def647ca979
+# Gitea CLI(tea): dl.gitea.com の単体のバイナリを SHA256 で照合する(SHA256 は同じ場所の .sha256)
+TEA_VERSION=0.16.0
+TEA_SHA256=9c142c8a0b31485eea2387031c1c404f12b7141075eb4ffbd7ced49441590636
 # uv(Python のパッケージ管理)と mise(プロジェクトごとの言語のバージョン)。リリースの tar を SHA256 で照合する
 # (SHA256 は GitHub API のアセットの digest)
 UV_VERSION=0.13.5
@@ -48,6 +51,17 @@ if [ "$(dpkg-query -W -f='${Version}' gh 2>/dev/null || true)" != "$GH_VERSION" 
 fi
 apt-mark hold gh
 log "GitHub CLI $GH_VERSION を入れて hold した"
+
+# --- Gitea CLI(tea) ---
+tea_bin="/opt/tea-$TEA_VERSION/tea"
+if [ ! -x "$tea_bin" ]; then
+    download_verified \
+        "https://dl.gitea.com/tea/$TEA_VERSION/tea-$TEA_VERSION-linux-amd64" \
+        "$TEA_SHA256" "$AH_CACHE/tea-$TEA_VERSION-linux-amd64"
+    install -D -m 755 "$AH_CACHE/tea-$TEA_VERSION-linux-amd64" "$tea_bin"
+fi
+ln -sfn "$tea_bin" /usr/local/bin/tea
+log "Gitea CLI(tea)$TEA_VERSION を入れた"
 
 # --- Node.js ---
 node_dir="/opt/node-v$NODE_VERSION-linux-x64"

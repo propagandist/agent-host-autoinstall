@@ -83,11 +83,11 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
-- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
+- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
-- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Docker、uv、mise、VS Code、Zed はバージョンを固定する(勝手に上がらないように)
+- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、tea、Docker、uv、mise、VS Code、Zed はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に

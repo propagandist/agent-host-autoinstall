@@ -117,14 +117,25 @@ just rdp <ホスト>      # build/<ホスト>.rdp を作る。ダブルクリッ
 - GitHub Copilot CLI: `copilot` を起動し `/login` → デバイスコード(github.com/login/device)。Copilot の契約が要る
 - Antigravity CLI: `agy` を起動し、表示された URL を手元のブラウザで開き、得たコードを端末に貼り付ける。テレメトリはアカウント側の `/config` で切り替える
 
-## 10. GitHub の認証(push する場合)
+## 10. GitHub・Gitea の認証(push する場合)
 
 どのアカウントで認証するかを先に決める(エージェント専用のアカウントか、権限を絞ったトークンが無難)。
+
+GitHub:
 
 ```
 gh auth login        # GitHub.com → HTTPS → ブラウザ(デバイスコード)で認証
 gh auth setup-git    # git の push に gh の認証を使う
 gh auth status
+```
+
+Gitea(tea):Gitea の画面の「設定 → アプリケーション」でアクセストークンを作る(repository と issue の書き込み、user の読み取り。tea でリポジトリを作るなら user の書き込みも)。
+env.yaml に `gitea_url` を書いていれば、接続先は自動で入る(書いていなければ `--url https://<Gitea のホスト>` を足す)。
+
+```
+tea login add --name gitea --token <トークン> --git-credentials   # git の HTTPS の push にも tea の認証を使う
+tea login list
+tea whoami
 ```
 
 ## 11. Docker Hub へのログイン
