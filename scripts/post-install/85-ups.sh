@@ -29,6 +29,10 @@ if [ "$mode" = none ]; then
 fi
 
 apt-get install -y nut-client acl
+# nut の HOME(/var/lib/nut)。通知(agent-notify)が nut で動き、重複の記録をここに書く。
+# nut-server(usb のときだけ入れる)が作るもので、netclient では無く、通知が送られなかった(Issue #5)。
+# nut-server と同じ所有者と権限で作る
+install -d -m 770 -o root -g nut /var/lib/nut
 if [ "$mode" = usb ]; then
     apt-get install -y nut-server
     [ -x "/usr/libexec/nut/$AH_UPS_DRIVER" ] || { log "NUT のドライバー $AH_UPS_DRIVER がない(ups.driver を確かめる)"; exit 1; }

@@ -85,7 +85,7 @@ else
     ng "作った版の記録がある" "$AH_ROOT/BUILD-INFO がない"
 fi
 eq "ホスト名が env.yaml と同じ" "$(hostname)" "$AH_HOSTNAME"
-failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')"
+failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)"
 eq "失敗した unit がない" "${failed_units% }" ""
 check "dpkg のロックを待つ設定" grep -q 'DPkg::Lock::Timeout' /etc/apt/apt.conf.d/90-agent-host-lock-timeout
 
@@ -214,7 +214,8 @@ if [[ "$dinfo" == *rootless* ]]; then ok "agent の docker が rootless で応�
 section "GPU(RDP の画面の符号化)"
 check "vainfo が入っている" installed vainfo
 check "Vulkan のドライバー(mesa-vulkan-drivers)が入っている" installed mesa-vulkan-drivers
-render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1)"
+# /dev/dri がない(DRM のドライバーが読み込まれていない)と find が失敗するので、対象外として続ける(Issue #12)
+render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1 || true)"
 gpu_vendor=""
 if [ -n "$render" ]; then
     gpu_vendor="$(cat "/sys/class/drm/${render##*/}/device/vendor" 2>/dev/null || true)"
@@ -332,6 +333,7 @@ usb | netclient)
     check "upsmon の設定は root と nut だけが読める" bash -c "[ \"\$(stat -c '%a %U:%G' /etc/nut/upsmon.conf)\" = '640 root:nut' ]"
     check "UPS の通知を agent-notify に渡す" grep -q '^NOTIFYCMD /usr/local/sbin/agent-host-ups-notify' /etc/nut/upsmon.conf
     check "nut が通知の送り先を読める(ACL)" bash -c "getfacl -p /etc/agent-host/notify.env 2>/dev/null | grep -q '^user:nut:r'"
+    check "nut が通知の記録を書ける(/var/lib/nut)" runuser -u nut -- test -w /var/lib/nut
     ;;
 esac
 
