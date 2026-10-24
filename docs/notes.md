@@ -276,6 +276,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #2: sysadmin の鍵(`/opt/agent-host/sysadmin_authorized_keys` → `~sysadmin/.ssh/authorized_keys`。インストーラーもここに書いていた)とパスワード(`usermod -p`)を just update のたびに env.yaml に合わせる。VM で、鍵を 1 本足すと入れ、外すと `Permission denied (publickey)` になること、パスワードのハッシュを替えると新しいパスワードで sudo でき、古いものでは通らないことを確かめた
 - #3: RDP の認証情報は、渡したもののハッシュを `/var/lib/agent-host/rdp-credentials.sha256`(root だけ)に置き、env.yaml と違えば `rdp.env` を置きなおす。キーリングに入れるのは `first-login/rdp-credentials.sh`(ログインのたびの自動起動)。agent がログイン中なら just update がその場でセッションのバスを通して呼ぶ。VM で、パスワードを替えると新しいもので verify-rdp が通り、古いものでは通らない(終了コード 134)ことを確かめた。動いている gnome-remote-desktop は、再起動なしで新しい認証情報を使った
 - 未確認: agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで #1 と同じ問題を起こすか
+- #6: Node.js はシステムの証明書ストアを見ないので、05-proxy-ca.sh が CA を OS に入れても、構成の途中の npm は TLS を検査するプロキシの下で `UNABLE_TO_VERIFY_LEAF_SIGNATURE` になる(自己署名の CA と https のサーバーを Docker で立てて再現。`NODE_EXTRA_CA_CERTS` で通る)。provision.sh が CA があるとき `NODE_EXTRA_CA_CERTS`・`SSL_CERT_FILE`・`REQUESTS_CA_BUNDLE` を export し、`apt-get update` を 05-proxy-ca.sh のあとに回した。実際の TLS を検査するプロキシの下での通しは未確認のまま
 
 ## 確認できていないこと
 

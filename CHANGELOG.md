@@ -33,6 +33,7 @@
 - 入れなおしたホストは SSH のホスト鍵が新しく、移行の手順どおりに進めると取り込みの前に「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まった。取り込むまでは一時の known_hosts でつなぎ、指紋を新しいホストの画面で照らす手順を、手順書・manual-steps・fleet.md に書いた(#11)
 - xrdp を採らなかった理由を、「Ubuntu 26.04 は Wayland だけで xrdp が使えない」から、「xrdp は別のセッションを作るので自動ログインした Orca が見えない。GNOME のセッションは 25.10 から Wayland だけで xrdp では動かない(Xfce などは動く)」に直した(#14)
 - 移行の書き出しに、クラウドの CLI(~/.aws、~/.config/gcloud、~/.azure)、Gitea CLI(~/.config/tea)、mise の全体の設定(~/.config/mise)が入っていなかった。足した(gcloud の記録は除く)(#7)
+- 独自の CA 証明書(ca_certs)を OS に入れても、構成の途中の npm(Node.js)はそれを使わず、TLS を検査するプロキシの下では止まった。provision.sh が NODE_EXTRA_CA_CERTS などを渡す。apt の取得元の更新は、プロキシと CA の設定のあとに行う(#6)
 - `rdp.password` を替えて `just update` しても、古い RDP の認証情報が有効なままだった。替えたら渡しなおし、ログイン中ならその場で、そうでなければ次のログインで入れ替える。移行の取り込みのあとも、このホストの認証情報を入れなおす(#3)
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 
