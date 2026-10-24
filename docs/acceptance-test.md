@@ -73,6 +73,7 @@ sudo ss -tlnp | grep 33
 | メモリ | `swapon --show; cat /proc/cmdline` | zram がある。crashkernel がない |
 | GPU による符号化 | `vainfo --display drm --device /dev/dri/renderD128 \| grep EncSlice`、RDP でつないだあと `journalctl -b _UID=$(id -u agent) \| grep HWAccel` | Intel・AMD は `VAProfileH264High` に `VAEntrypointEncSlice`(か `EncSliceLP`)があり、`[HWAccel.VAAPI] Successfully initialized` が出る。NVIDIA は `lsmod \| grep nvidia` と `ldconfig -p \| grep libnvidia-encode`。VM では対象外 |
 | Docker の通信 | RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 取得できる(pasta) |
+| UPS(ups を書いたとき) | ホストで `upsc <name>@localhost`(netclient なら `<name>@<server>`)。UPS の電源プラグを抜いて数十秒で挿しなおす | `ups.status` が `OL`。抜くと「停電: UPS のバッテリーで動いている」、挿すと「UPS: 電源が戻った」が届く。バッテリーが少なくなるまで待つと終了し、電源が戻ると起動する(usb のとき) |
 | ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |
 | 移行 | 書き出し → 消す → 取り込み(docs/manual-steps.md の 16。just backup → 消す → just restore) | ログインと ~/work が戻る |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |

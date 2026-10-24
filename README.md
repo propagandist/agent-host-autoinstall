@@ -36,6 +36,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
 - 手元の PC: [just](https://just.systems/) と、次のどちらか
   - Docker(Linux の道具を Docker の Ubuntu の中で動かす。Windows では Git Bash と Docker Desktop)
   - Linux なら `xorriso`・`python3-yaml`・`shellcheck`
+- (任意)UPS。NUT(Network UPS Tools)で見て、バッテリーが少なくなったら正しく終了し、電源が戻ったら起動する(`env.yaml` の `ups`)
 - 8GB 以上の USB メモリと、ISO をそのまま書き込む道具(Windows なら Rufus の DD イメージのモード、Linux なら `dd` など)
 
 > [!CAUTION]

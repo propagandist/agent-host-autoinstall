@@ -216,6 +216,23 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - NVIDIA は、autoinstall の `drivers: install: true` で、インストールの中で ubuntu-drivers が推奨のドライバーを入れる(初回の起動からそのドライバーで動く。構成の途中で再起動しなくてよい)。Intel・AMD・VM では何も入らないはず。NVIDIA の実機と Secure Boot のときの動作は未確認
 - VirtualBox の VM の GPU(vmsvga、vendor 0x15ad)では符号化できないので、just verify は「対象外」と出す
 
+### just vm-test で見つかったこと(2026-10-24)
+
+- 初回の起動では、起動画面(plymouth)が構成のあいだ(約 23 分)出たままで CPU を 1 分 20 秒使い、GDM の起動のときに SEGV で落ちて plymouth-start.service が failed で残った。構成サービスの最初に `plymouth quit` し、GRUB の `GRUB_CMDLINE_LINUX_DEFAULT` を `quiet` にした(splash を外す)
+- 初回の起動のカーネル引数は、インストーラーが書いたもの(crashkernel あり)のまま。kdump を消して update-grub しても、再起動するまで /proc/cmdline には残る。just verify は GRUB の設定(grub.cfg)で確かめ、動いているカーネルに残っているときは「再起動で反映」と出すだけにした
+- 入れなおしから RDP の待ち受けまで人手なし、強制的な電源断のあと、gnome-shell の SEGV のあと、のいずれも、verify(106 項目)と verify-rdp が通った(VirtualBox 7.2、CPU 1、メモリ 4GB)
+
+### UPS(2026-10-24 追加)
+
+- Ubuntu 26.04 の NUT は 2.8.4(nut-server・nut-client)。`/usr/lib/systemd/system-shutdown/nutshutdown` が、終了の最後に `upsmon -K`(POWERDOWNFLAG の `/etc/killpower` があるか)を見て `upsdrvctl shutdown` で UPS の出力を止める。`nut.conf` が `MODE=none` なら何もしない(パッケージのスクリプトで確認)
+- 先に PC を正しく終了しても、UPS が出力を出し続けると、BIOS の「電源が戻ったら起動」の条件(電源がいったん切れること)が満たされず、復電しても起動しない。usb では primary の upsmon が `/etc/killpower` を作り、上の流れで出力を止めさせる。netclient(secondary)では出力を止めるのは NUT サーバーの側
+- upsmon は `RUN_AS_USER nut` で動き、NOTIFYCMD も nut で動く。通知の送り先(`/etc/agent-host/notify.env`、640 root:agent)は ACL で nut にだけ読ませる(`setfacl -m u:nut:r`)。84-notify.sh が書きなおしても同じファイルなので ACL は残り、85-ups.sh も毎回付けなおす
+- upsd は 127.0.0.1 と ::1 だけで待ち受ける(LAN の他の機器には配らない。配るなら別に設定する)。upsmon が upsd に入るパスワードはホストで作り、`/var/lib/agent-host/ups-upsmon.password` に置く
+- VirtualBox で、NUT の擬似ドライバー(`driver: dummy-ups`、`port: dummy.dev`。`/etc/nut/dummy.dev` に `ups.status: OL` などを書く)で確かめた。状態を OB にすると「on battery」、OL に戻すと「on line power」を記録して通知を送り(nut で agent-notify が動いた)、`upsmon -c fsd` で「Executing automatic power-fail shutdown」から約 20 秒で電源断まで進んだ。起動しなおすと `/etc/killpower` は消えていて、just verify(117 項目)と verify-rdp が通った
+- NUT は設定ファイルの ASCII 以外の文字を捨てる(`addchar: discarding invalid character`)。85-ups.sh が書く設定は英語にした。nut-server のパッケージを入れた時点で、設定が空の upsd が起動して失敗を繰り返し、起動の回数の上限に掛かった。設定を書いたあとに `systemctl reset-failed 'nut-*'` してから起動する
+- 37-gpu.sh で、`apt-cache policy` の出力が日本語(「候補:」)だったので `Candidate:` を探す判定が外れた(構成は ja_JP.UTF-8 で動く)。`LC_ALL=C` を付けた。vainfo は 26.04 では `vainfo` のパッケージ(libva-utils ではない)
+- 未確認: 実際の UPS での終了・出力の停止・復電での起動。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -226,6 +243,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - Slack への送信、Claude Code の Remote Control、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
+- 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - systemd-oomd がメモリ不足のときに Orca ごと止めないか
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ

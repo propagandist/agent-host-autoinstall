@@ -47,7 +47,22 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 
 - Restore on AC Power Loss(名称は機種による)を **Power On** にする
 - NVIDIA の GPU で Secure Boot が有効なら、そのままにしておく(インストールの中で入る NVIDIA のドライバーが、署名済みのモジュールで動くかは未確認。動かなければ just verify の「GPU」が ✗ になる)
+- UPS を使うとき(env.yaml の `ups`)は、下の「UPS」も行う
 - HDMI ダミープラグを挿す。デスクトップ共有は実際の画面をそのまま映すので、RDP の解像度はプラグの解像度になる(手元からは変えられない)。1920×1080 のプラグを選ぶ(4K だと文字がとても小さい)
+
+### UPS(env.yaml の ups を書いた場合)
+
+85-ups.sh が NUT(Network UPS Tools)で UPS を見る。バッテリーが少なくなるか、NUT サーバーが終了を指示したら、正しく終了する。
+
+| ups.mode | つなぎ方 | 電源が戻ったあと |
+|---|---|---|
+| `usb` | UPS をこの PC に USB(機種によりシリアル)でつなぐ。`driver` と `port` は NUT の対応表(networkupstools.org)で確かめる。多くは `usbhid-ups` と `auto` | 終了の最後に UPS の出力を止める。電源が戻ると UPS が出力を戻し、BIOS の「Restore on AC Power Loss: Power On」で PC が起動する |
+| `netclient` | NAS など、UPS をつないだ別の機器の NUT サーバーを見る。`server`・`name`・`username`・`password` は、その NUT サーバーの監視用のユーザー(secondary) | 出力を止めるのは NUT サーバーの側。そちらの設定で、電源が戻ったときに出力が戻るようにする |
+
+- UPS の側で「電源が戻ったら出力を戻す」(自動再起動)を有効にしておく(多くの機種で既定)
+- 通知: バッテリー運転になった、バッテリーが少ない、まもなく終了する、状態を読めない、は Slack と IP Messenger に、電源が戻った、は Slack に届く
+- 確かめる: `just verify <ホスト>` の「UPS」に、UPS の状態(`OL` は電源から給電)が出る。ホストで `upsc <name>@localhost` でも見られる
+- 停電を試すときは、UPS の電源プラグを抜いて、バッテリー運転の通知が届くことを確かめ、すぐ挿しなおす(バッテリーが少なくなるまで待つと終了する)
 
 ## 2. インストール
 

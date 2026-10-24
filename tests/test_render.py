@@ -146,6 +146,7 @@ class TestValid(Case):
         self.assertEqual(env["AH_DEV_PORTS"], "3000 8000:8099")
         self.assertEqual(env["AH_GITEA_URL"], "https://gitea.example.internal")  # 末尾の / は落とす
         self.assertEqual(env["AH_IPMSG_TO"], "someone 192.0.2.20")
+        self.assertEqual(env["AH_UPS_MODE"], "none")  # 書かなければ使わない
         with open(os.path.join(out, "autoinstall.yaml"), encoding="utf-8") as f:
             self.assertEqual(yaml.safe_load(f)["autoinstall"]["proxy"], "http://proxy.example.internal:8080")
         with open(os.path.join(out, "agent_authorized_keys"), encoding="utf-8") as f:
@@ -160,6 +161,36 @@ class TestValid(Case):
         r = subprocess.run(["bash", "-c", f'. "{out}/env.sh"; printf %s "$AH_RDP_PASSWORD"'],
                            capture_output=True, text=True)
         self.assertEqual(r.stdout, pw)
+
+
+class TestUps(Case):
+    def test_usb(self):
+        env = read_env_sh(os.path.join(self.ok(self.write(self.with_(ups={"mode": "usb"}))), "env.sh"))
+        self.assertEqual((env["AH_UPS_MODE"], env["AH_UPS_DRIVER"], env["AH_UPS_PORT"], env["AH_UPS_NAME"]),
+                         ("usb", "usbhid-ups", "auto", "ups"))
+
+    def test_netclient(self):
+        out = self.ok(self.write(self.with_(ups={"mode": "netclient", "server": "nas.example.internal",
+                                                 "name": "ups1", "username": "monuser", "password": "secret"})))
+        env = read_env_sh(os.path.join(out, "env.sh"))
+        self.assertEqual((env["AH_UPS_SERVER"], env["AH_UPS_NAME"], env["AH_UPS_USER"], env["AH_UPS_PASSWORD"]),
+                         ("nas.example.internal", "ups1", "monuser", "secret"))
+
+    def test_rejected(self):
+        cases = [
+            ({"mode": "serial"}, "ups.mode"),
+            ({"mode": "usb", "driver": "USB HID"}, "ups.driver"),
+            ({"mode": "usb", "port": "a b"}, "ups.port"),
+            ({"mode": "usb", "name": "my ups"}, "ups.name"),
+            ({"mode": "netclient"}, "ups.server"),
+            ({"mode": "netclient", "server": "nas"}, "ups.username と ups.password"),
+            ({"mode": "netclient", "server": "nas", "username": "u", "password": "a b"}, "ups.password に空白"),
+            ({"mode": "netclient", "server": "nas", "username": "u", "password": "CHANGE_ME"}, "CHANGE_ME"),
+            ({"mode": "usb", "baud": 9600}, "ups.baud は知らないキー"),
+        ]
+        for ups, message in cases:
+            with self.subTest(ups=ups):
+                self.ng(self.with_(ups=ups), message)
 
 
 class TestOverlay(Case):
