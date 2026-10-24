@@ -606,7 +606,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf)。GNOME のセッションが落ちたら GDM を再起動して戻す見張り(1 分ごと) \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
-\code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。不要な snap と kdump を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
+\code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。snap・snapd と kdump、使わないパッケージ(画面の読み上げ、印刷のドライバー、AD・LDAP、VPN・モデム、Bluetooth、報告など)を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
 \code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を社内 LAN だけに許可 \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\

@@ -175,6 +175,14 @@
 - 漢字の字形: agent の LANG が ja_JP.UTF-8 なので、既定のままで日本の字形(Noto Sans CJK JP)で出る。フォントを Noto Sans Mono CJK JP と SC に切り替えて VM の画面を見比べ、既定が JP と同じ形(「角」の縦線が突き抜けない、「骨」の上の向き)であることを確かめた。代わりのフォントの設定(buffer_font_fallbacks / ui_font_fallbacks)は macOS と Windows だけで、Linux では効かない
 - 日本語入力(Mozc)を Zed で使えるかは未確認
 
+### 使わないパッケージの削除(2026-10-24 追加、VirtualBox で確認)
+- 36-minimize.sh で、snapd(残っていた snap 8 個も消える)と firefox(snap を入れるための中身のないパッケージ)を消し、/etc/apt/preferences.d/agent-host-no-snapd.pref で apt からも入らないようにした。ディスクが約 2GB 空き、snap のループデバイスと snapd の常駐(約 30MB)がなくなった
+- 画面の読み上げ(orca・speech-dispatcher・espeak)と点字(brltty)を消した。読み上げの orca は /usr/bin/orca で、端末で `orca` と打つと Orca(orca-ide)ではなく読み上げが起動していた
+- 印刷のドライバー(hplip・printer-driver-*)、sssd、openvpn・pptp・ppp・ModemManager、bluez、ibus-table(中国語)、whoopsie・apport・ubuntu-report・ubuntu-insights を消した。合わせて 47 個(パッケージは 1647 → 1591)
+- 消せないもの: cups 本体は ubuntu-desktop-minimal の必須(消すとまとめが外れる)。whoopsie-preferences と apport-symptoms は、報告のパッケージと一緒に消すと gdm3・gnome-shell まで外れた。どちらも止めるだけにした。消す前に apt-get -s で、デスクトップを巻き込まないことを確かめてから消す
+- 残したもの: 機器のファームウェア(実機で要るかもしれない)、1 つ前のカーネル、日本語のフォント
+- 消したあとに再起動し、約 1 分で自動ログインと RDP の待ち受けまで戻った。失敗した unit はなかった
+
 ### ホームディレクトリを NFS に(2026-10-24 検討、見送り)
 - agent のホーム全体を NFS にはしない。NFS が見えないと自動ログインが失敗して停電からの自動復帰が崩れる、rootless Docker の置き場が NFS の上で動かない、Chrome・Claude・Codex・Orca の SQLite が NFS のロックで壊れうる、node_modules・worktree が遅く inotify が効かない、平文のキーリングやログインの情報が Kerberos(sec=krb5p)なしでは LAN に流れる、UID をそろえる必要がある、のため
 - 要るようになったら、ホームはローカルのまま、env.yaml で指定した場所(例 ~/shared)だけを `x-systemd.automount,nofail` でマウントする形にする(未実装)
