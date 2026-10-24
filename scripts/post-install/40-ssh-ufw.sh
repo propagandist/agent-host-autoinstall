@@ -46,6 +46,10 @@ for cidr in $AH_LAN_CIDRS; do
     for port in ${AH_DEV_PORTS:-}; do
         ufw allow from "$cidr" to any port "$port" proto tcp
     done
+    # IP Messenger の通知先を名前で探すとき、各 PC の応答を UDP 2425 番で受け取る
+    if [ -n "${AH_IPMSG_TO:-}" ]; then
+        ufw allow from "$cidr" to any port 2425 proto udp
+    fi
 done
 ufw --force enable
 log "ufw で 22/3389${AH_DEV_PORTS:+ と $AH_DEV_PORTS} を $AH_LAN_CIDRS だけに許可した"

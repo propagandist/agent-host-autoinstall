@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# agent-host-backup で書き出したものを、構成が終わったホストに取り込む。使い方(手元の PC で。
+# sudo のパスワードを標準入力の先頭の 1 行で渡し、その後ろに書き出したファイルを続ける。sudo -S は 1 行だけ読む):
+#   read -rsp "sysadmin のパスワード: " PW; echo
+#   { printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
+# 取り込んだあと、ホストを再起動すると、SSH・RDP・ログインの状態がすべて反映される。
+# 同じ場所にあるファイルは上書きする。書き出しのあとにこのホストで作ったものは、その場所では失われる。
+set -euo pipefail
+# shellcheck source=../lib/common.sh
+. /opt/agent-host/lib/common.sh
+
+[ "$(id -u)" -eq 0 ] || { echo "root で実行する(sudo agent-host-restore)" >&2; exit 2; }
+[ -t 0 ] && { echo "標準入力に書き出したファイルを渡す: ssh ... 'sudo agent-host-restore' < backup.tar.zst" >&2; exit 2; }
+[ -f /var/lib/agent-host/provisioned ] || { echo "構成が終わっていない(/var/lib/agent-host/provisioned がない)" >&2; exit 1; }
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+cat >"$work/backup.tar.zst"
+tar --zstd -xf "$work/backup.tar.zst" -C "$work" agent-host-manifest.txt ||
+    { echo "agent-host-backup の書き出しに見えない(記録がない)" >&2; exit 1; }
+
+manifest="$work/agent-host-manifest.txt"
+from_host="$(sed -n 's/^hostname=//p' "$manifest")"
+from_uid="$(sed -n 's/^agent_uid=//p' "$manifest")"
+echo "[agent-host] 取り込む: $from_host($(sed -n 's/^date=//p' "$manifest") に書き出し)" >&2
+[ "$from_host" = "$(hostname)" ] ||
+    echo "[agent-host] 注意: 書き出したホスト名($from_host)とこのホスト($(hostname))が違う。SSH のホスト鍵と RDP の証明書も移る" >&2
+[ "$from_uid" = "$(id -u "$AGENT_USER")" ] ||
+    echo "[agent-host] 注意: $AGENT_USER の UID が違う($from_uid → $(id -u "$AGENT_USER"))。所有者は付けなおす" >&2
+# 版の違いを知らせる(取り込みは続ける)
+for pkg in claude-code orca-ide docker-ce code gh; do
+    old="$(sed -n "s/^pkg\.$pkg=//p" "$manifest")"
+    new="$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo none)"
+    [ "$old" = "$new" ] || echo "[agent-host] 版が違う: $pkg $old → $new" >&2
+done
+
+tar --zstd -xpf "$work/backup.tar.zst" -C / --exclude=agent-host-manifest.txt
+chown -R "$AGENT_USER:$AGENT_USER" "$AGENT_HOME"
+chmod 700 "$AGENT_HOME"
+chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
+systemctl restart ssh || true
+
+echo "[agent-host] 取り込んだ場所:" >&2
+sed -n 's/^path=/  \//p' "$manifest" >&2
+echo "[agent-host] 取り込みが終わった。sudo systemctl reboot で再起動すると、RDP とログインの状態が反映される" >&2

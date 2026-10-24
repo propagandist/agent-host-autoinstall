@@ -59,6 +59,7 @@ PY
 download_verified() {
     local url="$1" sha="$2" dest="$3"
     if [ -f "$dest" ] && echo "$sha  $dest" | sha256sum -c --status; then
+        touch "$dest"  # 今回の構成で使った印(provision.sh が使わなかった古い版を消す)
         return 0
     fi
     mkdir -p "$(dirname "$dest")"

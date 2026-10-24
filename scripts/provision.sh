@@ -14,12 +14,20 @@ if [ -n "${AH_PROXY_URL:-}" ]; then
     export HTTP_PROXY="$AH_PROXY_URL" HTTPS_PROXY="$AH_PROXY_URL" NO_PROXY="$AH_NO_PROXY"
 fi
 
+# 今回の構成で使ったダウンロードを見分けるための印(download_verified が使ったファイルの時刻を新しくする)
+mkdir -p /var/lib/agent-host /var/cache/agent-host
+started=/var/lib/agent-host/provision-started
+touch "$started"
+
 apt-get update
 for script in "$ah_root"/post-install/[0-9]*.sh; do
     echo "[agent-host] 実行: $(basename "$script")"
     bash "$script"
 done
 
-mkdir -p /var/lib/agent-host
+# ダウンロードの残りを片付ける: apt のキャッシュと、今回使わなかった古い版の構成用のダウンロード
+apt-get clean
+find /var/cache/agent-host -type f ! -newer "$started" -delete
+
 touch /var/lib/agent-host/provisioned
 echo "[agent-host] 構成が完了した"

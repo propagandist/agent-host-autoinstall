@@ -169,7 +169,9 @@ cp autoinstall/env.example.yaml autoinstall/env.yaml
 \code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
 \code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
 \code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
-\code{notify.ipmsg_to} & IP Messenger で知らせる PC の IP アドレスの並び \\
+\code{notify.ipmsg_to} & IP Messenger で知らせる相手。ユーザー名・PC 名・ニックネームか IP。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く) \\
+\code{notify.ipmsg_broadcast} & 探すときのブロードキャストの宛先。空なら 255.255.255.255(同じサブネットだけ)。別のサブネットも探すときに足す \\
+\code{desktop_color} & 壁紙の色(\texttt{\#RRGGBB})。台ごとに変えると、どのホストに入っているか見分けやすい \\
 \code{agent_ssh_authorized_keys} & SFTP で \code{agent} に入る人の公開鍵。空なら入れない \\
 \code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3999"})。1024 以上 \\
 \code{lan_cidrs} & SSH・RDP・\code{dev_ports} を許可する社内 LAN の範囲 \\
@@ -310,6 +312,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf) \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
+\code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。不要な snap と kdump を消す。zram、電源のプロファイル、VA-API、GRUB の待ち \\
 \code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports} を社内 LAN だけに許可 \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、uv、mise \\
@@ -318,8 +321,10 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{70-orca.sh} & Orca と、その自動起動 \\
 \code{72-editors.sh} & 選んだエディター \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
+\code{76-desktop.sh} & 端末(Ghostty)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
-\code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify) \\
+\code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
+\code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
 \bottomrule
 \end{longtable}
 
@@ -346,9 +351,23 @@ RDP も待ち受ける(原因は未調査)。
 以降は、手元の PC の「リモート デスクトップ接続」(mstsc)で \code{<ホスト>:3389} に、
 env.yaml の \code{rdp} の認証情報で入って行う。初回は証明書の警告が出る(自己署名のため)。
 
-\subsection{日本語入力}
-\textbf{Ctrl+Space} で日本語入力(Mozc)と英字を切り替える。Super+Space でもよいが、
-Windows キーは mstsc の既定では手元の Windows に取られる。
+\subsection{RDP の接続の設定}
+\code{docs/agent-host.rdp.example} をコピーして \code{full address} をホスト名に直し、ダブルクリックで接続する。
+Windows キーを常にホストへ送り、クリップボードを共有する設定になっている。
+初回の証明書の警告で「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
+
+\begin{caution}
+デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける。
+\end{caution}
+
+\subsection{日本語入力と使い勝手}
+\begin{itemize}
+  \item \textbf{Ctrl+Space} で日本語入力(Mozc)と英字を切り替える
+  \item スクリーンショットは \textbf{Ctrl+Shift+Alt+S}(PrintScreen は手元の Windows に取られることがある)。
+        撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+  \item 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
+  \item 端末(\textbf{Ctrl+Alt+T})は Ghostty。右クリックで貼り付け、選択でコピー
+\end{itemize}
 
 \subsection{Claude Code のログイン}
 端末で \code{claude} を起動し、案内に従う。ブラウザ(Chrome)が開くので、そこでログインする。
@@ -478,6 +497,36 @@ sudo ufw status numbered
 sudo ufw delete <番号>
 \end{cmd}
 
+\subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、\code{~/work} と Orca の worktree を移す。
+ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
+\code{sysadmin} の sudo はパスワードが要り、標準入力は書き出しの受け渡しに使うので、
+パスワードは標準入力の先頭の 1 行で渡す。手元の PC(Linux、WSL、Git Bash)で行う。
+
+\begin{enumerate}
+  \item Orca とエージェントの作業を止める
+  \item 書き出す(ホストには保存されない)
+\begin{cmd}
+read -rsp "sysadmin のパスワード: " PW; echo
+printf '%s\n' "$PW" | ssh sysadmin@<ホスト> \
+    'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+\end{cmd}
+  \item Docker のボリュームに残したいデータがあれば、手で書き出す
+  \item 同じ env.yaml で作った ISO で、新しいホストを入れる(env.yaml は安全な場所に保管しておく)
+  \item 構成が終わったら取り込み、再起動する
+\begin{cmd}
+{ printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } |
+    ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
+ssh -t sysadmin@<ホスト> 'sudo systemctl reboot'
+unset PW
+\end{cmd}
+  \item 受け入れテストの 4・5 を行う
+\end{enumerate}
+
+\begin{caution}
+書き出したファイルにはログインの情報が入る。暗号化された場所に置き、取り込んだら消す。
+\end{caution}
+
 \subsection{困ったとき}
 \begin{longtable}{@{}p{0.30\linewidth}p{0.65\linewidth}@{}}
 \toprule
@@ -519,6 +568,8 @@ Orca & 1.4.237 & リリースの .deb(SHA256)、hold \\
 VS Code & 1.143.1 & Microsoft の apt、hold \\
 Zed & 1.25.3 & リリースの tar(SHA256) \\
 Google Chrome & 固定しない & Google の apt、自動更新 \\
+Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
+Ghostty、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
 \bottomrule
 \end{longtable}
 
@@ -534,6 +585,8 @@ Google Chrome & 固定しない & Google の apt、自動更新 \\
 \code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
 \code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
+\code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\
+\code{agent-host-diskcheck.timer} & ディスクの残りの監視(1 時間ごと) \\
 \code{/etc/gdm3/custom.conf} & 自動ログイン \\
 \code{/etc/ssh/sshd_config.d/10-agent-host.conf} & SSH の設定 \\
 \code{~agent/.config/environment.d/} & \code{agent} のセッションの環境変数(mise、Docker、Orca など) \\

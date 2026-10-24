@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# ルートのディスクの使用率が閾値を超えたら agent-notify で知らせる(1 日 1 回まで)。
+# agent-host-diskcheck.timer から 1 時間ごとに呼ばれる。使い方: agent-host-diskcheck [閾値(%)。既定 85]
+set -euo pipefail
+
+threshold="${1:-85}"
+state=/var/lib/agent-host/diskcheck.last
+use="$(df --output=pcent / | tail -1 | tr -dc '0-9')"
+
+[ "$use" -ge "$threshold" ] || exit 0
+today="$(date +%F)"
+[ "$(cat "$state" 2>/dev/null || true)" = "$today" ] && exit 0
+mkdir -p "$(dirname "$state")"
+echo "$today" >"$state"
+/usr/local/bin/agent-notify error "ディスクの残りが少ない" \
+    "/ の使用率が ${use}%(閾値 ${threshold}%)。docker system df や du -sh ~agent/* で大きいものを確かめる"

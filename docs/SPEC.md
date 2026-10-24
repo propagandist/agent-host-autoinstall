@@ -75,6 +75,11 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
 - 通知:Claude Code の hooks(承認待ち・入力待ち・API のエラー)と Codex の notify(完了)から `agent-notify` を呼び、env.yaml の `notify` の Slack(Incoming Webhook)と IP Messenger(LAN 内の UDP)に送る。承認待ちとエラーは両方、完了は Slack だけ
 - スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
+- IP Messenger の通知先は、ユーザー名・PC 名・ニックネームか IP で指定する。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く)
+- サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。agent のファイルの索引作り、予定表、Xwayland の常時起動などを止める。不要な snap(Firefox、App Center、firmware-updater)と kdump を消す
+- 資源の最適化:zram(メモリの半分)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の符号化に VA-API(Intel)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、構成の最後に apt のキャッシュと古いダウンロードを消す
+- デスクトップ:端末は Ghostty(右クリックで貼り付け、選択でコピー)、クリップボードの履歴は Clipboard Indicator、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
+- 移行:agent-host-backup / agent-host-restore で、ホストの身元・ログインと設定・~/work を移す(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない)
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない

@@ -28,6 +28,7 @@ scripts/
     20-autologin.sh
     30-power.sh
     35-system.sh            # 時刻同期(chrony)、inotify の上限、apport の無効化
+    36-minimize.sh          # 要らないサービスを止める、snap・kdump の削除、zram、電源、VA-API、GRUB
     40-ssh-ufw.sh
     50-updates.sh
     60-devtools.sh
@@ -36,13 +37,18 @@ scripts/
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、agent の既定のブラウザにする
+    76-desktop.sh           # Ghostty、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
     80-agent-session.sh     # キーリング、RDP 認証情報の受け渡し、first-login の自動起動
-    84-notify.sh            # 通知(Slack、IP Messenger)を Claude Code / Codex につなぐ
+    84-notify.sh            # 通知(Slack、IP Messenger)とディスクの残りの監視
+    86-migrate.sh           # 移行用のスクリプトを /usr/local/sbin に置く
   notify/agent-notify       # 通知を送るスクリプト(/usr/local/bin に置く)
+  notify/agent-host-diskcheck # ディスクの残りの監視
+  migrate/                  # 環境を入れ替えるときの書き出し(agent-host-backup)と取り込み(agent-host-restore)
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
 docs/
   SPEC.md                   # 仕様
   HANDOVER.md               # 経緯と次の作業
+  agent-host.rdp.example    # Windows のリモート デスクトップ接続の設定のひな形
   setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。PDF は build/setup-guide/ に出す)
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順

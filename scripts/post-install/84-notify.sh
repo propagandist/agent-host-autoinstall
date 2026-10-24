@@ -15,6 +15,7 @@ umask 027
     echo "# agent-host-autoinstall が env.yaml の notify から作った設定"
     echo "SLACK_WEBHOOK_URL=${AH_SLACK_WEBHOOK_URL:-}"
     echo "IPMSG_TO=${AH_IPMSG_TO:-}"
+    echo "IPMSG_BROADCAST=${AH_IPMSG_BROADCAST:-}"
 } >/etc/agent-host/notify.env
 umask 022
 chown "root:$AGENT_USER" /etc/agent-host/notify.env
@@ -63,3 +64,25 @@ open(path, "w", encoding="utf-8").write("\n".join(lines) + "\n")
 PY
 fi
 log "通知(Slack${AH_SLACK_WEBHOOK_URL:+ あり}、IP Messenger${AH_IPMSG_TO:+ $AH_IPMSG_TO})を設定した"
+
+# --- ディスクの残りの監視(1 時間ごとに見て、85% を超えたら 1 日 1 回知らせる) ---
+install -m 755 "$AH_ROOT/notify/agent-host-diskcheck" /usr/local/bin/agent-host-diskcheck
+cat >/etc/systemd/system/agent-host-diskcheck.service <<'EOF'
+[Unit]
+Description=ディスクの残りが少なければ知らせる(agent-host-autoinstall)
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/agent-host-diskcheck 85
+EOF
+cat >/etc/systemd/system/agent-host-diskcheck.timer <<'EOF'
+[Unit]
+Description=1 時間ごとにディスクの残りを見る(agent-host-autoinstall)
+[Timer]
+OnCalendar=hourly
+Persistent=true
+[Install]
+WantedBy=timers.target
+EOF
+systemctl daemon-reload
+systemctl enable --now agent-host-diskcheck.timer
+log "ディスクの残りの監視を設定した"

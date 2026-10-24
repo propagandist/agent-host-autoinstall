@@ -123,7 +123,44 @@ Claude Code に Pro / Max / Team / Enterprise のアカウントでログイン�
 2. 表示された URL か QR コードを、スマホの Claude アプリか claude.ai/code で開く
 3. スマホへのプッシュ通知: Claude アプリに同じアカウントでログインし、端末で `/config` から「Push when actions required」などをオンにする
 
-## 14. 定期的な再起動(運用)
+## 14. RDP の接続の設定
+
+`docs/agent-host.rdp.example` をコピーして `full address` をホスト名に直し、ダブルクリックで接続する。
+
+- Windows キーを常にホストへ送る(`keyboardhook:i:1`)。Super+Space などが使える
+- クリップボードを共有する。手元とホストの間でコピーと貼り付けができる
+- 初回の証明書の警告で「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
+- **デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける**
+
+使い勝手:
+
+- 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(PrintScreen は手元の Windows に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+- 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
+- 端末(Ctrl+Alt+T)は Ghostty。右クリックで貼り付け、選択でコピー
+
+## 15. 環境を入れ替える(OS の入れなおし、機種の交換)
+
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
+
+1. Orca とエージェントの作業を止める(書き出しの途中で書き換わらないように)
+2. 手元の PC(Linux、WSL、Git Bash)で書き出す。ホストには保存されない。sudo のパスワードは標準入力の先頭の 1 行で渡す(標準入力は書き出しの受け渡しにも使うので、端末で入力できない)
+   ```
+   read -rsp "sysadmin のパスワード: " PW; echo
+   printf '%s\n' "$PW" | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+   ```
+3. Docker のボリュームに残したいデータがあれば、手で書き出す(例: `docker run --rm -v <ボリューム>:/v -v $PWD:/b alpine tar czf /b/<ボリューム>.tgz -C /v .`)
+4. 同じ env.yaml で作った ISO で、新しいホストを入れる(env.yaml は安全な場所に保管しておく)
+5. 構成が終わったら取り込み、再起動する
+   ```
+   { printf '%s\n' "$PW"; cat agent-host-<ホスト名>-<日付>.tar.zst; } | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-restore'
+   ssh -t sysadmin@<ホスト> 'sudo systemctl reboot'
+   unset PW
+   ```
+6. 受け入れテストの 4・5 を行う
+
+**書き出したファイルにはログインの情報が入る。暗号化された場所に置き、取り込んだら消す。**
+
+## 16. 定期的な再起動(運用)
 
 unattended-upgrades はセキュリティ更新を自動で入れるが、自動では再起動しない(作業中のエージェントを止めないため)。カーネルなどの更新は再起動するまで反映されないので、月 1 回、エージェントが作業していない時間に sysadmin で再起動する。
 

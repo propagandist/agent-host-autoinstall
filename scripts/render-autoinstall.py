@@ -111,16 +111,24 @@ def main():
     for a in agents:
         if a not in ("opencode", "copilot", "antigravity"):
             fail(f"agents の {a} は使えない(opencode, copilot, antigravity)")
+    desktop_color = str(env.get("desktop_color") or "")
+    if desktop_color and not re.fullmatch(r"#[0-9a-fA-F]{6}", desktop_color):
+        fail("desktop_color は #RRGGBB の形にする")
     notify = env.get("notify") or {}
     slack_url = str(notify.get("slack_webhook_url") or "")
     if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
         fail("notify.slack_webhook_url は https://hooks.slack.com/ で始まる URL にする")
+    # 宛先は IP か、IP Messenger のユーザー名・ホスト名・ニックネーム(送るときにブロードキャストで探す)
     ipmsg_to = [str(a) for a in (notify.get("ipmsg_to") or [])]
     for a in ipmsg_to:
+        if not re.fullmatch(r"[^\s:]+", a):
+            fail(f"notify.ipmsg_to の {a} は空白と : を含まない名前か IP にする")
+    ipmsg_broadcast = [str(a) for a in (notify.get("ipmsg_broadcast") or [])]
+    for a in ipmsg_broadcast:
         try:
             ipaddress.ip_address(a)
         except ValueError:
-            fail(f"notify.ipmsg_to の {a} が IP アドレスとして読めない")
+            fail(f"notify.ipmsg_broadcast の {a} が IP アドレスとして読めない")
 
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
@@ -159,8 +167,10 @@ def main():
         f"AH_EDITORS={shlex.quote(' '.join(editors))}",
         f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
         f"AH_AGENTS={shlex.quote(' '.join(agents))}",
+        f"AH_DESKTOP_COLOR={shlex.quote(desktop_color)}",
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
         f"AH_IPMSG_TO={shlex.quote(' '.join(ipmsg_to))}",
+        f"AH_IPMSG_BROADCAST={shlex.quote(' '.join(ipmsg_broadcast))}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
