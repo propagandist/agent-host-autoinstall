@@ -24,6 +24,9 @@
 
 - RDP の画面の符号化を GPU に任せる(37-gpu.sh): Intel は VA-API の full 版(intel-media-va-driver-non-free)、Vulkan のドライバー、vainfo。NVIDIA は autoinstall の drivers でプロプライエタリ ドライバーをインストールの中で入れる。just verify に「GPU」の確認
 
+### 修正
+- 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
+
 ### 変更
 - リリースのワークフローの actions/checkout を v5 にした(Node.js 20 の廃止の警告への対応)
 - Intel の VA-API を free 版から full 版にした(36-minimize.sh から 37-gpu.sh に移した)。動いているホストは just update で入れ替わる。NVIDIA の GPU があるホストでドライバーが無ければ、構成の記録に注意が出る(sudo ubuntu-drivers install のあとに再起動)

@@ -207,6 +207,12 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - NVIDIA は、autoinstall の `drivers: install: true` で、インストールの中で ubuntu-drivers が推奨のドライバーを入れる(初回の起動からそのドライバーで動く。構成の途中で再起動しなくてよい)。Intel・AMD・VM では何も入らないはず。NVIDIA の実機と Secure Boot のときの動作は未確認
 - VirtualBox の VM の GPU(vmsvga、vendor 0x15ad)では符号化できないので、just verify は「対象外」と出す
 
+### just vm-test で見つかったこと(2026-10-24)
+
+- 初回の起動では、起動画面(plymouth)が構成のあいだ(約 23 分)出たままで CPU を 1 分 20 秒使い、GDM の起動のときに SEGV で落ちて plymouth-start.service が failed で残った。構成サービスの最初に `plymouth quit` し、GRUB の `GRUB_CMDLINE_LINUX_DEFAULT` を `quiet` にした(splash を外す)
+- 初回の起動のカーネル引数は、インストーラーが書いたもの(crashkernel あり)のまま。kdump を消して update-grub しても、再起動するまで /proc/cmdline には残る。just verify は GRUB の設定(grub.cfg)で確かめ、動いているカーネルに残っているときは「再起動で反映」と出すだけにした
+- 入れなおしから RDP の待ち受けまで人手なし、強制的な電源断のあと、gnome-shell の SEGV のあと、のいずれも、verify(106 項目)と verify-rdp が通った(VirtualBox 7.2、CPU 1、メモリ 4GB)
+
 ### UPS(2026-10-24 追加)
 
 - Ubuntu 26.04 の NUT は 2.8.4(nut-server・nut-client)。`/usr/lib/systemd/system-shutdown/nutshutdown` が、終了の最後に `upsmon -K`(POWERDOWNFLAG の `/etc/killpower` があるか)を見て `upsdrvctl shutdown` で UPS の出力を止める。`nut.conf` が `MODE=none` なら何もしない(パッケージのスクリプトで確認)

@@ -148,7 +148,12 @@ check "snapd がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' snapd
 check "snapd を入れない設定" test -f /etc/apt/preferences.d/agent-host-no-snapd.pref
 check "スクリーンリーダー(orca)がない" test ! -e /usr/bin/orca
 check "kdump-tools がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' kdump-tools 2>/dev/null | grep -q '^ii'"
-check "crashkernel を予約していない" bash -c "! grep -q crashkernel= /proc/cmdline"
+check "crashkernel を予約しない(GRUB の設定)" bash -c "! grep -q crashkernel= /boot/grub/grub.cfg"
+check "起動画面(splash)を出さない(GRUB の設定)" bash -c "! grep -E '^[[:space:]]*linux[[:space:]]' /boot/grub/grub.cfg | grep -qw splash"
+if grep -qE 'crashkernel=|(^| )splash( |$)' /proc/cmdline; then
+    # 構成の前のカーネル引数で動いている(入れた直後の初回の起動など)。再起動すると GRUB の設定になる
+    printf '  - 動いているカーネルの引数に crashkernel か splash が残っている(再起動で反映される)\n'
+fi
 for unit in cups.service avahi-daemon.service ModemManager.service bluetooth.service rsyslog.service syslog.socket \
     motd-news.timer fwupd-refresh.timer; do
     state="$(systemctl is-enabled "$unit" 2>/dev/null || true)"

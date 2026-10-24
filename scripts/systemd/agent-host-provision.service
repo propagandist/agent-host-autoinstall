@@ -9,6 +9,9 @@ ConditionPathExists=!/var/lib/agent-host/provisioned
 
 [Service]
 Type=oneshot
+# 起動画面(plymouth)を閉じ、構成の進み具合をコンソールに出す。閉じないと、構成のあいだ(初回は 20 分ほど)CPU を使い続け、
+# GDM が起動するときに異常終了して plymouth-start.service が failed で残った(VirtualBox で確認)
+ExecStartPre=-/usr/bin/plymouth quit
 ExecStart=/opt/agent-host/provision.sh
 RemainAfterExit=yes
 TimeoutStartSec=0
