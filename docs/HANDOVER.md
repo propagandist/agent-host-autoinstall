@@ -119,6 +119,22 @@
 - IP Messenger への通知は、VM(NAT)から Windows の IP Messenger(v5 系)に UTF-8・暗号化なし・NOADDLISTOPT で届き、日本語も文字化けしなかった(2026-10-24 確認済み)
 - 未確認: Slack への実際の送信、プロキシの下での動作、Remote Control
 
+### 最小化・最適化・使い勝手・移行(2026-10-24、VirtualBox で確認)
+- 動いているシステムのサービスは 34 → 23、外から待ち受けるのは 22 と 3389 だけになった。agent の常駐から evolution、localsearch、Xwayland などが消えた
+- kdump は `crashkernel=…,4G-32G:512M,32G-64G:1024M` で予約していた。消すと VM で約 500MB、32GB の機種では約 1GB 空く
+- 電源のプロファイル performance は VM になく(power-saver / balanced だけ)、警告を出して進む。実機で確かめる
+- rootless Docker は既定では gvisor-tap-vsock で中継していた。passt を入れて `DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta` にし、コンテナから外を取得できた
+- linger で agent の systemd が構成の途中(65)から動くため、そのあとに置いた environment.d を読まない。80-agent-session.sh で、agent がログインしていなければ user@ を再起動する(新規インストールのとき)
+- Clipboard Indicator は `gnome-extensions enable` だと、Shell が拡張機能を知らないとき(構成の途中で置いたとき)に失敗する。`org.gnome.shell enabled-extensions` に足す形で有効になった
+- VS Code のデスクトップファイルは `com.microsoft.VSCode.desktop`。Ctrl+Alt+T は `xdg-terminal-exec`(既定は Ptyxis)と `org.gnome.desktop.default-applications.terminal` を見る
+- IP Messenger: VM(NAT)からホストの IP Messenger に BR_ENTRY を送ると ANSENTRY が返り、名前(ユーザー名・ホスト名・ニックネーム)で探して送れた。NAT はブロードキャストを外に出さないので、VM では `ipmsg_broadcast` にホストの IP を入れて試した。実機の LAN では既定の 255.255.255.255 で探す(未確認)
+- 移行: 書き出し → 消す → 取り込みで、~/work と ~/.codex の中身が戻った(node_modules は除かれる)。sysadmin の sudo はパスワードが要り、標準入力を受け渡しに使うので、パスワードを標準入力の先頭の 1 行で `sudo -S` に渡す
+- 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。作業者が RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
+- Caps Lock: RDP(mstsc)で手元とホストの状態がずれた。原因は未調査(gnome-remote-desktop 50 にはロックキーの同期の修正が入っている。IBus が先に受け取っている可能性)。caps:none で使わないことにした
+- mstsc の色 32 ビットは遅いという報告(gnome-remote-desktop #333、同じ 26.04)があるので、.rdp のひな形は 24 ビットにした
+- RDP の extend モード(仮想の画面を足し、大きさを手元に合わせる)は、VirtualBox(GPU なし)で仮想の画面を足した直後に GNOME Shell が signal 11 で異常終了した。採用せず mirror-primary のまま。実機での動作は未確認
+- GNOME のセッションが落ちると、自動ログインは起動時の 1 回だけなのでログイン画面のままになり、再起動まで RDP に戻れない。TimedLogin は agent がログイン画面の一覧に出ないので効かなかった。見張りのタイマー(agent-host-session-watchdog、1 分ごと、2 回続けて seat0 にログインのセッションがなければ GDM を再起動)を置き、GNOME Shell をわざと落として約 1 分 20 秒で戻ることを確かめた
+
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)
 

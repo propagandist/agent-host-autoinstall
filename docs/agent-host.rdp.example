@@ -1,0 +1,19 @@
+full address:s:HOST.example.internal:3389
+username:s:agent
+screen mode id:i:1
+desktopwidth:i:1920
+desktopheight:i:1080
+dynamic resolution:i:1
+smart sizing:i:1
+session bpp:i:24
+keyboardhook:i:1
+redirectclipboard:i:1
+audiomode:i:2
+connection type:i:6
+networkautodetect:i:0
+bandwidthautodetect:i:1
+compression:i:1
+allow font smoothing:i:1
+autoreconnection enabled:i:1
+authentication level:i:2
+prompt for credentials:i:0

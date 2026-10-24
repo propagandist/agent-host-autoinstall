@@ -33,6 +33,54 @@ gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout'), ('ib
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source "['<Super>space', '<Control>space']"
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward "['<Shift><Super>space', '<Shift><Control>space']"
 
+# --- RDP での使い勝手 ---
+# アニメーションを切り、壁紙を単色にする(RDP は画面の変化を送るので、動きと模様が少ないほど軽い)。
+# 壁紙の色は env.yaml の desktop_color(76-desktop.sh が desktop.env に渡す)
+gsettings set org.gnome.desktop.interface enable-animations false
+desktop_color="#4a4a4a"
+if [ -f "$state_dir/desktop.env" ]; then
+    # shellcheck source=/dev/null
+    . "$state_dir/desktop.env"
+    desktop_color="${DESKTOP_COLOR:-$desktop_color}"
+fi
+gsettings set org.gnome.desktop.background picture-options 'none'
+gsettings set org.gnome.desktop.background color-shading-type 'solid'
+gsettings set org.gnome.desktop.background primary-color "$desktop_color"
+# スクリーンショット: PrintScreen は RDP で手元の Windows に取られることがあるので、Ctrl+Shift+Alt+S でも開く
+gsettings set org.gnome.shell.keybindings show-screenshot-ui "['Print', '<Shift><Control><Alt>s']"
+# Dock: Orca・端末・Chrome・入っているエディター・Files に絞る
+favorites=""
+for app in orca-ide xfce4-terminal google-chrome com.microsoft.VSCode dev.zed.Zed org.gnome.Nautilus; do
+    if [ -f "/usr/share/applications/$app.desktop" ]; then
+        favorites+="${favorites:+, }'$app.desktop'"
+    fi
+done
+gsettings set org.gnome.shell favorite-apps "[$favorites]"
+# Ctrl+Alt+T で開く端末を Xfce Terminal に(gsd-media-keys はこの設定と xdg-terminal-exec を見る。
+# xdg-terminal-exec の既定は Ptyxis で、~/.config/xdg-terminals.list は 76-desktop.sh が置く)。
+# 右クリックでクリップボードから貼り付け、選択でコピー(PuTTY や Windows Terminal に近い動き)
+if command -v xfce4-terminal >/dev/null; then
+    gsettings set org.gnome.desktop.default-applications.terminal exec 'xfce4-terminal'
+    xfconf-query -c xfce4-terminal -p /misc-right-click-action -n -t string \
+        -s TERMINAL_RIGHT_CLICK_ACTION_PASTE_CLIPBOARD
+    xfconf-query -c xfce4-terminal -p /misc-copy-on-select -n -t bool -s true
+fi
+# Caps Lock は使わない。RDP では手元とホストで Caps Lock の状態がずれることがあった(VirtualBox + mstsc)。
+# 状態を持たないキーにすれば、ずれようがない。大文字は Shift で打つ
+gsettings set org.gnome.desktop.input-sources xkb-options "['caps:none']"
+# クリップボードの履歴(Clipboard Indicator。76-desktop.sh が入れる)を有効にする。
+# gnome-extensions enable は、GNOME Shell がまだその拡張機能を知らないと失敗する(構成の途中で置いたとき)。
+# 有効にする一覧に直接足せば、Shell が読み込んだときに有効になる(VirtualBox で確認済み)
+ext=clipboard-indicator@tudmotu.com
+enabled="$(gsettings get org.gnome.shell enabled-extensions)"
+if [[ "$enabled" != *"'$ext'"* ]]; then
+    if [[ "$enabled" == "@as []" || "$enabled" == "[]" ]]; then
+        gsettings set org.gnome.shell enabled-extensions "['$ext']"
+    else
+        gsettings set org.gnome.shell enabled-extensions "${enabled%]}, '$ext']"
+    fi
+fi
+
 # --- デスクトップ共有(RDP) ---
 # TLS 証明書は grdctl もデーモンも作らないので自分で作る(置き場所は upstream の docs/configuration.md の慣例)
 cert_dir="$HOME/.local/share/gnome-remote-desktop"

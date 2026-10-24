@@ -24,21 +24,10 @@ done
 
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
+
+# 1〜2. env.yaml から autoinstall.yaml と env.sh などを作り、/opt/agent-host に置くものをそろえる
+"$repo/scripts/stage.sh" "$env_yaml" "$work"
 stage="$work/agent-host"
-mkdir -p "$stage"
-
-# 1. autoinstall.yaml と env.sh を生成する
-python3 "$repo/scripts/render-autoinstall.py" \
-    "$repo/autoinstall/autoinstall.yaml" "$env_yaml" "$work/render"
-cp "$work/render/env.sh" "$work/render/agent_authorized_keys" "$stage/"
-cp -a "$work/render/ca" "$stage/ca"
-
-# 2. ターゲットの /opt/agent-host に置くスクリプトをそろえる
-cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" \
-    "$repo/scripts/lib" "$repo/scripts/post-install" "$repo/scripts/first-login" \
-    "$repo/scripts/systemd" "$repo/scripts/notify" "$stage/"
-find "$stage" -name '*.sh' -exec chmod 755 {} +
-chmod 600 "$stage/env.sh"
 
 # 3. grub.cfg の linux 行に autoinstall を足す(確認画面を出さないため)
 # 26.04.1 Desktop ISO の grub.cfg は「linux /casper/vmlinuz ... --- quiet splash」の形(確認済み)
@@ -53,7 +42,7 @@ grep -Eq '^\s*linux\s.*\sautoinstall(\s|$)' "$work/grub.cfg" || {
 # 4. 元の ISO のブート構成を保ったまま、ファイルを足して書き出す
 rm -f "$out_iso"
 xorriso -indev "$src_iso" -outdev "$out_iso" \
-    -map "$work/render/autoinstall.yaml" /autoinstall.yaml \
+    -map "$work/autoinstall.yaml" /autoinstall.yaml \
     -map "$stage" /agent-host \
     -map "$work/grub.cfg" /boot/grub/grub.cfg \
     -boot_image any replay

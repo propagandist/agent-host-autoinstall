@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# 環境を入れ替えるときに移すもの(ホストの身元、ログインと設定、作業中のもの)を tar にまとめて標準出力に書く。
+# ホストには保存しない。使い方(手元の PC で。sudo のパスワードを標準入力の先頭の 1 行で渡す):
+#   read -rsp "sysadmin のパスワード: " PW; echo
+#   printf '%s\n' "$PW" | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
+# 取り込みは agent-host-restore。書き出しにはログインの情報が入るので、暗号化された場所に置き、取り込んだら消す。
+# 作りなおせるもの(ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイル)は含めない。
+set -euo pipefail
+# shellcheck source=../lib/common.sh
+. /opt/agent-host/lib/common.sh
+
+[ "$(id -u)" -eq 0 ] || { echo "root で実行する(sudo agent-host-backup)" >&2; exit 2; }
+[ -t 1 ] && { echo "標準出力をファイルに向ける: ssh ... 'sudo agent-host-backup' > backup.tar.zst" >&2; exit 2; }
+
+# --- 移すもの(/ からの相対パス。ないものは飛ばす) ---
+home="${AGENT_HOME#/}"
+paths=(
+    # ホストの身元: SSH のホスト鍵(変わると接続する全員に警告が出る)
+    etc/ssh/ssh_host_ecdsa_key etc/ssh/ssh_host_ecdsa_key.pub
+    etc/ssh/ssh_host_ed25519_key etc/ssh/ssh_host_ed25519_key.pub
+    etc/ssh/ssh_host_rsa_key etc/ssh/ssh_host_rsa_key.pub
+    # ホストの身元: RDP の TLS 証明書(変わると RDP の証明書の警告が出る)
+    "$home/.local/share/gnome-remote-desktop"
+    # ログインキーリング(RDP の認証情報や、アプリが保存したログイン)
+    "$home/.local/share/keyrings"
+    # エージェントのログインと設定
+    "$home/.claude" "$home/.claude.json" "$home/.codex" "$home/.copilot" "$home/.gemini"
+    "$home/.config/opencode" "$home/.local/share/opencode"
+    "$home/.config/gh" "$home/.docker/config.json" "$home/.ssh" "$home/.gitconfig"
+    # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
+    "$home/.config/orca" "$home/.orca"
+    "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
+    "$home/.bash_history"
+    # 作業中のもの(push していない変更を含む。Orca の worktree もこの下)
+    "$home/work"
+)
+# 作りなおせるもの・キャッシュは除く
+excludes=(
+    node_modules .venv venv __pycache__ .next .turbo .cache dist target
+    Cache "Code Cache" GPUCache DawnGraphiteCache DawnWebGPUCache Crashpad "Shared Dictionary"
+)
+
+existing=()
+for p in "${paths[@]}"; do
+    [ -e "/$p" ] && existing+=("$p")
+done
+
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+{
+    echo "# agent-host-backup の記録"
+    echo "hostname=$(hostname)"
+    echo "date=$(date -Is)"
+    echo "agent_uid=$(id -u "$AGENT_USER")"
+    for pkg in claude-code orca-ide docker-ce code gh google-chrome-stable; do
+        echo "pkg.$pkg=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo none)"
+    done
+    echo "node=$(node --version 2>/dev/null || echo none)"
+    echo "codex=$(codex --version 2>/dev/null || echo none)"
+    printf 'path=%s\n' "${existing[@]}"
+} >"$work/agent-host-manifest.txt"
+
+exclude_args=()
+for e in "${excludes[@]}"; do
+    exclude_args+=("--exclude=$e")
+done
+echo "[agent-host] 書き出す: ${#existing[@]} か所(ホスト $(hostname))" >&2
+# Orca などが使っているソケットは tar が飛ばす(移す必要もない)ので、その警告は出さない
+tar --zstd --warning=no-file-ignored -cf - -C "$work" agent-host-manifest.txt -C / "${exclude_args[@]}" "${existing[@]}"
+echo "[agent-host] 書き出しが終わった" >&2

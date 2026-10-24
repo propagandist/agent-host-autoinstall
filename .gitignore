@@ -3,3 +3,6 @@ autoinstall/env.yaml
 
 # ISO のダウンロード先と build-usb.sh の出力(秘密情報を含む)
 build/
+
+# Python のキャッシュ(試験で agent-notify を読み込むとできる)
+__pycache__/

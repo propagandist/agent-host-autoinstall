@@ -5,7 +5,7 @@ SPEC.md §7 の手順。まず仮想マシン(KVM/QEMU、Windows では VirtualB
 | # | 確認すること | 手順 | 合格の条件 | 結果 |
 |---|---|---|---|---|
 | 1 | 無人でインストールできる | USB(VM なら ISO)から起動して待つ | 確認画面なしでインストールが終わり、再起動し、agent で自動ログインする | OK(VirtualBox、2026-10-23。約 47 分) |
-| 2 | 手作業を終えられる | docs/manual-steps.md の 5〜9 を行う | 各ログインが終わる | OK(VirtualBox + RDP、2026-10-24。Claude Code はブラウザ(Chrome)で、Codex はデバイスコード認証で。キーリングは自動で開いたままなので 3・4 は不要だった) |
+| 2 | 手作業を終えられる | docs/manual-steps.md の 6〜11 を行う | 各ログインが終わる | OK(VirtualBox + RDP、2026-10-24。Claude Code はブラウザ(Chrome)で、Codex はデバイスコード認証で。キーリングは自動で開いたままなので 3・4 は不要だった) |
 | 3 | 停電から自動で復帰する | 電源ケーブルを抜き、挿し直す(VM なら強制停止 → 起動) | 何もしなくても起動し、agent で自動ログインする | OK(VirtualBox の強制電源オフ → 起動、2026-10-23。BIOS の設定は実機で確認) |
 | 4 | 再起動後、何もせずに RDP がつながる | 3 のあと何も操作せず、手元の PC から `<ホスト>:3389` に RDP 接続する | env.yaml の `rdp` の認証情報で入れ、Orca が起動済みの画面が出る。Ctrl+Space で日本語入力(Mozc)に切り替えて日本語を打て、英字のときに記号(`@` `"` `:` など)がキーの刻印どおりに出る | OK(VirtualBox、2026-10-23 に再起動・強制電源オフ後の FreeRDP の NLA 認証、2026-10-24 に mstsc + 101 キーボードで画面・日本語入力・記号・Chrome を確認) |
 | 5 | エージェントが動く | Orca から Claude Code と Codex で、それぞれ簡単なタスクを 1 本ずつ実行する | 両方とも最後まで終わる | OK(VirtualBox + RDP、2026-10-24。Claude が README.md、Codex が hello.py を作った) |
@@ -46,5 +46,11 @@ sudo ss -tlnp | grep 33
 | 開発の道具 | RDP の端末で `mise --version; uv --version; pnpm --version; ccmanager --version; ulimit -n` | それぞれ動く。ulimit -n は 65536 |
 | エージェントへの説明 | `sudo cat /home/agent/.claude/CLAUDE.md` | 「このホストについて」が置かれている |
 | Orca のテレメトリ | RDP の端末で `echo $ORCA_TELEMETRY_DISABLED` | 1 |
+| サービスの最小化 | `systemctl list-units --type=service --state=running` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない |
+| メモリ | `swapon --show; cat /proc/cmdline` | zram がある。crashkernel がない |
+| Docker の通信 | RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 取得できる(pasta) |
+| ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |
+| セッションの見張り | `sudo pkill -SEGV -u agent -x gnome-shell` のあと 3 分待つ | agent のセッションと RDP が戻り、「セッションを復旧した」が通知される |
+| 移行 | 書き出し → 消す → 取り込み(docs/manual-steps.md の 16。just backup → 消す → just restore) | ログインと ~/work が戻る |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |
 | agent に sudo がない | `id agent` | sudo グループに入っていない |

@@ -181,6 +181,22 @@ done
 runuser -u "$AGENT_USER" -- mkdir -p "$AGENT_HOME/work"
 log "mise の有効化と、エージェントへのホストの説明を置いた"
 
+# --- environment.d を読み直させる ---
+# 65-docker.sh の linger で agent の systemd(ユーザー)はもう動いていて、そのあとに置いた environment.d
+# (Orca・Docker・mise など)を読んでいない。GNOME のセッションはこの systemd をそのまま使うので、
+# agent がまだログインしていなければ再起動して読み直させる(rootless Docker も一緒に再起動する)。
+# ログイン中(構成を手で再実行したとき)は止めない。次のログインで反映される
+agent_uid="$(id -u "$AGENT_USER")"
+if systemctl is-active --quiet "user@$agent_uid.service"; then
+    # linger のための manager のセッションは除き、ログインのセッション(CLASS が user)だけを見る
+    if loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
+        log "注意: $AGENT_USER がログイン中なので、environment.d の変更は次のログインで反映される"
+    else
+        systemctl restart "user@$agent_uid.service"
+        log "$AGENT_USER の systemd(ユーザー)を再起動して environment.d を読み直させた"
+    fi
+fi
+
 # --- first-login ---
 if [ ! -f "$done_mark" ]; then
     # RDP の認証情報を first-login に渡す(first-login がキーリングへ移したあと消す)
