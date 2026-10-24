@@ -107,6 +107,20 @@ def main():
     for k in agent_keys:
         if "CHANGE_ME" in str(k):
             fail("agent_ssh_authorized_keys に CHANGE_ME が残っている")
+    agents = env.get("agents") or []
+    for a in agents:
+        if a not in ("opencode", "copilot", "antigravity"):
+            fail(f"agents の {a} は使えない(opencode, copilot, antigravity)")
+    notify = env.get("notify") or {}
+    slack_url = str(notify.get("slack_webhook_url") or "")
+    if slack_url and not slack_url.startswith("https://hooks.slack.com/"):
+        fail("notify.slack_webhook_url は https://hooks.slack.com/ で始まる URL にする")
+    ipmsg_to = [str(a) for a in (notify.get("ipmsg_to") or [])]
+    for a in ipmsg_to:
+        try:
+            ipaddress.ip_address(a)
+        except ValueError:
+            fail(f"notify.ipmsg_to の {a} が IP アドレスとして読めない")
 
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
@@ -144,6 +158,9 @@ def main():
         f"AH_NO_PROXY={shlex.quote(no_proxy)}",
         f"AH_EDITORS={shlex.quote(' '.join(editors))}",
         f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
+        f"AH_AGENTS={shlex.quote(' '.join(agents))}",
+        f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
+        f"AH_IPMSG_TO={shlex.quote(' '.join(ipmsg_to))}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")

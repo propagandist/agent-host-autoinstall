@@ -66,17 +66,7 @@ log "Node.js $("$node_dir/bin/node" --version) を使う"
 # pnpm / yarn(Node.js 同梱の corepack。プロジェクトの packageManager の版を使う)
 "$node_dir/bin/corepack" enable --install-directory /usr/local/bin
 
-# --- npm で入れる CLI(版を固定) ---
-npm_global() {
-    local pkg="$1" version="$2" bin="$3" current
-    current="$("$node_dir/bin/npm" ls -g --depth=0 --json "$pkg" 2>/dev/null |
-        python3 -c 'import json,sys; print(json.load(sys.stdin).get("dependencies",{}).get(sys.argv[1],{}).get("version",""))' "$pkg" || true)"
-    if [ "$current" != "$version" ]; then
-        "$node_dir/bin/npm" install -g "$pkg@$version"
-    fi
-    ln -sfn "$node_dir/bin/$bin" "/usr/local/bin/$bin"
-    log "$pkg $version を入れた"
-}
+# --- npm で入れる CLI(版を固定。npm_global は lib/common.sh) ---
 npm_global @openai/codex "$CODEX_VERSION" codex
 npm_global ccmanager "$CCMANAGER_VERSION" ccmanager
 
