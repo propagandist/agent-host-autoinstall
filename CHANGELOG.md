@@ -2,7 +2,7 @@
 
 版は [Semantic Versioning](https://semver.org/lang/ja/) で付ける。
 パッチは固定したバージョンの更新と修正、マイナーは機能や env.yaml の項目の追加、
-メジャーは env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない変更)。
+メジャーは env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない変更)。0.x のあいだは、互換性がなくなる変更もマイナーを上げる。
 リリースは VM での受け入れテストが通ったら出す(実機での確認は必須にしない)。実機で問題が出たら hotfix(パッチの版)で直す。しばらく運用して問題がないと判断するまでは 0.x とする。手順は [docs/release.md](docs/release.md)。
 
 各版の「env.yaml の変更」には、構成リポジトリ(docs/fleet.md)で道具の版を上げるときに、各ホストの env.yaml で直すことを書く
