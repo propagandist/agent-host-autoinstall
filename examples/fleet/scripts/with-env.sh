@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# common.yaml と hosts/<ホスト>.yaml を復号して build/.dec/<ホスト>/ に置き、<コマンド> の後ろにその 2 つのパスを足して
-# 実行する。終わったら(失敗しても)復号したファイルを消す。SOPS で暗号化していないファイルはそのまま写す。
+# common.yaml と hosts/<ホスト>.yaml を復号して、この実行だけのディレクトリ build/.dec/<ホスト>.XXXXXX/ に置き、
+# <コマンド> の後ろにその 2 つのパスを足して実行する。終わったら(失敗しても)そのディレクトリを消す。
+# SOPS で暗号化していないファイルはそのまま写す。実行ごとに分けるので、同じホストへの check・iso・update が
+# 重なっても、先に動いているほうの入力を消さない(Issue #9)。
 #
 # 使い方: scripts/with-env.sh <ホスト> <コマンド> [引数...]
 #   例: scripts/with-env.sh agent-host-01 just -f tool/justfile check-env
@@ -11,9 +13,8 @@ host="$1"
 shift
 [ -f "hosts/$host.yaml" ] || { echo "hosts/$host.yaml がない" >&2; exit 1; }
 
-dec="build/.dec/$host"
-rm -rf "$dec"
-mkdir -p "$dec"
+mkdir -p build/.dec
+dec="$(mktemp -d "build/.dec/$host.XXXXXX")"
 chmod 700 "$dec"
 trap 'rm -rf "$dec"' EXIT
 
