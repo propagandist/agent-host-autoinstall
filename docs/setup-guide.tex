@@ -145,7 +145,8 @@
   \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
   \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
     \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
-      inner xsep=5pt,inner ysep=3pt] (chip) at (prev) {\t};
+      inner xsep=5pt,inner ysep=3pt,text height=0.9em,text depth=0.3em] (chip) at (prev) {\t};
+    % 文字の高さと深さを固定して、日本語やかっこがあっても枠の高さをそろえる
     \coordinate (prev) at ([xshift=2mm]chip.east);
   }
   \draw[covercyan!50,line width=0.4pt] ([xshift=2.2cm,yshift=3.2cm]current page.south west)
