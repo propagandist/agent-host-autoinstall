@@ -224,6 +224,22 @@ rdp:
 \section{インストール用の USB を作る}\label{sec:build}
 %======================================================================
 
+\subsection{just で行う場合}
+手元の PC に just があれば、この節の作業は次のコマンドで済む。Linux の道具(xorriso、shellcheck など)が
+手元になければ、Docker の Ubuntu 26.04 の中で動く(Windows は Git Bash と Docker Desktop)。
+
+\begin{cmd}
+just check-env          # env.yaml を検査する
+just fetch-iso          # Ubuntu の ISO を build/ に取得して照合する
+just iso                # build/agent-host.iso を作る
+just rdp <ホスト>       # RDP の接続ファイルを build/<ホスト>.rdp に作る
+\end{cmd}
+
+インストール後のホストの扱いも just にある。\code{just status}(状態)、\code{just logs}(記録)、
+\code{just update}(スクリプトや env.yaml の変更を反映して構成を再実行。OS は入れなおさない)、
+\code{just backup} / \code{just restore}(移行)。SSH のオプションは環境変数 \code{AGENT_HOST_SSH_OPTS} で足せる。
+\code{just update} は env.yaml のホスト名と、つないだホストの名前が違うと止まる。
+
 \subsection{Ubuntu の ISO を取得する}
 \url{https://releases.ubuntu.com/26.04/} から \code{ubuntu-26.04.1-desktop-amd64.iso} を取得し、
 同じ場所の \code{SHA256SUMS} で照合する。リポジトリの \code{build/} に置くとよい(\code{.gitignore} の対象)。

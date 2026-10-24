@@ -27,10 +27,20 @@ USBメモリ1本から同じ構成を再現でき、再起動・停電復帰後�
 
 ## 使い方
 
-1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
-2. Linux か WSL で `scripts/build-usb.sh <Ubuntu Desktop 26.04 の ISO> <出力ISO>` を実行する
-3. 出力 ISO を USB メモリに書き込み、対象の PC をそこから起動する
-4. 残りの手作業は [docs/manual-steps.md](docs/manual-steps.md) に沿って行う
+手元の PC での作業は [just](https://just.systems/) にまとめてある(Windows は Git Bash と Docker Desktop で動く)。`just` で一覧が出る。
+
+```
+cp autoinstall/env.example.yaml autoinstall/env.yaml   # 実値を入れる
+just check-env          # env.yaml を検査する
+just fetch-iso          # Ubuntu の ISO を取得して照合する
+just iso                # build/agent-host.iso を作る → Rufus(DD イメージ)で USB に書き込む
+just rdp <ホスト>       # RDP の接続ファイルを作る
+just status <ホスト>    # 状態を見る
+just update <ホスト>    # スクリプトや env.yaml の変更を反映する(OS は入れなおさない)
+just backup <ホスト>    # 移行の書き出し / just restore <ホスト> <ファイル> で取り込み
+```
+
+手作業の手順は [docs/manual-steps.md](docs/manual-steps.md)、詳しくは [docs/setup-guide.tex](docs/setup-guide.tex)(`just guide` で PDF)。
 
 ## ブランチ運用
 

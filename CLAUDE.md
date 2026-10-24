@@ -10,6 +10,7 @@
 
 ```
 README.md                   # 概要と文書の案内
+justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行)。just で一覧
 autoinstall/
   autoinstall.yaml          # 本体(環境固有値はプレースホルダ)
   env.example.yaml          # 環境固有値のサンプル(コミットする)
@@ -17,6 +18,8 @@ autoinstall/
 build/                      # ISO のダウンロード先と build-usb.sh の出力(.gitignore 対象)
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
+  stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、host.sh: ホストの操作)
   render-autoinstall.py     # build-usb.sh から呼ぶ。autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)

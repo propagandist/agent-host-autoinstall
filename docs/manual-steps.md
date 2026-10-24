@@ -4,6 +4,8 @@ autoinstall とスクリプトで自動化できない作業と、自動化が�
 
 ## 0. インストール用 USB を作る(作業用の PC で)
 
+`just` が入っていれば、`just check-env` → `just fetch-iso` → `just iso` で済む(Windows は Git Bash と Docker Desktop)。以下は just を使わない場合の手順。
+
 Linux か WSL で行う。xorriso と python3-yaml が要る。
 
 1. `autoinstall/env.example.yaml` を `autoinstall/env.yaml` にコピーし、実値を入れる
