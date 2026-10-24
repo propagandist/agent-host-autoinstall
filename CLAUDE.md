@@ -43,6 +43,7 @@ scripts/
 docs/
   SPEC.md                   # 仕様
   HANDOVER.md               # 経緯と次の作業
+  setup-guide.tex           # 詳細な設定手順書(LuaLaTeX。PDF は build/setup-guide/ に出す)
   manual-steps.md           # 手作業手順(BIOS、キーリング、デスクトップ共有、各ログイン)
   acceptance-test.md        # 受け入れテスト手順
 ```
@@ -59,6 +60,7 @@ docs/
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと HANDOVER.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語
+- **手順書を合わせる。** 構成・手順・固定するバージョンを変えたら、docs/manual-steps.md と docs/setup-guide.tex も直す
 
 ## ブランチ運用
 
