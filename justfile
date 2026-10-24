@@ -41,7 +41,7 @@ guide:
 release-check:
     case "$(git branch --show-current)" in release/*|hotfix/*) ;; *) echo "release/<版> か hotfix/<版> のブランチで実行する" >&2; exit 1 ;; esac
     git diff --quiet && git diff --cached --quiet || { echo "コミットしていない変更がある" >&2; exit 1; }
-    v="$(git branch --show-current)"; v="${v#*/}"; grep -q "^## \[$v\]" CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] の節がない" >&2; exit 1; }
+    v="$(git branch --show-current)"; v="${v#*/}"; grep -q "^## \[$v\] - .* — ." CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] - <日付> — <位置づけ> の見出しがない" >&2; exit 1; }
     just lint
     just guide
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
