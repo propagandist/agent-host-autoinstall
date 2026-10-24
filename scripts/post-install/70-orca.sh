@@ -4,7 +4,7 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # SHA256 は GitHub API のアセットの digest(公式の SHA256SUMS ファイルはない)
 ORCA_VERSION=1.4.237
 ORCA_SHA256=296ffd14345612be70ca09e9ab40f7ffbb7f842fb5794e1e6c1ebc324360cb5c

@@ -6,7 +6,7 @@ set -euo pipefail
 ah_root=/opt/agent-host
 export DEBIAN_FRONTEND=noninteractive
 
-# 社内のプロキシ(env.yaml の proxy)を、以降の apt・curl・npm に効かせる
+# HTTP プロキシ(env.yaml の proxy)を、以降の apt・curl・npm に効かせる
 # shellcheck source=/dev/null
 . "$ah_root/env.sh"
 if [ -n "${AH_PROXY_URL:-}" ]; then

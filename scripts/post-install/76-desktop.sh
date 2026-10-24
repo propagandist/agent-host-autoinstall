@@ -6,7 +6,7 @@ set -euo pipefail
 . "$(dirname "$0")/../lib/common.sh"
 load_env
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # Clipboard Indicator: extensions.gnome.org の GNOME 50 向けの版。SHA256 は取得したファイルから計算した値
 CLIPBOARD_INDICATOR_UUID=clipboard-indicator@tudmotu.com
 CLIPBOARD_INDICATOR_VERSION_TAG=70694   # 拡張機能の版 71

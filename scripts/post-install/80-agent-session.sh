@@ -136,7 +136,7 @@ if compgen -G "/usr/local/share/ca-certificates/agent-host/*.crt" >/dev/null; th
     for crt in /usr/local/share/ca-certificates/agent-host/*.crt; do
         runuser -u "$AGENT_USER" -- certutil -A -d "sql:$nssdb" -t "C,," -n "$(basename "$crt" .crt)" -i "$crt"
     done
-    log "agent の Chrome に社内の CA 証明書を登録した"
+    log "agent の Chrome に独自の CA 証明書を登録した"
 fi
 
 # --- mise(プロジェクトごとの言語のバージョン) ---
@@ -178,13 +178,12 @@ agent-host-autoinstall が置いた説明。環境の事実だけを書いてい
 - データベースなどのサービスは rootless Docker(`docker compose`)で動かす。1024 未満のポートは待ち受けできない
 - 入っている主な道具: git、gh、tea、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
 - GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
-- Gitea の Issue・PR などの操作は tea を使う(`tea login list` で確かめる)。Gitea への HTTPS の push は tea のログインの認証を使う
 - Terraform・OpenTofu・kubectl・Helm などは入れていない。プロジェクトに合う版を mise で入れる(例: `mise use terraform@1.13`)
 - 作業は ~/work の下で行う
 EOF
 )"
 if [ -n "${AH_GITEA_URL:-}" ]; then
-    agent_notes="$agent_notes"$'\n'"- 社内の Gitea: $AH_GITEA_URL"
+    agent_notes="$agent_notes"$'\n'"- Gitea($AH_GITEA_URL)の Issue・PR などの操作は tea を使う(\`tea login list\` で確かめる)。Gitea への HTTPS の push は tea のログインの認証を使う"
 fi
 if [ -n "${AH_CLOUDS:-}" ]; then
     clouds_cmds=""

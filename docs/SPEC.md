@@ -1,6 +1,6 @@
 # agent-host-autoinstall — SPEC
 
-社内のオンプレPCを、AIコーディングエージェント(Claude Code / Codex)を Orca(ADE)で並列稼働させる「常時稼働エージェントホスト」として自動構成するための仕様。
+手元に置く物理 PC を、AIコーディングエージェント(Claude Code / Codex)を Orca(ADE)で並列稼働させる「常時稼働エージェントホスト」として自動構成するための仕様。
 
 ## 1. 目的
 
@@ -13,9 +13,10 @@
 | 項目 | 内容 |
 |---|---|
 | OS | Ubuntu Desktop 26.04 LTS(Wayland のみ。xrdp は使えないため不採用) |
+| 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc(autoinstall.yaml と first-login で固定) |
 | ハードウェア | x86_64 の物理PC。メモリ 32GB 以上、NVMe SSD 推奨 |
 | 画面 | 物理モニターなし運用。HDMI ダミープラグを挿す |
-| ネットワーク | 社内LAN。固定IP(または DHCP 予約) |
+| ネットワーク | LAN。固定IP(または DHCP 予約) |
 | 遠隔操作 | GNOME 標準リモートデスクトップの「デスクトップ共有」(RDP) |
 | 管理操作 | SSH(鍵認証のみ) |
 
@@ -27,7 +28,7 @@
   → GNOME 起動(ログインキーリングは空パスワードなので自動で開く)
   → デスクトップ共有(RDP :3389)が待ち受け開始
   → Orca が autostart で起動
-社内LANの RDP クライアント → :3389 → agent のデスクトップを操作
+LAN の RDP クライアント → :3389 → agent のデスクトップを操作
 管理者 → SSH → sysadmin ユーザー
 ```
 
@@ -68,8 +69,8 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - 時刻同期:chrony。env.yaml の `ntp_servers` を同期先に足す(空なら Ubuntu の既定と DHCP で配られたサーバー)
 - inotify の上限:`max_user_watches=524288`、`max_user_instances=1024`(worktree を並べてファイル監視を動かすため)
 - 開けるファイルの数の既定:65536(EMFILE を避けるため)
-- 社内のプロキシと CA 証明書(env.yaml の `proxy` / `ca_certs`。空なら何もしない):`/etc/environment`、apt、Chrome のポリシー、agent の environment.d と Chrome の証明書データベースに入れる
-- ufw:env.yaml の `dev_ports` を社内LANから開ける(開発サーバーを手元の PC から見るため)
+- HTTP プロキシと独自の CA 証明書(env.yaml の `proxy` / `ca_certs`。空なら何もしない):`/etc/environment`、apt、Chrome のポリシー、agent の environment.d と Chrome の証明書データベースに入れる
+- ufw:env.yaml の `dev_ports` を LAN から開ける(開発サーバーを手元の PC から見るため)
 - `agent` の mise(プロジェクトごとの言語のバージョン。shims を PATH に入れる)と、エージェント向けのホストの説明(`~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。既にあれば上書きしない)
 - エディター:env.yaml の `editors` で vscode / neovim / zed から選ぶ
 - VS Code の表示は日本語にする(Language Pack を入れ、`~/.vscode/argv.json` に `"locale": "ja"` を書く)
@@ -85,7 +86,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - デスクトップ:端末は Xfce Terminal(右クリックで貼り付け、選択でコピー)、Caps Lock は無効(caps:none)、クリップボードの履歴は Clipboard Indicator、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
 - 移行:agent-host-backup / agent-host-restore で、ホストの身元・ログインと設定・~/work を移す(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない)
 - SSH:パスワード認証無効、root ログイン無効
-- ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
+- ufw:SSH(22)と RDP(3389)を LAN だけ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
 - 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`。env.yaml の `gitea_url` を tea のログインの既定の接続先にし、エージェント向けの説明にも載せる)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
@@ -119,7 +120,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 4. 何も操作せず、手元PCから RDP 接続 → Orca 起動済みの画面が出る
 5. Orca から Claude Code / Codex でそれぞれ簡単なタスクを1本ずつ実行できる
 6. RDP 切断 → 10分後に再接続 → タスクが継続している
-7. 社内LAN外(または許可範囲外)から 22 / 3389 に到達できない
+7. LAN の外(または許可範囲外)から 22 / 3389 に到達できない
 8. GNOME のセッションが落ちても、何もしなくてもセッションと RDP が戻る
 
 ## 8. 設計上の決定と理由
@@ -132,17 +133,17 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 | `agent` のキーリングを空パスワードに | 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めないため。`agent` は専用ユーザーで秘密情報を置かない前提で許容 |
 | HDMI ダミープラグ | モニターなしだと描画されない機種がある |
 | ディスク暗号化はオプション | 使うなら TPM 連動の暗号化(パスフレーズなしで無人再起動できる)。パスフレーズ方式は無人復帰と両立しない |
-| 社外からは VPN 経由 | 3389 をインターネットに開けない |
+| LAN の外からは VPN 経由 | 3389 をインターネットに開けない |
 
 ## 9. 未確定事項(実装時に確認)
 
-調べた結果と、まだ確認できていない点は HANDOVER.md「§9 の調査結果」に書く。
+調べた結果と、まだ確認できていない点は notes.md の「調査と検証の記録」と「確認できていないこと」に書く。
 - [済] Ubuntu Desktop 26.04 の autoinstall で、上記要件がすべて表現できるか(Server 版との差分)
 - [VM で済、実機は未] 26.04 で「自動ログイン + 空パスワードキーリング + デスクトップ共有」が再起動後に確実に有効になるか
 - [済] デスクトップ共有の有効化と RDP 認証情報の設定を `grdctl` でスクリプト化できるか
 - [済] Orca .deb の入手 URL とバージョン固定・自動更新停止の方法
 - [済] Claude Code の Linux 上での推奨インストール方法(公式の apt リポジトリ)
-- [未] 社外アクセスの VPN 方式(社内既定の方針に合わせる)
+- [対象外] LAN の外からの接続方式(VPN など)は、使う組織の方針に任せる
 
 ## 10. 対象外
 - Orca / Claude Code / Codex の利用ルールやアカウント管理

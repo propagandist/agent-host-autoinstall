@@ -1,7 +1,7 @@
 # 実機の構成管理(ひな形)
 
 agent-host-autoinstall で作るホストの、実機の構成(ホストごとの env.yaml、台帳、記録)を管理するリポジトリのひな形。
-このディレクトリの中身を、社内の Git(非公開)の新しいリポジトリにコピーして使う。手順は tool/docs/fleet.md。
+このディレクトリの中身を、非公開の Git リポジトリ(自前の Gitea、GitHub の private など)の新しいリポジトリにコピーして使う。手順は tool/docs/fleet.md。
 
 ```
 tool/                  agent-host-autoinstall(submodule。リリースのタグに固定する)

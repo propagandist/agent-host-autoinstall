@@ -5,7 +5,7 @@ set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 
-# --- 固定するバージョン(上げるときはここと HANDOVER.md を直す) ---
+# --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # Node.js: 公式の tar.xz を /opt に展開する(apt を経由しないので勝手に上がらない)
 # v24 は 2026-10-20 に Maintenance LTS。v26 は 2026-10-28 に Active LTS になる予定
 NODE_VERSION=24.22.1
