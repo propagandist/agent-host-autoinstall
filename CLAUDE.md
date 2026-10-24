@@ -23,6 +23,7 @@ scripts/
   systemd/                  # agent-host-provision.service
   lib/common.sh             # post-install の共通関数
   post-install/             # 初回起動時に root で実行するスクリプト(番号順)
+    05-proxy-ca.sh          # 社内のプロキシと CA 証明書
     10-users.sh
     20-autologin.sh
     30-power.sh
@@ -32,6 +33,7 @@ scripts/
     60-devtools.sh
     65-docker.sh            # Docker(固定・hold)と agent 専用の rootless Docker
     70-orca.sh
+    72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、agent の既定のブラウザにする
     80-agent-session.sh     # キーリング、RDP 認証情報の受け渡し、first-login の自動起動
   first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
@@ -50,7 +52,7 @@ docs/
 - **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE の著作権者表示は除く)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
-- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Docker はバージョンを明示する。例外は Google Chrome で、公式リポジトリに最新版しかないため固定せず、unattended-upgrades で自動更新する
+- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Docker、uv、mise、VS Code、Zed はバージョンを明示する。例外は Google Chrome で、公式リポジトリに最新版しかないため固定せず、unattended-upgrades で自動更新する
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと HANDOVER.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語

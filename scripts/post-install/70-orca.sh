@@ -30,3 +30,10 @@ Exec=/opt/Orca/orca-ide
 X-GNOME-Autostart-enabled=true
 EOF
 log "Orca の自動起動を設定した"
+
+# 匿名の利用統計(PostHog)を送らない。既定はオン(Orca の公式文書)。設定画面でもオフにする(docs/manual-steps.md)
+# environment.d は agent の GNOME セッションに入り、autostart の Orca に引き継がれる
+printf 'ORCA_TELEMETRY_DISABLED=1\n' |
+    write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-orca.conf"
+# 更新の確認の通信(1 日 1 回と、30 分ごとの nudge.json)は止める設定がない(v1.4.237 のソースで確認)。
+# .deb 版は自分では更新しないので、出るのは通知だけ

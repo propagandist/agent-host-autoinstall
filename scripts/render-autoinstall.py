@@ -2,10 +2,11 @@
 """env.yaml の値を埋めた autoinstall.yaml と、スクリプト用の env.sh を書き出す。
 
 使い方: render-autoinstall.py <autoinstall.yaml> <env.yaml> <出力ディレクトリ>
-出力: <出力ディレクトリ>/autoinstall.yaml, <出力ディレクトリ>/env.sh
+出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, ca/*.crt
 """
 import ipaddress
 import os
+import re
 import shlex
 import sys
 
@@ -83,6 +84,29 @@ def main():
     git_user_email = require(env, "git_user_email")
     network = render_network(require(env, "network"))
     ntp_servers = env.get("ntp_servers") or []
+    proxy = env.get("proxy") or {}
+    proxy_url = str(proxy.get("url") or "")
+    no_proxy = str(proxy.get("no_proxy") or "localhost,127.0.0.1,::1")
+    ca_certs = env.get("ca_certs") or []
+    editors = env.get("editors") or []
+    agent_keys = env.get("agent_ssh_authorized_keys") or []
+    dev_ports = [str(p) for p in (env.get("dev_ports") or [])]
+
+    if proxy_url and not re.fullmatch(r"https?://\S+", proxy_url):
+        fail("proxy.url は http://host:port の形にする")
+    for i, pem in enumerate(ca_certs):
+        if "-----BEGIN CERTIFICATE-----" not in str(pem):
+            fail(f"ca_certs の {i + 1} 番目が PEM の証明書に見えない")
+    for e in editors:
+        if e not in ("vscode", "neovim", "zed"):
+            fail(f"editors の {e} は使えない(vscode, neovim, zed)")
+    for p in dev_ports:
+        m = re.fullmatch(r"(\d+)(?::(\d+))?", p)
+        if not m or not all(1024 <= int(x) <= 65535 for x in m.groups() if x):
+            fail(f"dev_ports の {p} は 1024〜65535 のポートか範囲(3000:3999)にする")
+    for k in agent_keys:
+        if "CHANGE_ME" in str(k):
+            fail("agent_ssh_authorized_keys に CHANGE_ME が残っている")
 
     if not str(password_hash).startswith("$"):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
@@ -97,6 +121,8 @@ def main():
     ai = doc["autoinstall"]
     ai["keyboard"]["layout"] = str(keyboard_layout)
     ai["network"] = network
+    if proxy_url:
+        ai["proxy"] = proxy_url
     ai["identity"]["hostname"] = str(hostname)
     ai["identity"]["password"] = str(password_hash)
     ai["ssh"]["authorized-keys"] = [str(k) for k in keys]
@@ -114,9 +140,23 @@ def main():
         f"AH_NTP_SERVERS={shlex.quote(' '.join(str(s) for s in ntp_servers))}",
         f"AH_GIT_USER_NAME={shlex.quote(str(git_user_name))}",
         f"AH_GIT_USER_EMAIL={shlex.quote(str(git_user_email))}",
+        f"AH_PROXY_URL={shlex.quote(proxy_url)}",
+        f"AH_NO_PROXY={shlex.quote(no_proxy)}",
+        f"AH_EDITORS={shlex.quote(' '.join(editors))}",
+        f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
+
+    # 公開鍵と CA 証明書は行をまたぐのでファイルで渡す
+    with open(os.path.join(out_dir, "agent_authorized_keys"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("".join(str(k).strip() + "\n" for k in agent_keys))
+    ca_dir = os.path.join(out_dir, "ca")
+    os.makedirs(ca_dir, exist_ok=True)
+    for i, pem in enumerate(ca_certs):
+        path = os.path.join(ca_dir, f"agent-host-{i + 1:02d}.crt")
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(str(pem).strip() + "\n")
 
 
 if __name__ == "__main__":

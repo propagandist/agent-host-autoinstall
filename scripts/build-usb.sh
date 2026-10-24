@@ -30,7 +30,8 @@ mkdir -p "$stage"
 # 1. autoinstall.yaml と env.sh を生成する
 python3 "$repo/scripts/render-autoinstall.py" \
     "$repo/autoinstall/autoinstall.yaml" "$env_yaml" "$work/render"
-cp "$work/render/env.sh" "$stage/env.sh"
+cp "$work/render/env.sh" "$work/render/agent_authorized_keys" "$stage/"
+cp -a "$work/render/ca" "$stage/ca"
 
 # 2. ターゲットの /opt/agent-host に置くスクリプトをそろえる
 cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" \

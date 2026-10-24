@@ -33,6 +33,16 @@ EOF
 sysctl -q -p /etc/sysctl.d/60-agent-host-inotify.conf
 log "inotify の上限を上げた"
 
+# --- 開けるファイルの数 ---
+# systemd の既定(ソフトの上限 1024)だと、テストや開発サーバーが EMFILE(too many open files)で止まることがある。
+# GNOME のアプリ(ユーザーの systemd)と、SSH などの PAM のセッションの両方で上げる。反映は次のログインから
+install -d -m 755 /etc/systemd/user.conf.d /etc/security/limits.d
+printf '# agent-host-autoinstall が置いた設定\n[Manager]\nDefaultLimitNOFILE=65536:524288\n' \
+    >/etc/systemd/user.conf.d/60-agent-host-nofile.conf
+printf '# agent-host-autoinstall が置いた設定\n*    soft    nofile    65536\n' \
+    >/etc/security/limits.d/60-agent-host-nofile.conf
+log "開けるファイルの数の既定を 65536 にした"
+
 # --- クラッシュ報告 ---
 # 何かが落ちると誰も見ていない画面に「問題が検出されました」が出て残るので、apport を止める
 if [ -f /etc/default/apport ]; then

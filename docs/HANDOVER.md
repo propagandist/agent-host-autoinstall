@@ -98,6 +98,14 @@
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 未確認: 26.04 で上の手順が通るか、hello-world が動くか(VirtualBox で入れ直して確かめる)。1024 未満のポートを待ち受けられないなど rootless の制限がある
 
+### 開発環境の追加(2026-10-24)
+- agent に sudo がないので、エージェントが要る道具は構成で入れるか、mise(言語のバージョン)と rootless Docker(サービス)で済ませる。その事実を agent の `~/.claude/CLAUDE.md` と `~/.codex/AGENTS.md` に書いて置く
+- 版を固定して足したもの: uv 0.13.5、mise 2026.10.18(どちらもリリースの tar を SHA256 照合)、CCManager 4.4.9(npm)、VS Code 1.143.1(Microsoft の apt、hold)、Zed 1.25.3(リリースの tar)。apt で足したもの: python3-dev、pkg-config、libssl-dev、fd-find、tree、htop、tmux、sqlite3、shellcheck、zip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd、libnss3-tools、neovim(選んだとき)
+- env.yaml に足した項目: proxy、ca_certs、editors、agent_ssh_authorized_keys(agent は SFTP 専用)、dev_ports
+- Orca: `ORCA_TELEMETRY_DISABLED=1` を agent の environment.d に置く。利用統計と「Update available」の通知は設定画面でもオフにする(手順書)。更新の確認の通信(1 日 1 回と 30 分ごとの nudge.json)は止める手段がない(v1.4.237 のソースで確認)
+- Orca は MIT・開発が活発で、代替(Emdash、Nimbalyst、Superset、Warp など)より良い選択肢はなかった(2026-10-24 の調査)。予備の TUI として CCManager を入れた
+- 未確認: プロキシと CA 証明書の実際の動作(VirtualBox ではプロキシなし。CA は試験用の自己署名で登録まで確認する)、VS Code のパッケージが debconf の `code/add-microsoft-repo false` で自分のリポジトリ定義を足さないか、Zed の GPU なしでの動作、RDP のクリップボードでのファイルのコピー
+
 ### 社外アクセスの VPN 方式
 - 未着手。社内既定の方針に合わせる(SPEC.md §9)
 

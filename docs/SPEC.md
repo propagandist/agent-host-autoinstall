@@ -36,7 +36,7 @@
 | ユーザー | 用途 | sudo | ログイン |
 |---|---|---|---|
 | `sysadmin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
-| `agent` | Orca / Claude Code / Codex の実行 | なし | GDM 自動ログイン |
+| `agent` | Orca / Claude Code / Codex の実行 | なし | GDM 自動ログイン。SSH は SFTP 専用(env.yaml に鍵を書いた人だけ。シェルには入れない) |
 
 `agent` に個人の秘密情報は置かない。
 
@@ -67,14 +67,19 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - `agent` の git:名前とメールアドレス(env.yaml の `git_user_name` / `git_user_email`)と `init.defaultBranch main`
 - 時刻同期:chrony。env.yaml の `ntp_servers` を同期先に足す(空なら Ubuntu の既定と DHCP で配られたサーバー)
 - inotify の上限:`max_user_watches=524288`、`max_user_instances=1024`(worktree を並べてファイル監視を動かすため)
+- 開けるファイルの数の既定:65536(EMFILE を避けるため)
+- 社内のプロキシと CA 証明書(env.yaml の `proxy` / `ca_certs`。空なら何もしない):`/etc/environment`、apt、Chrome のポリシー、agent の environment.d と Chrome の証明書データベースに入れる
+- ufw:env.yaml の `dev_ports` を社内LANから開ける(開発サーバーを手元の PC から見るため)
+- `agent` の mise(プロジェクトごとの言語のバージョン。shims を PATH に入れる)と、エージェント向けのホストの説明(`~/.claude/CLAUDE.md`、`~/.codex/AGENTS.md`。既にあれば上書きしない)
+- エディター:env.yaml の `editors` で vscode / neovim / zed から選ぶ
 - SSH:パスワード認証無効、root ログイン無効
 - ufw:SSH(22)と RDP(3389)を社内LANのみ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
-- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、build-essential、python3-venv、python3-pip、ripgrep、jq、unzip
+- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
-- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Docker はバージョンを固定する(勝手に上がらないように)
+- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Docker、uv、mise、VS Code、Zed はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に
@@ -82,7 +87,8 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 3. 設定 → システム → リモートデスクトップ → デスクトップ共有をオン、リモート操作をオン、RDP 用の認証情報を設定
 4. Claude Code のログイン
 5. Codex のログイン(`codex login --device-auth`。事前に ChatGPT のセキュリティ設定でデバイスコード認証を有効化)
-6. Orca 初回起動、`~/.claude` / `~/.codex` 設定の取り込み、自動更新をオフ
+6. Orca 初回起動、`~/.claude` / `~/.codex` 設定の取り込み、利用統計と更新の通知をオフ
+7. GitHub の認証(`gh auth login`、`gh auth setup-git`)と Docker Hub へのログイン(`docker login`)
 
 2〜3 はスクリプト化した(2 は空パスワードのキーリングを最初から置く、3 は first-login で `grdctl` を実行する)。ただし実機では未確認なので、効かなかったときの手作業を docs/manual-steps.md に残す。
 
