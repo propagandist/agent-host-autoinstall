@@ -782,10 +782,21 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 \end{enumerate}
 
 \subsection{ファイルのやり取り}
-\begin{itemize}
-  \item SFTP: env.yaml に公開鍵を書いた人は、WinSCP\footnote{\url{https://winscp.net/}} などでホスト、ポート 22、ユーザー \code{agent}、秘密鍵で入る。作業の置き場所は \code{/home/agent/work}。シェルには入れない
-  \item 小さなファイルは RDP のクリップボードでも渡せる(未検証)
-\end{itemize}
+env.yaml の \code{agent_ssh_authorized_keys} に公開鍵を書いた人は、SFTP で \code{agent} に入れる(シェルには入れない)。
+作業の置き場所は \code{/home/agent/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
+\begin{checklist}
+  \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{agent}
+  \item 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は、PuTTY の形式(\code{.ppk})への変換を勧められるので、変換して保存する
+  \item 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、下のコマンドの結果と同じか確かめてから受け入れる
+\end{checklist}
+\begin{host}
+ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub   # ホスト鍵の指紋
+\end{host}
+\begin{hint}
+macOS や Linux からは、FileZilla か、端末の \code{sftp agent@<ホスト>} を使う。
+FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
+小さなファイルは RDP のクリップボードでも渡せる(未検証)。
+\end{hint}
 
 \subsection{自動化が効かなかったときだけ}
 \paragraph{ログインキーリング}

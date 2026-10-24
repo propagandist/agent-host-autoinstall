@@ -180,10 +180,15 @@ Claude Code に Pro / Max / Team / Enterprise のアカウントでログイン�
 
 ## 14. ファイルのやり取り(SFTP)
 
-env.yaml の `agent_ssh_authorized_keys` に公開鍵を書いた人は、WinSCP などで agent に SFTP で入れる(シェルには入れない)。
+env.yaml の `agent_ssh_authorized_keys` に公開鍵を書いた人は、SFTP で agent に入れる(シェルには入れない)。作業の置き場所は `/home/agent/work`。
 
-- ホスト: `<ホスト>`、ポート 22、ユーザー `agent`、認証は秘密鍵
-- 作業の置き場所は `/home/agent/work`
+Windows では [WinSCP](https://winscp.net/) を使う。
+
+1. 「新しいサイト」で、転送プロトコル `SFTP`、ホスト名 `<ホスト>`、ポート 22、ユーザー名 `agent`
+2. 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は PuTTY の形式(`.ppk`)への変換を勧められるので、変換して保存する
+3. 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、ホストで `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` の結果と同じか確かめてから受け入れる
+
+macOS や Linux からは、FileZilla か、端末の `sftp agent@<ホスト>` を使う。FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
 
 小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(VirtualBox では未確認)。
 
