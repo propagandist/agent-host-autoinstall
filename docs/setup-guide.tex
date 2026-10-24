@@ -151,12 +151,14 @@
   }
   \draw[covercyan!50,line width=0.4pt] ([xshift=2.2cm,yshift=3.2cm]current page.south west)
     -- ([xshift=-2.2cm,yshift=3.2cm]current page.south east);
-  \node[anchor=north west,font=\gtfamily\small,text=white!65!coverbg,align=left]
-    at ([xshift=2.2cm,yshift=2.9cm]current page.south west)
-    {\guideversion};
-  \node[anchor=north east,font=\headstyle\normalsize,text=white,align=right]
-    at ([xshift=-2.2cm,yshift=2.9cm]current page.south east)
-    {\guideholder\ifdefempty{\guideholderurl}{}{\\[1pt]{\mdseries\small\color{covercyan}\guideholderurlshort}}};
+  % 版(左)と発行者(右)は、文字の並ぶ線(ベースライン)をそろえる
+  \node[anchor=base west,inner sep=0pt,font=\sffamily\gtfamily\small,text=white!70!coverbg]
+    at ([xshift=2.2cm,yshift=2.4cm]current page.south west) {\guideversion};
+  \node[anchor=base east,inner sep=0pt,font=\headstyle\normalsize,text=white]
+    at ([xshift=-2.2cm,yshift=2.4cm]current page.south east) (holder) {\guideholder};
+  \ifdefempty{\guideholderurl}{}{%
+    \node[anchor=north east,inner sep=0pt,font=\sffamily\small,text=covercyan]
+      at ([yshift=-2.5mm]holder.south east) {\guideholderurlshort};}
 \end{tikzpicture}
 \end{titlepage}
 
