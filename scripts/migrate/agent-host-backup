@@ -29,7 +29,7 @@ paths=(
     "$home/.config/gh" "$home/.docker/config.json" "$home/.ssh" "$home/.gitconfig"
     # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
     "$home/.config/orca" "$home/.orca"
-    "$home/.config/Code/User" "$home/.config/zed" "$home/.config/ghostty" "$home/.config/mozc"
+    "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
     "$home/.bash_history"
     # 作業中のもの(push していない変更を含む。Orca の worktree もこの下)
     "$home/work"

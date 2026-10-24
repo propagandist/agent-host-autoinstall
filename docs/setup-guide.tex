@@ -321,7 +321,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{70-orca.sh} & Orca と、その自動起動 \\
 \code{72-editors.sh} & 選んだエディター \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
-\code{76-desktop.sh} & 端末(Ghostty)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
+\code{76-desktop.sh} & 端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、first-login の準備 \\
 \code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
 \code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
@@ -366,7 +366,8 @@ Windows キーを常にホストへ送り、クリップボードを共有する
   \item スクリーンショットは \textbf{Ctrl+Shift+Alt+S}(PrintScreen は手元の Windows に取られることがある)。
         撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
   \item 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
-  \item 端末(\textbf{Ctrl+Alt+T})は Ghostty。右クリックで貼り付け、選択でコピー
+  \item 端末(\textbf{Ctrl+Alt+T})は Xfce Terminal。右クリックで貼り付け、選択でコピー
+  \item Caps Lock はホストでは何もしない(RDP で手元と状態がずれるため)。大文字は Shift で打つ
 \end{itemize}
 
 \subsection{Claude Code のログイン}
@@ -569,7 +570,7 @@ VS Code & 1.143.1 & Microsoft の apt、hold \\
 Zed & 1.25.3 & リリースの tar(SHA256) \\
 Google Chrome & 固定しない & Google の apt、自動更新 \\
 Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
-Ghostty、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
+Xfce Terminal、Neovim、passt ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
 \bottomrule
 \end{longtable}
 

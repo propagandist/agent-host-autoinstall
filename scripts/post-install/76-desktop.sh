@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RDP で入って使うときのデスクトップの使い勝手: 端末(Ghostty)とクリップボードの履歴(Clipboard Indicator)。
+# RDP で入って使うときのデスクトップの使い勝手: 端末(Xfce Terminal)とクリップボードの履歴(Clipboard Indicator)。
 # キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -12,17 +12,13 @@ CLIPBOARD_INDICATOR_UUID=clipboard-indicator@tudmotu.com
 CLIPBOARD_INDICATOR_VERSION_TAG=70694   # 拡張機能の版 71
 CLIPBOARD_INDICATOR_SHA256=687cb404f9540958ddb0c1de638970572cef73f22f016e5d6c6d6f5d4cd55f97
 
-# --- 端末: Ghostty(Ubuntu の公式パッケージ。OS の更新に任せる) ---
-# 右クリックで貼り付け、選択でクリップボードにコピー(PuTTY や Windows Terminal に近い動き)
-apt-get install -y ghostty
-write_agent_file 644 "$AGENT_HOME/.config/ghostty/config" <<'EOF'
-# agent-host-autoinstall が置いた設定
-right-click-action = paste
-copy-on-select = clipboard
-EOF
+# --- 端末: Xfce Terminal(Ubuntu の公式パッケージ。OS の更新に任せる) ---
+# GPU を使わず軽い(VirtualBox で 1 つあたり約 27MB。Ghostty は約 148MB、Alacritty は約 73MB)。
+# 右クリックで貼り付けと選択でコピーは、セッションが要る xfconf で設定するので first-login で行う
+apt-get install -y xfce4-terminal
 # 既定の端末(xdg-terminal-exec が読む。Files の「端末で開く」など)
-printf 'com.mitchellh.ghostty.desktop\n' | write_agent_file 644 "$AGENT_HOME/.config/xdg-terminals.list"
-log "Ghostty を入れ、agent の既定の端末にした"
+printf 'xfce4-terminal.desktop\n' | write_agent_file 644 "$AGENT_HOME/.config/xdg-terminals.list"
+log "Xfce Terminal を入れ、agent の既定の端末にした"
 
 # --- クリップボードの履歴: Clipboard Indicator(GNOME の拡張機能) ---
 ext_dir="/usr/share/gnome-shell/extensions/$CLIPBOARD_INDICATOR_UUID"

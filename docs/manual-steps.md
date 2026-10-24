@@ -136,7 +136,9 @@ Claude Code に Pro / Max / Team / Enterprise のアカウントでログイン�
 
 - 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(PrintScreen は手元の Windows に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
-- 端末(Ctrl+Alt+T)は Ghostty。右クリックで貼り付け、選択でコピー
+- 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
+- Caps Lock はホストでは何もしない(RDP で手元と状態がずれるため)。大文字は Shift で打つ
+- 接続の設定の色は 24 ビット(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)
 
 ## 15. 環境を入れ替える(OS の入れなおし、機種の交換)
 
