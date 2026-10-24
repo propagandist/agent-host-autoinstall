@@ -97,6 +97,19 @@ npm_global() {
     log "$pkg $version を入れた"
 }
 
+# agent がログイン中なら、その GNOME のセッションの中でコマンドを動かす(gsettings や grdctl はセッションのバスを使う)。
+# ログインしていなければ何もせず 2 を返す
+agent_session_run() {
+    local uid
+    uid="$(id -u "$AGENT_USER")"
+    if ! { [ -S "/run/user/$uid/bus" ] &&
+        loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; }; then
+        return 2
+    fi
+    agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" "$@"
+}
+
 # RDP の認証情報(env.yaml の rdp)を agent のセッションに渡す。ログインのたびの自動起動
 # (first-login/rdp-credentials.sh)がキーリングに入れ、渡したファイルを消す。
 # 前に渡したものと同じなら何もせず 1 を返す(--force で必ず渡す)。替えたら just update で入れ替わる(Issue #3)。

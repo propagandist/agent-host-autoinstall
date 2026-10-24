@@ -57,8 +57,8 @@ scripts/
   notify/agent-host-ups-notify # NUT の upsmon から呼ぶ、UPS の通知(agent-notify に渡す)
   migrate/                  # 環境を入れ替えるときの書き出し(agent-host-backup)と取り込み(agent-host-restore)
   watchdog/                 # agent のセッションが落ちたら GDM を再起動する見張り(20-autologin.sh が置く)
-  first-login/              # agent の初回ログイン時に一度だけ実行(gsettings、grdctl)
-tests/                      # just test(render-autoinstall.py と stage.sh の試験)
+  first-login/              # agent のセッションで動く: first-login.sh(初回だけ。gsettings、grdctl)、rdp-credentials.sh・desktop-env.sh(ログインのたび。RDP の認証情報、壁紙の色と Dock)
+tests/                      # just test(env.yaml の検査と stage.sh、agent のホームへの書き込み、移行の書き出し、通知、一時ディレクトリ。root が要るものは Docker の中だけ)
 examples/
   fleet/                    # 構成リポジトリのひな形(docs/fleet.md)
 docs/
@@ -116,4 +116,5 @@ GitFlow(git-flow AVH)で運用する。
 - autoinstall の動作確認は、まず仮想マシンで行う。KVM/QEMU(virt-manager 等)を基本とし、KVM が使えない Windows では VirtualBox で代える(UEFI で作る)
 - デスクトップ共有と自動ログインの組み合わせは、仮想マシンでも確認してから実機で最終確認する
 - 受け入れテストは `docs/acceptance-test.md` に沿って行う。機械で確かめられるものは `just test`(env.yaml の検査)、`just verify`(ホスト)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)
-- 確かめる項目を増やしたら(post-install に設定を足したら)、`scripts/verify.sh` にも足す。env.yaml の項目を足したら `tests/test_render.py` にも足す
+- 確かめる項目を増やしたら(post-install に設定を足したら)、`scripts/verify.sh` にも足す。env.yaml の項目を足したら `tests/test_render.py` と、render-autoinstall.py の `UPDATE_SCOPE`(just update で反映されるか)と文書の表にも足す
+- agent のホームの中は root で書かない(`write_agent_file`・`ini_set --as-agent`・`agent_run` を使う)。agent が置いたリンクを root がたどると、ホームの外を書き換えられる

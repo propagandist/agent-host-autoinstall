@@ -90,7 +90,7 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
 3. 反映する(OS は入れなおさない)
    ```
    just update agent-host-01                 # 名前で引けないときは: just update agent-host-01 192.0.2.10
-   just status agent-host-01                 # 作った版に、いまの構成の版が出る
+   just status agent-host-01                 # 置いた版と最後に適用に成功した版に、いまの構成の版が出る
    just verify agent-host-01                 # 仕様どおりかを確かめる(✗ がないこと)
    ```
 4. `docs/hosts/<ホスト>.md` の変更の記録に、理由と手でしたことを書く

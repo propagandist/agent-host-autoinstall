@@ -740,7 +740,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 
 \subsection{結果を確かめる}
 \begin{local}
-just status <ホスト>    # 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
+just status <ホスト>    # 置いた版と成功した版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
 just verify <ホスト>    # 仕様どおりかを約 100 項目で確かめる(読むだけ。sudo のパスワードを聞かれる)
 just verify-rdp <ホスト> # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
@@ -1015,6 +1015,18 @@ Node.js・npm で入れたツール)には、セキュリティ更新が自動�
 \begin{local}
 just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 \end{local}
+\noindent{\small\begin{tabularx}{\linewidth}{@{}p{0.36\linewidth}p{0.16\linewidth}L@{}}
+\toprule\headrow
+env.yaml の項目 & just update で & 注記 \\
+\midrule
+\code{hostname}・\code{network}・\code{keyboard_layout} & \textbf{反映しない} & インストールのときだけ効く。変えるなら入れなおす \\
+\code{sysadmin} & 反映する & 鍵とパスワードを env.yaml の内容に置き換える \\
+\code{rdp}・\code{desktop_color} & 反映する & ログイン中ならその場で、そうでなければ次のログインで(Dock も) \\
+\code{editors}・\code{agents}・\code{clouds}・拡張機能 & 足すだけ & 外しても消さない \\
+\code{lan_cidrs}・\code{dev_ports} & 足すだけ & ufw の許可は外しても消えない \\
+ほか(\code{proxy}・\code{ca_certs}・\code{notify}・\code{ups} など) & 反映する & agent の環境変数は次のログインで効く \\
+\bottomrule
+\end{tabularx}}
 \begin{itemize}
   \item env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
   \item 元の一式はホストの \code{/opt/agent-host.prev} に残る
@@ -1030,7 +1042,7 @@ ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} �
 \end{caution}
 
 \subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
-ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、\code{~/work} と Orca の worktree を移す。
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、\code{~/work} と Orca の worktree を移す。
 ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
 \code{~/work} の中の \code{node_modules}・\code{__pycache__}・\code{.venv} と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る)。
 
@@ -1105,7 +1117,8 @@ just iso agent-host-01
 just update agent-host-01
 just facts agent-host-01      # facts/agent-host-01.yaml(機種、シリアル、MAC、鍵の指紋、作った版)
 \end{local}
-作ったホストには、道具の版と構成の版が \code{/opt/agent-host/BUILD-INFO} に残り、\code{just status} の「作った版」に出る。
+作ったホストには、道具の版と構成の版が \code{/opt/agent-host/BUILD-INFO} に残り、\code{just status} の「置いた版」に出る。
+構成が最後まで成功した版は「最後に適用に成功した版」に出る。just update が途中で失敗すると「前回の実行が最後まで終わっていない」と出る。
 道具の版を上げるときは、CHANGELOG の「env.yaml の変更」を読み、すべてのホストの env.yaml を検査し、1 台で試してから全台に反映する。
 \begin{caution}
 ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れない。作業する人が抜けたら、\code{sops updatekeys} で鍵を外し、

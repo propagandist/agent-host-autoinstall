@@ -14,10 +14,8 @@ shift || true
 case "$op" in
 check)
     copy_envs "$@"
-    rm -rf build/.check-env
     scripts/local/in-ubuntu.sh python3-yaml python3 python3 scripts/render-autoinstall.py \
-        autoinstall/autoinstall.yaml "${ENV_FILES[@]}" build/.check-env
-    rm -rf build/.check-env
+        autoinstall/autoinstall.yaml "${ENV_FILES[@]}" "$RUN_DIR/check"
     echo "$* は問題ない"
     ;;
 build)
@@ -28,13 +26,13 @@ build)
     copy_envs "$@"
     write_build_info "$@"
     # Docker の中から書けるのはこのリポジトリの中だけなので、build/ に作ってから移す
-    tmp_iso=build/.agent-host.iso
+    tmp_iso="$RUN_DIR/agent-host.iso"
     scripts/local/in-ubuntu.sh "xorriso python3-yaml" "xorriso python3" \
-        bash scripts/build-usb.sh --build-info build/.env/BUILD-INFO "$src_iso" "$tmp_iso" "${ENV_FILES[@]}" >/dev/null
+        bash scripts/build-usb.sh --build-info "$RUN_DIR/BUILD-INFO" "$src_iso" "$tmp_iso" "${ENV_FILES[@]}" >/dev/null
     mkdir -p "$(dirname "$out_iso")"
     mv -f "$tmp_iso" "$out_iso"
     echo "作成した: $out_iso(秘密情報が入る。USB に書き込んだら消す)"
-    sed 's/^/  /' build/.env/BUILD-INFO
+    sed 's/^/  /' "$RUN_DIR/BUILD-INFO"
     ;;
 *)
     sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2

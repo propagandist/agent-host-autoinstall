@@ -12,6 +12,7 @@
 
 ### env.yaml の変更
 - `ups` を足した(UPS を NUT で見る。書かなければ使わない。項目は autoinstall/env.example.yaml)
+- 検査を強めた(#8)。これまで通っていた env.yaml が `just check-env` で止まることがある: 項目の型(並びの項目に文字列、文字列の項目に引用符のない数や true/false)、hostname(英数字と - の 63 文字以内。ドメインは付けない)、`sysadmin.password_hash`(`$6$`・`$5$`・`$y$`・`$2b$` などの形)、SSH の公開鍵の形、`dev_ports` の範囲の順、`notify.ipmsg_broadcast`(IPv4 だけ)
 
 ### 追加
 - 機械で確かめる仕組み(docs/acceptance-test.md「機械で確かめる」)
@@ -31,6 +32,10 @@
 - 移行の書き出しが名前だけ(dist、target、venv、.cache など)で除いていたため、~/work の同じ名前のディレクトリの中の未コミットの変更・未追跡のファイル、同じ名前のファイル、同じ名前のブランチが消えた。~/work の中で見つけた node_modules・__pycache__・.venv のパスと、Orca のキャッシュだけを除き、除いたものを取り込みの最後に出す(#4)
 - 入れなおしたホストは SSH のホスト鍵が新しく、移行の手順どおりに進めると取り込みの前に「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まった。取り込むまでは一時の known_hosts でつなぎ、指紋を新しいホストの画面で照らす手順を、手順書・manual-steps・fleet.md に書いた(#11)
 - xrdp を採らなかった理由を、「Ubuntu 26.04 は Wayland だけで xrdp が使えない」から、「xrdp は別のセッションを作るので自動ログインした Orca が見えない。GNOME のセッションは 25.10 から Wayland だけで xrdp では動かない(Xfce などは動く)」に直した(#14)
+- 移行の書き出しに、クラウドの CLI(~/.aws、~/.config/gcloud、~/.azure)、Gitea CLI(~/.config/tea)、mise の全体の設定(~/.config/mise)が入っていなかった。足した(gcloud の記録は除く)(#7)
+- 独自の CA 証明書(ca_certs)を OS に入れても、構成の途中の npm(Node.js)はそれを使わず、TLS を検査するプロキシの下では止まった。provision.sh が NODE_EXTRA_CA_CERTS などを渡す。apt の取得元の更新は、プロキシと CA の設定のあとに行う(#6)
+- just update が途中で失敗しても、`just status` が「構成: 済み」と新しい版を出し、成功と区別できなかった。provision.sh が実行中の印を置いて成功したら消し、成功した版を BUILD-INFO.ok に残す。status は「置いた版」「最後に適用に成功した版」と「前回の実行が最後まで終わっていない」を出し、verify も確かめる(#10)
+- env.yaml のどの項目が just update で反映されるかが分からず、壁紙の色と Dock は first-login の一度きりで変わらなかった。項目ごとの線引き(update・セッション・インストールだけ)を render-autoinstall.py の UPDATE_SCOPE と文書の表に持ち、試験で漏れを確かめる。壁紙の色と Dock はログインのたびの自動起動(desktop-env.sh)が、変わったときだけ入れなおす(ログイン中ならその場で)(#13)
 - `rdp.password` を替えて `just update` しても、古い RDP の認証情報が有効なままだった。替えたら渡しなおし、ログイン中ならその場で、そうでなければ次のログインで入れ替える。移行の取り込みのあとも、このホストの認証情報を入れなおす(#3)
 - 初回の構成のあいだ起動画面(plymouth)が出たままで CPU を使い、GDM の起動で異常終了して plymouth-start.service が failed で残った。構成の最初に起動画面を閉じ(進み具合はコンソールに出る)、GRUB でも splash を外した(just vm-test で見つかった)
 

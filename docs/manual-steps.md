@@ -233,11 +233,22 @@ macOS や Linux からは、FileZilla か、端末の `sftp agent@<ホスト>` �
 
 ## 15. 設定やスクリプトを変えたとき(運用)
 
-env.yaml を直したとき、スクリプトや固定するバージョンを直したときは、OS を入れなおさずに反映できる。
+env.yaml を直したとき、スクリプトや固定するバージョンを直したときは、OS を入れなおさずに反映できる。ただし、インストールのときにしか効かない項目もある(下の表)。
 
 ```
 just update <ホスト>   # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 ```
+
+| env.yaml の項目 | just update で | 注記 |
+|---|---|---|
+| `hostname`・`network`・`keyboard_layout` | **反映しない(入れなおす)** | インストールのときだけ効く。`hostname` を変えた env.yaml では、ホスト名の照合で止まる。ネットワークを変えると SSH が切れて戻せない恐れがあるので、反映しない |
+| `sysadmin` | 反映する | 鍵とパスワードを env.yaml の内容に置き換える(下の注意) |
+| `rdp`・`desktop_color` | 反映する(セッション) | agent がログイン中ならその場で、そうでなければ次のログインで。Dock も、入っているエディターが変わると入れなおす |
+| `editors`・`agents`・`clouds`・`vscode_extensions`・`zed_extensions` | 足すだけ | 外しても消さない(消すときは手で)。Zed の拡張機能は次に Zed を起動したときに入る |
+| `lan_cidrs`・`dev_ports` | 足すだけ | ufw の許可は外しても消えない(下の注意) |
+| `proxy`・`ca_certs`・`ntp_servers`・`git_user_*`・`gitea_url`・`notify`・`agent_ssh_authorized_keys`・`ups` | 反映する | agent の環境変数(プロキシ、Gitea の URL、クラウドの CLI の設定など)は、ログイン中なら次のログインで効く |
+
+この表は `scripts/render-autoinstall.py` の `UPDATE_SCOPE` と合わせている(`just test` が項目の漏れを確かめる)。
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
@@ -245,13 +256,14 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 - RDP の認証情報(env.yaml の `rdp`)を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる(古いものは使えなくなる)
 - NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
-- どの版の道具(と構成)で作ったかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「作った版」に出る。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
+- どの版の道具(と構成)を置いたかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「置いた版」に出る。構成が最後まで成功した版は `/var/lib/agent-host/BUILD-INFO.ok` に残り、「最後に適用に成功した版」に出る。just update が途中で失敗すると「構成: 前回の実行が最後まで終わっていない」と出るので、`just logs` で原因を見て、直してから just update する。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
 - agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
+- 壁紙の色と Dock は、ログインのたびに動く自動起動(`first-login/desktop-env.sh`)が、env.yaml かエディターが変わったときだけ入れなおす。自分で変えた Dock は、それまで残る
 
 ## 16. 環境を入れ替える(OS の入れなおし、機種の交換)
 
-ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。
+ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。
 
 1. Orca とエージェントの作業を止める(書き出しの途中で書き換わらないように)
 2. 書き出す。sudo のパスワードを 1 回聞かれる。ホストには保存されない

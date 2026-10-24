@@ -40,9 +40,14 @@ status)
     ssh "${ssh_opts[@]}" "$target" '
         if [ -f /opt/agent-host/BUILD-INFO ]; then
             . /opt/agent-host/BUILD-INFO
-            echo "作った版: 道具 $tool${config:+、構成 $config}($built)"
-        else echo "作った版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
-        if [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
+            echo "置いた版: 道具 $tool${config:+、構成 $config}($built)"
+        else echo "置いた版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
+        if [ -f /var/lib/agent-host/BUILD-INFO.ok ]; then
+            ( . /var/lib/agent-host/BUILD-INFO.ok; echo "最後に適用に成功した版: 道具 $tool${config:+、構成 $config}($built)" )
+        fi
+        if [ -f /var/lib/agent-host/provision-incomplete ]; then
+            echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で見て、直してから just update)"
+        elif [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
         else echo "構成: 未完了(サービスは $(systemctl is-active agent-host-provision.service))"; fi
         echo "RDP: $(ss -tln | grep -q ":3389 " && echo "待ち受け中" || echo "止まっている")"
         loginctl list-sessions --no-legend | awk '\''$3 == "agent" && $6 == "user" {print "agent のセッション: " $4 " " $7}'\''
@@ -126,12 +131,10 @@ update)
     [ $# -ge 1 ] || { echo "env.yaml を指定する" >&2; exit 2; }
     copy_envs "$@"
     write_build_info "$@"
-    tmp="build/.update-$host"
-    rm -rf "$tmp"
+    tmp="$RUN_DIR/stage"
     mkdir -p "$tmp"
-    trap 'rm -rf "$tmp" build/.env' EXIT
     scripts/local/in-ubuntu.sh python3-yaml python3 \
-        bash scripts/stage.sh --build-info build/.env/BUILD-INFO "${ENV_FILES[@]}" "$tmp" >/dev/null
+        bash scripts/stage.sh --build-info "$RUN_DIR/BUILD-INFO" "${ENV_FILES[@]}" "$tmp" >/dev/null
     # 別のホストの env.yaml を流さないよう、重ねた結果のホスト名を確かめる
     want="$(sed -n "s/^AH_HOSTNAME=//p" "$tmp/agent-host/env.sh" | tr -d "'")"
     have="$(ssh "${ssh_opts[@]}" "$target" hostname)"

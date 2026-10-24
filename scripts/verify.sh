@@ -77,6 +77,11 @@ gset() { as_agent gsettings get "$@" 2>/dev/null || true; }
 
 section "構成"
 check "構成が完了している(/var/lib/agent-host/provisioned)" test -f /var/lib/agent-host/provisioned
+check "前回の構成の実行が最後まで終わった(provision-incomplete がない)" test ! -e /var/lib/agent-host/provision-incomplete
+if [ -f "$AH_ROOT/BUILD-INFO" ]; then
+    eq "置いた版の適用に成功している(BUILD-INFO.ok と同じ)" \
+        "$(cmp -s "$AH_ROOT/BUILD-INFO" /var/lib/agent-host/BUILD-INFO.ok && echo 同じ || echo 違う)" 同じ
+fi
 if [ -f "$AH_ROOT/BUILD-INFO" ]; then
     # shellcheck source=/dev/null
     tool="$(. "$AH_ROOT/BUILD-INFO" && echo "$tool")"
@@ -85,7 +90,7 @@ else
     ng "作った版の記録がある" "$AH_ROOT/BUILD-INFO がない"
 fi
 eq "ホスト名が env.yaml と同じ" "$(hostname)" "$AH_HOSTNAME"
-failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ')"
+failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)"
 eq "失敗した unit がない" "${failed_units% }" ""
 check "dpkg のロックを待つ設定" grep -q 'DPkg::Lock::Timeout' /etc/apt/apt.conf.d/90-agent-host-lock-timeout
 
@@ -114,6 +119,8 @@ check "セッションの見張りのタイマーが動いている" systemctl i
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
 eq "画面のロックが無効" "$(gset org.gnome.desktop.screensaver lock-enabled)" false
 eq "アイドルで画面を消さない" "$(gset org.gnome.desktop.session idle-delay)" "uint32 0"
+eq "壁紙の色が env.yaml と同じ" "$(gset org.gnome.desktop.background primary-color)" "'${AH_DESKTOP_COLOR:-#4a4a4a}'"
+check "壁紙の色と Dock を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop"
 check "空パスワードのログインキーリングがある" test -f "$AGENT_HOME/.local/share/keyrings/login.keyring"
 check "first-login が済んでいる" test -f "$AGENT_HOME/.config/agent-host/first-login.done"
 check "RDP の認証情報を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-rdp-credentials.desktop"
@@ -214,7 +221,8 @@ if [[ "$dinfo" == *rootless* ]]; then ok "agent の docker が rootless で応�
 section "GPU(RDP の画面の符号化)"
 check "vainfo が入っている" installed vainfo
 check "Vulkan のドライバー(mesa-vulkan-drivers)が入っている" installed mesa-vulkan-drivers
-render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1)"
+# /dev/dri がない(DRM のドライバーが読み込まれていない)と find が失敗するので、対象外として続ける(Issue #12)
+render="$(find /dev/dri -name 'renderD*' 2>/dev/null | sort | head -1 || true)"
 gpu_vendor=""
 if [ -n "$render" ]; then
     gpu_vendor="$(cat "/sys/class/drm/${render##*/}/device/vendor" 2>/dev/null || true)"
@@ -332,6 +340,7 @@ usb | netclient)
     check "upsmon の設定は root と nut だけが読める" bash -c "[ \"\$(stat -c '%a %U:%G' /etc/nut/upsmon.conf)\" = '640 root:nut' ]"
     check "UPS の通知を agent-notify に渡す" grep -q '^NOTIFYCMD /usr/local/sbin/agent-host-ups-notify' /etc/nut/upsmon.conf
     check "nut が通知の送り先を読める(ACL)" bash -c "getfacl -p /etc/agent-host/notify.env 2>/dev/null | grep -q '^user:nut:r'"
+    check "nut が通知の記録を書ける(/var/lib/nut)" runuser -u nut -- test -w /var/lib/nut
     ;;
 esac
 

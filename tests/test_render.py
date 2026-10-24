@@ -111,7 +111,7 @@ class TestValid(Case):
         # サンプルに書いたキーは、すべて KNOWN_KEYS にあること(CHANGE_ME 以外で落ちないこと)
         with open(os.path.join(REPO, "autoinstall", "env.example.yaml"), encoding="utf-8") as f:
             example = yaml.safe_load(f)
-        filled = yaml.safe_load(yaml.safe_dump(example).replace("CHANGE_ME", "x"))
+        filled = yaml.safe_load(yaml.safe_dump(example).replace("AAAA_CHANGE_ME", "AAAAx").replace("CHANGE_ME", "x"))
         filled["sysadmin"]["password_hash"] = "$6$x"
         out = self.ok(self.write(filled))
         self.assertTrue(os.path.exists(os.path.join(out, "env.sh")))
@@ -165,6 +165,30 @@ class TestValid(Case):
         r = subprocess.run(["bash", "-c", f'. "{out}/env.sh"; printf %s "$AH_RDP_PASSWORD"'],
                            capture_output=True, text=True)
         self.assertEqual(r.stdout, pw)
+
+
+class TestUpdateScope(Case):
+    """just update で反映される範囲の表(Issue #13)。"""
+
+    def load(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("render", RENDER)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod
+
+    def test_every_key_is_classified(self):
+        mod = self.load()
+        self.assertEqual(set(mod.UPDATE_SCOPE), set(mod.KNOWN_KEYS))
+        self.assertTrue(set(mod.UPDATE_SCOPE.values()) <= {"update", "relogin", "install"})
+
+    def test_install_only_keys_do_not_reach_the_host(self):
+        # インストールのときだけ効く項目(hostname は update の照合にだけ使う)は、env.sh に値として出ない
+        out = self.ok(self.write(self.with_(keyboard_layout="jp", network={"mode": "dhcp", "interface": "enp9s0"})))
+        with open(os.path.join(out, "env.sh"), encoding="utf-8") as f:
+            text = f.read()
+        self.assertNotIn("KEYBOARD", text)
+        self.assertNotIn("enp9s0", text)
 
 
 class TestUps(Case):
@@ -279,6 +303,35 @@ class TestRejected(Case):
         for kw, message in cases:
             with self.subTest(kw=kw):
                 self.ng(self.with_(**kw), message)
+
+    def test_types_and_forms(self):
+        # 型の誤りで 1 文字ずつに分かれたり、通っても構成が止まったりしていたもの(Issue #8)
+        cases = [
+            (dict(sysadmin={"password_hash": "$6$salt$hash", "ssh_authorized_keys": "ssh-ed25519 AAAAtest a@b"}),
+             "sysadmin.ssh_authorized_keys は並び"),
+            (dict(ntp_servers="ntp.example.internal"), "ntp_servers は並び"),
+            (dict(agent_ssh_authorized_keys="ssh-ed25519 AAAAtest a@b"), "agent_ssh_authorized_keys は並び"),
+            (dict(lan_cidrs="192.0.2.0/24"), "lan_cidrs は並び"),
+            (dict(network=["dhcp"]), "network はキーと値"),
+            (dict(rdp={"username": "rdp", "password": False}), "rdp.password は文字列"),
+            (dict(rdp={"username": "rdp", "password": 1234}), "rdp.password は文字列"),
+            (dict(lan_cidrs=[1]), "lan_cidrs の 1 は文字列"),
+            (dict(hostname="bad host/name"), "hostname は英数字と -"),
+            (dict(hostname="agent-host.example.internal"), "hostname は英数字と -"),
+            (dict(sysadmin={"password_hash": "$", "ssh_authorized_keys": ["ssh-ed25519 AAAAtest a@b"]}), "crypt 形式"),
+            (dict(sysadmin={"password_hash": "$1$md5$x", "ssh_authorized_keys": ["ssh-ed25519 AAAAtest a@b"]}), "crypt 形式"),
+            (dict(sysadmin={"password_hash": "$6$salt$hash", "ssh_authorized_keys": ["not a key"]}), "SSH の公開鍵"),
+            (dict(agent_ssh_authorized_keys=["ssh-ed25519"]), "SSH の公開鍵"),
+            (dict(dev_ports=["4000:3000"]), "始め:終わり の順"),
+            (dict(notify={"ipmsg_broadcast": ["::1"]}), "IPv4"),
+        ]
+        for kw, message in cases:
+            with self.subTest(kw=kw):
+                self.ng(self.with_(**kw), message)
+        # 通るもの: 数のポート、yescrypt のハッシュ、ecdsa の鍵
+        self.ok(self.write(self.with_(dev_ports=[3000, "8000:8099"],
+                                      sysadmin={"password_hash": "$y$j9T$salt$hash",
+                                                "ssh_authorized_keys": ["ecdsa-sha2-nistp256 AAAAE2Vj= a@b"]})))
 
     def test_extensions_need_editor(self):
         self.ng(self.with_(vscode_extensions=["ms-python.python"]), "editors に vscode")
