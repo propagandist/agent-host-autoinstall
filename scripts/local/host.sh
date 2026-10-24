@@ -5,6 +5,8 @@
 #   status  <ホスト>                 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
 #   facts   <ホスト>                 台帳のための情報を YAML で出す(sudo のパスワードを聞かれる)
 #   logs    <ホスト>                 構成・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
+#   verify  <ホスト>                 仕様どおりに構成されているかを確かめる(scripts/verify.sh。何も変えない)
+#   verify-rdp <ホスト>[:ポート] <env.yaml>...  env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP)
 #   update  <ホスト> <env.yaml>...   スクリプトと env.yaml の変更を反映して構成を再実行する(OS は入れなおさない)
 #   backup  <ホスト> [出力ファイル]  移行の書き出し(既定は build/backups/<ホスト>-<日時>.tar.zst)
 #   restore <ホスト> <ファイル>      移行の取り込み
@@ -13,7 +15,7 @@ set -euo pipefail
 # shellcheck source=envs.sh
 . "$(dirname "$0")/envs.sh"
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
 [ $# -ge 2 ] || usage
 op="$1"
 host="$2"
@@ -97,6 +99,21 @@ fi
 EOF
     } | ssh "${ssh_opts[@]}" "$target" 'sudo -S -p "" bash -s'
     unset PW
+    ;;
+verify)
+    # 手元の scripts/verify.sh を流す(ホストに置いた版が古くても、今の検査で確かめる)。固定の版はホストの post-install/ と比べる
+    ask_password
+    { printf '%s\n' "$PW"; cat "$(dirname "$0")/../verify.sh"; } | ssh "${ssh_opts[@]}" "$target" 'sudo -S -p "" bash -s'
+    unset PW
+    ;;
+verify-rdp)
+    # host は <ホスト> か <ホスト>:<ポート>(試験用の VM はポートを転送している)
+    [ $# -ge 1 ] || { echo "env.yaml を指定する(RDP の認証情報を読む)" >&2; exit 2; }
+    port=3389
+    case "$host" in *:*) port="${host##*:}"; host="${host%:*}" ;; esac
+    copy_envs "$@"
+    scripts/local/in-ubuntu.sh "freerdp3-x11 python3-yaml" "xfreerdp3 python3" \
+        bash scripts/local/rdp-auth.sh "$host" "$port" "${ENV_FILES[@]}"
     ;;
 logs)
     ssh -t "${ssh_opts[@]}" "$target" '

@@ -30,8 +30,12 @@ iso out="build/agent-host.iso" +envs=env:
 # shellcheck と構文の検査
 lint:
     scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/migrate/agent-host-* scripts/watchdog/agent-host-* examples/fleet/scripts/*.sh'
-    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py")]'
+    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py", "tests/test_render.py")]'
     @echo "検査は問題ない"
+
+# env.yaml の検査と、/opt/agent-host に置くものの試験(tests/。ホストは要らない)
+test:
+    scripts/local/in-ubuntu.sh python3-yaml - python3 -m unittest discover -s tests -v
 
 # 詳細な設定手順書の PDF を build/setup-guide/ に作る(Docker の TeX Live で作る。初回はイメージの作成に数分かかる)
 guide:
@@ -43,6 +47,7 @@ release-check:
     git diff --quiet && git diff --cached --quiet || { echo "コミットしていない変更がある" >&2; exit 1; }
     v="$(git branch --show-current)"; v="${v#*/}"; grep -q "^## \[$v\] - .* — ." CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] - <日付> — <位置づけ> の見出しがない" >&2; exit 1; }
     just lint
+    just test
     just guide
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
 
@@ -63,6 +68,18 @@ status host:
 # 台帳のためにホストの情報を YAML で出す(機種、シリアル、MAC、ディスク、メモリ、OS、作った版、鍵の指紋)
 facts host:
     scripts/local/host.sh facts {{host}}
+
+# 仕様どおりに構成されているかを確かめる(読むだけ。✗ があれば失敗する。sudo のパスワードを聞かれる)
+verify host:
+    scripts/local/host.sh verify {{host}}
+
+# env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP。画面は開かない)。host は <ホスト>[:ポート]
+verify-rdp host +envs=env:
+    scripts/local/host.sh verify-rdp {{host}} {{envs}}
+
+# VirtualBox の VM に入れなおし、検査・電源を切ったあと・セッションが落ちたあとを通しで確かめる(VM の中身は消える。1〜2 時間)
+vm-test +envs="build/test/env.yaml":
+    scripts/local/vm-test.sh {{envs}}
 
 # 構成・first-login・セッションの見張りの記録を見る
 logs host:
