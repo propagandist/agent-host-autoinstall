@@ -13,7 +13,7 @@ GitFlow の release ブランチで版を決め、確かめてから main に入
 | マイナー | 機能や env.yaml の項目の追加(既存の env.yaml はそのまま使える) |
 | メジャー | env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない) |
 
-リリースは実機での受け入れテストが通ってから出す(最初は v0.1.0)。しばらく運用して問題がないと判断するまでは 0.x とし、GitHub では pre-release にする。
+リリースは VM での受け入れテストが通ったら出す(最初は v0.1.0)。実機での確認は必須にせず、実機で問題が出たら hotfix で直す(下の「実機で問題が出たとき」)。しばらく運用して問題がないと判断するまでは 0.x とし、GitHub では pre-release にする。
 
 ## 成果物
 
@@ -59,6 +59,29 @@ git config gitflow.prefix.versiontag v
 
 ## うまくいかなかったとき
 
-- **Actions が失敗した:** 直したものを develop から hotfix(`git flow hotfix start 0.1.1`)として出す。タグは付けなおさない
+- **Actions が失敗した:** 直したものを hotfix(下と同じ手順。main から `git flow hotfix start 0.1.1`)として出す。タグは付けなおさない
 - **CHANGELOG の節がないと言われた:** 見出しが `## [0.1.0]` で始まっているか(タグの `v` は付けない)
 - **PDF だけ作りなおしたい:** Actions の画面から、失敗した実行を再実行する。Release が先にできていれば、手元で `just guide` を実行し `gh release upload v0.1.0 <PDF> --clobber` で差し替える
+
+## 実機で問題が出たとき(hotfix)
+
+リリースした版で、実機(や VM)で問題が見つかったら、main から hotfix ブランチを作り、パッチの版を出す。例は v0.1.1。
+
+1. hotfix ブランチを作る
+   ```sh
+   git checkout main && git pull
+   git flow hotfix start 0.1.1
+   ```
+2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付>` を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/HANDOVER.md にも、何が起きてどう直したかを書く
+3. 確かめる
+   ```sh
+   just release-check    # hotfix ブランチでも使える
+   ```
+   VM で確かめられることは VM で、実機でしか起きない問題は、その実機に `just update` して直ったことを確かめる
+4. 仕上げる(main と develop へのマージ、タグ)。タグの push で Actions が Release と PDF を作る
+   ```sh
+   git flow hotfix finish -m "v0.1.1" 0.1.1
+   git push origin main develop --tags
+   ```
+5. 構成リポジトリ(docs/fleet.md)で、submodule を新しいタグにして、問題の出たホストから反映する
+

@@ -37,11 +37,11 @@ lint:
 guide:
     scripts/local/build-guide.sh
 
-# リリースの前の確認(release ブランチで、コミット済みであること、検査と PDF の作成が通ること)。手順は docs/release.md
+# リリースの前の確認(release か hotfix のブランチで、コミット済みであること、検査と PDF の作成が通ること)。手順は docs/release.md
 release-check:
-    case "$(git branch --show-current)" in release/*) ;; *) echo "release/<版> のブランチで実行する" >&2; exit 1 ;; esac
+    case "$(git branch --show-current)" in release/*|hotfix/*) ;; *) echo "release/<版> か hotfix/<版> のブランチで実行する" >&2; exit 1 ;; esac
     git diff --quiet && git diff --cached --quiet || { echo "コミットしていない変更がある" >&2; exit 1; }
-    v="$(git branch --show-current)"; v="${v#release/}"; grep -q "^## \[$v\]" CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] の節がない" >&2; exit 1; }
+    v="$(git branch --show-current)"; v="${v#*/}"; grep -q "^## \[$v\]" CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] の節がない" >&2; exit 1; }
     just lint
     just guide
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
