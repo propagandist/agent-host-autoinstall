@@ -139,7 +139,7 @@ check "ufw の既定は受信を拒否" grep -q 'deny (incoming)' <<<"$ufw_v"
 bad_from=""
 while read -r from; do
     selected "$AH_LAN_CIDRS" "$from" || bad_from+="$from "
-done < <(ufw status 2>/dev/null | awk '$2 == "ALLOW" || $3 == "ALLOW" {print $NF}')
+done < <(ufw status 2>/dev/null | sed "s/ *#.*//" | awk '$2 == "ALLOW" || $3 == "ALLOW" {print $NF}')
 eq "ufw の許可は lan_cidrs からだけ" "${bad_from% }" ""
 
 section "更新"
@@ -335,7 +335,7 @@ user_checks() {
     eq "RDP(headless)が動いている" "$(grd_field 'Unit status')" active
     eq "RDP が有効" "$(grd_field Status)" enabled
     eq "RDP のポートが env.yaml と同じ" "$(grd_field Port)" "${AH_USER_PORT:-?}"
-    eq "操作できる(閲覧だけではない)" "$(grd_field View-only)" no
+    # 閲覧だけでないこと(disable-view-only)は headless の status に出ないので、RDP で操作して確かめる(受け入れテスト 4)
     eq "ポートを変えない" "$(grd_field 'Negotiate port')" no
     # パスワードは本人が変えるので、ユーザー名が入っていることだけを見る(パスワードは just verify-rdp)
     eq "RDP のユーザー名が env.yaml と同じ" "$(grd_field Username)" "${AH_RDP_USER:-?}"
