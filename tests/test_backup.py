@@ -76,6 +76,16 @@ class TestBackupExcludes(unittest.TestCase):
         os.chmod("/srv/ah-secret/config.json", 0o600)
         os.chmod("/srv/ah-secret", 0o700)
         run("runuser", "-u", "agent", "--", "ln", "-sfn", "/srv/ah-secret", f"{HOME}/.docker")
+        # 通り抜けはできる(711)が、その先のファイルは読めない場合
+        write("/srv/ah-711/keyrings/login.keyring", "ROOT-711\n")
+        os.chmod("/srv/ah-711/keyrings/login.keyring", 0o600)
+        os.chmod("/srv/ah-711", 0o711)
+        run("runuser", "-u", "agent", "--", "mkdir", "-p", f"{HOME}/.local")
+        run("runuser", "-u", "agent", "--", "ln", "-sfn", "/srv/ah-711", f"{HOME}/.local/share")
+        # rootless Docker のコンテナが作ったデータのように、~/work の中に利用者の読めないディレクトリがある
+        write(f"{WORK}/proj/pgdata/base/1")
+        run("chown", "-R", "100998:100998", f"{WORK}/proj/pgdata")
+        os.chmod(f"{WORK}/proj/pgdata", 0o700)
         out = tempfile.mkdtemp()
         cls.archive = os.path.join(out, "backup.tar.zst")
         with open(cls.archive, "wb") as f:
@@ -116,6 +126,14 @@ class TestBackupExcludes(unittest.TestCase):
         # ホームの分は利用者の権限で読むので、リンクの先の root だけが読めるファイルは入らない(Issue #23)
         self.assertFalse(self.has(f"{HOME}/.docker/config.json"))
         self.assertNotIn(b"ROOT-ONLY", self.contents)
+        self.assertNotIn(b"ROOT-711", self.contents)
+
+    def test_unreadable_are_reported_and_others_kept(self):
+        # 利用者に読めないものは書き出しを止めずに除き、記録に残す。ほかのものは書き出す
+        self.assertIn(f"unreadable={WORK.lstrip('/')}/proj/pgdata", self.manifest)
+        self.assertIn(f"unreadable={HOME.lstrip('/')}/.local/share/keyrings/login.keyring", self.manifest)
+        self.assertFalse(self.has(f"{WORK}/proj/pgdata"))
+        self.assertTrue(self.has(f"{WORK}/proj/src/main.py"))
 
     def test_manifest_lists_excluded(self):
         self.assertIn(f"excluded={WORK.lstrip('/')}/proj/node_modules", self.manifest)
@@ -137,6 +155,9 @@ class TestRestore(unittest.TestCase):
         TestBackupExcludes.setUpClass()
         cls.archive = TestBackupExcludes.archive
         write("/var/lib/agent-host/provisioned", "")
+        # 取り込み先は入れなおしたばかりのホームとして、書き出しの試験で置いたホームの外へのリンクを片づける
+        for link in (f"{HOME}/.docker", f"{HOME}/.local/share"):
+            os.remove(link)
 
     def setUp(self):
         shutil.rmtree("/srv/ah-out", ignore_errors=True)
@@ -155,8 +176,11 @@ class TestRestore(unittest.TestCase):
         os.rename(f"{HOME}/.config", f"{HOME}/.config.keep")
         try:
             run("runuser", "-u", "agent", "--", "ln", "-sfn", "../../srv/ah-out", f"{HOME}/.config")
-            restore(self.archive)
+            r = restore(self.archive)
             self.assertEqual(os.listdir("/srv/ah-out"), [])
+            # 利用者の権限では書けずに、その人の取り込みは失敗として終わる(ホストの身元とほかの人の分は続ける)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("取り込みに失敗した利用者: agent", r.stderr)
         finally:
             os.remove(f"{HOME}/.config")
             os.rename(f"{HOME}/.config.keep", f"{HOME}/.config")

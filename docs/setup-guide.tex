@@ -1122,7 +1122,9 @@ env.yaml の \code{users} を直して \code{just update} する。\code{port} �
 ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
 \code{~/work} の中の \code{node_modules}・\code{__pycache__}・\code{.venv} と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。\code{npm install} や \code{uv sync} で作りなおす)。
 ほかの名前(\code{dist}、\code{target} など)は、ビルドの出力でも除かない。
-利用者全員のホームを書き出し、取り込むのは新しいホストの env.yaml の \code{users} にいる名前の分だけ(同じ名前で合わせ、所有者を付けなおす)。
+利用者全員のホームを書き出し、取り込むのは新しいホストの env.yaml の \code{users} にいる名前の分だけ(同じ名前で合わせる)。
+ホームの分は、書き出しも取り込みもその利用者の権限で行うので、取り込んだものはその利用者の持ち物になる。
+利用者に読めないもの(rootless Docker のコンテナが作ったデータなど)は書き出さず、書き出しと取り込みの最後に一覧が出る(移すなら、元のホストで読めるようにしてから書き出しなおす)。
 RDP の認証情報(本人が変えたもの)はホームごと移る(TPM のある機械では TPM に入るので移らない見込み。未確認。移らなければ just update で仮の値が入る)。
 
 \begin{figure}[htbp]

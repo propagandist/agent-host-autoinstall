@@ -65,7 +65,16 @@ add_user_paths() {
     : >"$work/exclude.$AGENT_USER"
     if agent_run test -d "/$home/work"; then
         agent_run find "/$home/work" -path '*/.git' -prune -o -type d \( -name node_modules -o -name __pycache__ -o -name .venv \) \
-            -print -prune | sed 's|^/||' >"$work/exclude.$AGENT_USER"
+            -print -prune 2>/dev/null | sed 's|^/||' >"$work/exclude.$AGENT_USER" || true
+    fi
+    # 利用者に読めないもの(rootless Docker のコンテナが作ったデータなど)は、tar が途中で止まらないよう先に見つけて除き、
+    # 記録に残して知らせる。リンクはリンクとして書庫に入る(たどらない)ので見ない
+    local p found=()
+    while IFS= read -r p; do found+=("/$p"); done <"$work/paths.$AGENT_USER"
+    : >"$work/unreadable.$AGENT_USER"
+    if [ "${#found[@]}" -gt 0 ]; then
+        agent_run find "${found[@]}" ! -type l \( ! -readable -o -type d ! -executable \) -print -prune 2>/dev/null |
+            sed 's|^/||' >"$work/unreadable.$AGENT_USER" || true
     fi
 }
 for_each_user add_user_paths
@@ -88,23 +97,36 @@ done
     [ "${#existing[@]}" -eq 0 ] || printf 'path=%s\n' "${existing[@]}"
     cat "$work"/paths.* | sed 's/^/path=/'
     cat "$work"/exclude.* | sed 's/^/excluded=/'
+    cat "$work"/unreadable.* | sed 's/^/unreadable=/'
 } >"$work/agent-host-manifest.txt"
 
 # 利用者ごとの tar を標準出力に書く。利用者の権限で読むので、利用者に読めないものは入らない。
 # Orca のキャッシュと gcloud の記録はパターン(先頭から合わせる)、~/work の中は見つけたパスそのもの(ワイルドカードとして読まない)で除く。
-# 一覧は root だけが読める場所にあるので、書き出すものは引数で、~/work から除くものは標準入力で渡す
+# 一覧は root だけが読める場所にあるので、書き出すものは引数で、除くもの(~/work の中と、読めないもの)は標準入力で渡す。
+# 1 人の tar が失敗しても、ほかの人の分は書く(終了コードは $work/rc に残し、最後に返す)
 write_user_tar() {
-    local exclude_args=(--anchored) e upaths
+    local exclude_args=(--anchored) e upaths rc=0
     mapfile -t upaths <"$work/paths.$AGENT_USER"
     [ "${#upaths[@]}" -gt 0 ] || return 0
     while IFS= read -r e; do
         exclude_args+=("--exclude=$e")
     done <"$work/anchored.$AGENT_USER"
-    exclude_args+=(--no-wildcards --exclude-from=/dev/stdin)
+    exclude_args+=(--no-wildcards --exclude-from=-)
     # Orca などが使っているソケットは tar が飛ばす(移す必要もない)ので、その警告は出さない
-    agent_run tar --warning=no-file-ignored -cf - -C / "${exclude_args[@]}" "${upaths[@]}" <"$work/exclude.$AGENT_USER"
+    cat "$work/exclude.$AGENT_USER" "$work/unreadable.$AGENT_USER" |
+        agent_run tar --warning=no-file-ignored -cf - -C / "${exclude_args[@]}" "${upaths[@]}" || rc=$?
+    if [ "$rc" -ne 0 ]; then
+        echo "[agent-host] 注意: $AGENT_USER の書き出しで tar が $rc で終わった(1 は読んでいる間に変わったファイルがあった)" >&2
+        [ "$rc" -le "$(cat "$work/rc")" ] || echo "$rc" >"$work/rc"
+    fi
 }
-echo "[agent-host] 書き出す: $(grep -c '^path=' "$work/agent-host-manifest.txt") か所(ホスト $(hostname))。~/work から除くもの: $(grep -c '^excluded=' "$work/agent-host-manifest.txt" || true) か所" >&2
+manifest="$work/agent-host-manifest.txt"
+echo "[agent-host] 書き出す: $(grep -c '^path=' "$manifest") か所(ホスト $(hostname))。~/work から除くもの: $(grep -c '^excluded=' "$manifest" || true) か所" >&2
+if grep -q '^unreadable=' "$manifest"; then
+    echo "[agent-host] 注意: 利用者に読めないので書き出さないもの(移すなら、読めるようにしてから書き出しなおす):" >&2
+    sed -n 's/^unreadable=/  \//p' "$manifest" >&2
+fi
+echo 0 >"$work/rc"
 {
     if [ "${#existing[@]}" -gt 0 ]; then
         tar -cf - -C "$work" agent-host-manifest.txt -C / "${existing[@]}"
@@ -113,4 +135,6 @@ echo "[agent-host] 書き出す: $(grep -c '^path=' "$work/agent-host-manifest.t
     fi
     for_each_user write_user_tar
 } | zstd -q -c
+rc="$(cat "$work/rc")"
+[ "$rc" -eq 0 ] || { echo "[agent-host] 書き出しは終わったが、tar の終了コードが $rc だった(上の注意を見る)" >&2; exit "$rc"; }
 echo "[agent-host] 書き出しが終わった" >&2
