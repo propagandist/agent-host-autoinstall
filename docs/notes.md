@@ -317,6 +317,29 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - 選ばなかったもの: zathura(メニューがなく vim 風のキー操作が前提)、MuPDF(X11 なので開くたびに Xwayland が起動する)、qpdfview(このホストにない Qt を一式入れることになる)
 - 未確認: ubuntu-desktop-minimal で Papers(main に 50.2 がある)や Evince が入るか、Atril のメモリの量、日本語の PDF の表示(VM で確かめる)
 
+### 利用者ごとのヘッドレスのセッション: 段 0(2026-10-25、VirtualBox で確認、#15)
+
+v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログインと見張りを止め、試験用のユーザー alice・bob(パスワードはロック、sudo なし、linger)を作って手で確かめた。
+
+1. **ユニットはある。** gdm3 50.1 に `gnome-headless-session@.service`(system。`ExecStart=/usr/libexec/gdm-new-session %i --headless`、`Restart=on-failure`)、gnome-remote-desktop 50.2 に `gnome-remote-desktop-headless.service`(user)がある
+   - **そのままでは立たない。** ユニットの `DynamicUser=true` のままだと `gdm-new-session` が `Failed: The connection is closed`(終了コード 70)で止まる。root で直に実行すると立つ。`User=gdm` の一時のユニットでは polkit の `manage-user-displays` で拒まれた(gdm の polkit の規則 `20-gdm.rules` は、gdm グループで、ユニット名が `gnome-headless-session@<user>.service` のときだけ許す)。ドロップインで `DynamicUser=no`・`User=gdm` にすると立った。DynamicUser で切れる原因は調べていない
+2. **2 人が同時に RDP できた。** alice は 3389、bob は 3390 で、それぞれの画面で操作できた(mstsc)。FreeRDP の +auth-only で、それぞれの認証情報が通り、誤ったパスワードと、相手のポートに自分の認証情報では `ERRCONNECT_LOGON_FAILURE` になった
+   - 同じ Windows から 127.0.0.1 に 2 つつなぐと、2 つ目が mstsc で「既に進行中のコンソール セッションがあるため…」と止まった。2 つ目を 127.0.0.2 にすると通った(VirtualBox の転送を 127.0.0.2 にも足した)。実機は IP で、別の PC からつなぐので当たらない見込み
+   - **立てた直後のセッションはロックされていた**(`LockedHint=yes`)。パスワードがロックされているので本人は解除できない。画面ロックを無効にし(`lock-enabled false`、`idle-delay 0`、`disable-lock-screen true`)、`loginctl unlock-session` で外した。再起動のあとはロックされずに立った。画面ロックの設定は、セッションを立てる前(post-install)に入れる
+   - 入力ソース(`[('xkb', 'jp'), ('ibus', 'mozc-on')]`)と切り替えの Ctrl+Space は、first-login と同じ設定を入れると効いた。半角/全角キーは mstsc から `Henkan_Mode` の押しっぱなしで届き、切り替えに使えなかった(#21。今の作りでも同じはず)
+3. **root から設定できた。** `runuser -u <user> -- env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus grdctl --headless rdp …`(linger で user のバスがある)で、set-port・TLS・set-credentials・disable-view-only・disable-port-negotiation・enable と `systemctl --user enable gnome-remote-desktop-headless.service` ができた。セッションがなくてよいので post-install で済む
+   - 認証情報は、TPM がないので `~/.local/share/gnome-remote-desktop/credentials.ini`(600)に GKeyFile で入る(「Init TPM credentials failed because No TPM device found, using GKeyFile as fallback」)。パスワードは平文。実機で TPM があるとどうなるかは未確認
+   - grdctl は今の作りと同じく「RDP server certificate is invalid」を出すが、待ち受けと認証は正常
+4. **再起動から戻った。** 誰も触らずに、起動から約 25 秒で 2 人のセッションが立ち、約 60 秒で RDP が待ち受けた(CPU 1 で負荷が 7 前後)。その前につなぐと mstsc は「内部エラーが発生しました」を出した(推定。待ち受けの前だったことからの推定で、確かめていない)
+5. **異常終了から戻るには `Restart=always` が要る。** alice の gnome-shell に SIGSEGV を送ると、`gdm-new-session` は「Session finished」で正常に終わり(終了コード 0)、`Restart=on-failure` では戻らなかった。ドロップインに `Restart=always`・`RestartSec=5` を足すと、約 15 秒で新しいセッションが立ち、RDP の認証も通った。bob は gnome-shell の PID もセッションも変わらなかった。本人がログアウトしても立ちなおす
+6. **切断しても続いた。** alice の端末で 5 秒おきに書くループを動かし、RDP を切って 3 分待つと、書き続けていた。セッションは残り、ロックされなかった
+7. 一部だけ確かめた: gsettings は user のバスから入れられ、ヘッドレスのセッションで効いた。Mozc は動いた。ログイン キーリングがないと、VS Code が「Choose password for new keyring」を出した(空のまま続行)。キーリング・Clipboard Indicator・rootless Docker は、post-install を利用者ごとに回してから確かめる
+8. GPU による符号化: VM に GPU がないので確かめられない(実機で未確認)
+9. Orca Mobile の 6768 番: 確かめきれていない。alice と bob で Orca(1.4.237)を起動したが、初めての起動で、どちらも 6768 を待ち受けなかった(初回の案内の途中で止まっていたと見ている)。Orca の CLI の `serve` の説明には「--port がなければ 6768 を使い、使われていれば別のポートに移る。--port を付けると、使われているときはエラー」とある(`out/cli/specs/serve.js`)。デスクトップの Orca も同じなら、2 人目は別のポートにずれる(推定)。利用者ごとに post-install を回したあと、ペアリングして確かめる
+10. メモリ: 何もしていない bob のセッションで PSS 約 460MB(gnome-shell 約 390MB。gnome-initial-setup が 145MB 動いていた)、RDP で使って VS Code と端末を開いた alice で約 880MB(PSS の合計。cgroup の memory.current はキャッシュを含め約 1.5GB)。エージェントやビルドを除いて、1 人あたり 0.5〜1GB を見込む
+
+- ほかに分かったこと: `useradd -m` のホームは 750 だった(700 にする)。ヘッドレスのセッションの PAM のサービスは `gdm-autologin`、`Remote=yes`
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
