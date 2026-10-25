@@ -13,6 +13,7 @@
 ### 追加
 - `python` コマンド(python-is-python3)を入れた。`python tools/x.py` のように Windows や setup-python を前提に書かれた手順が `python: not found` で止まった。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明がすでにあるホストには届かない)(#20)
 - PDF ビューアー(Atril)を入れ、agent の PDF の既定のアプリにした。just verify に「Atril」の確認(#19)
+- zram に合わせて、スワップの sysctl を vm.swappiness 180・vm.page-cluster 0 にした。just verify に 2 つの値の確認(#18)
 
 ## [0.2.0] - 2026-10-25 — 機械で確かめる版
 

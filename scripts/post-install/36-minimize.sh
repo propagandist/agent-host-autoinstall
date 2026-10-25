@@ -123,6 +123,14 @@ swap-priority = 100
 EOF
 systemctl daemon-reload
 systemctl restart systemd-zram-setup@zram0.service || log "注意: zram を今は作れなかった(次の起動で作られる)"
+# zram はディスクより速いので早めにスワップへ逃がし(swappiness は 0〜200、既定 60)、先読みは止める。
+# 値は Pop!_OS の zram の設定にならった。カーネルの文書は、zram では 100 を超える値も「考えられる」とするだけ(#18)
+cat >/etc/sysctl.d/60-agent-host-zram.conf <<'EOF'
+# agent-host-autoinstall が置いた設定
+vm.swappiness = 180
+vm.page-cluster = 0
+EOF
+sysctl -q -p /etc/sysctl.d/60-agent-host-zram.conf
 
 # 14. 電源のプロファイル(ビルドやテストを速くする)
 if command -v powerprofilesctl >/dev/null; then
