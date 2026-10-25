@@ -342,7 +342,8 @@ user_checks() {
     check "TLS の証明書がある" test -f "$AGENT_HOME/.local/share/gnome-remote-desktop/tls.crt"
     check "0.2 までのデスクトップ共有(gnome-remote-desktop.service)を止めている" \
         bash -c "! systemctl --user -M $AGENT_USER@ is-enabled gnome-remote-desktop.service 2>/dev/null | grep -qx enabled"
-    check "${AH_USER_PORT:-?} を待ち受けている" bash -c "ss -tlnH | awk '{print \$4}' | grep -qE ':${AH_USER_PORT:-x}\$'"
+    # ss の一覧には、待ち受けている gnome-remote-desktop のソケットが出ないことがあった(VirtualBox。原因は調べていない)。実際につないで確かめる
+    check "${AH_USER_PORT:-?} を待ち受けている" timeout 3 bash -c "</dev/tcp/127.0.0.1/${AH_USER_PORT:-0}"
     check "ufw で ${AH_USER_PORT:-?} を lan_cidrs に開けている" bash -c "ufw status | grep -E '^${AH_USER_PORT:-x}/tcp ' | grep -q 'agent-host-rdp:$AGENT_USER'"
 
     # アプリ

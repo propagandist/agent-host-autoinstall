@@ -78,7 +78,8 @@ wait_ready() {
         # shellcheck disable=SC2016  # VM の中で展開する
         boot="$(vm_ssh 'test -f /var/lib/agent-host/provisioned &&
             n="$(getent group agent-host-users | cut -d: -f4 | tr , "\n" | grep -c .)" &&
-            [ "$n" -gt 0 ] && [ "$(ss -tlnH | awk "{print \$4}" | grep -c -E ":339[0-2]\$")" -ge "$n" ] &&
+            [ "$n" -gt 0 ] && open=0 && for p in 3389 3390 3391 3392; do { timeout 2 bash -c "</dev/tcp/127.0.0.1/$p" 2>/dev/null && open=$((open + 1)); } || true; done &&
+            [ "$open" -ge "$n" ] &&
             cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)"
         if [ -n "$boot" ] && [ "$boot" != "$old_boot" ]; then
             sleep 30  # セッションの中の自動起動(Orca など)を待つ
