@@ -10,6 +10,7 @@
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
 - v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの 100 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
+- v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
@@ -416,6 +417,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
+- 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
