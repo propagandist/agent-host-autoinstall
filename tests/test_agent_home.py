@@ -61,6 +61,27 @@ class TestAgentHome(unittest.TestCase):
         with open(link) as f:
             self.assertEqual(f.read(), "new\n")
 
+    def test_write_agent_file_leaf_link_to_dir(self):
+        # 末端がディレクトリへのリンクでも、その中に書かずにリンクを置き換える(mv -T。Issue #24)
+        link = f"{HOME}/.config/dir.conf"
+        self.agent_link("/srv/ah-dir", link)
+        r = sh(f'write_agent_file 644 "{link}"', "new\n")
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assert_target_untouched()
+        self.assertFalse(os.path.islink(link))
+        with open(link) as f:
+            self.assertEqual(f.read(), "new\n")
+
+    def test_agent_run_rm_parent_link(self):
+        # 80-agent-session.sh の古い設定の削除(Issue #24)。途中のディレクトリのリンクで、外のファイルを消さない
+        os.makedirs("/srv/ah-dir/environment.d")
+        with open("/srv/ah-dir/environment.d/50-proxy-ca.conf", "w") as f:
+            f.write("keep\n")
+        self.agent_link("/srv/ah-dir", f"{HOME}/.config/environment.d-link")
+        r = sh(f'agent_run rm -f "{HOME}/.config/environment.d-link/environment.d/50-proxy-ca.conf"')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertTrue(os.path.exists("/srv/ah-dir/environment.d/50-proxy-ca.conf"))
+
     def test_write_agent_file_parent_link(self):
         self.agent_link("/srv/ah-dir", f"{HOME}/.config/environment.d")
         r = sh(f'write_agent_file 644 "{HOME}/.config/environment.d/63-aws.conf"', "AWS_PAGER=\n")

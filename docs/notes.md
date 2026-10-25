@@ -281,7 +281,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #1: agent のホームの中は、すべて agent の権限(`agent_run` = runuser)で書く。write_agent_file は同じディレクトリの一時ファイルから `mv -T` で置き換える(末端のリンクは置き換わるだけで、途中のディレクトリのリンクは agent の権限で止まる)。tests/test_agent_home.py で、末端と途中のディレクトリのリンクでホームの外が変わらないことを確かめる(Docker の中)。動いている VM に just update して verify が通った
 - #2: sysadmin の鍵(`/opt/agent-host/sysadmin_authorized_keys` → `~sysadmin/.ssh/authorized_keys`。インストーラーもここに書いていた)とパスワード(`usermod -p`)を just update のたびに env.yaml に合わせる。VM で、鍵を 1 本足すと入れ、外すと `Permission denied (publickey)` になること、パスワードのハッシュを替えると新しいパスワードで sudo でき、古いものでは通らないことを確かめた
 - #3: RDP の認証情報は、渡したもののハッシュを `/var/lib/agent-host/rdp-credentials.sha256`(root だけ)に置き、env.yaml と違えば `rdp.env` を置きなおす。キーリングに入れるのは `first-login/rdp-credentials.sh`(ログインのたびの自動起動)。agent がログイン中なら just update がその場でセッションのバスを通して呼ぶ。VM で、パスワードを替えると新しいもので verify-rdp が通り、古いものでは通らない(終了コード 134)ことを確かめた。動いている gnome-remote-desktop は、再起動なしで新しい認証情報を使った
-- 未確認: agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで #1 と同じ問題を起こすか
+- agent-host-restore(root の tar の展開と chown -R)の件は、2026-10-25 に #23 で確かめて直した(下の「移行の書き出しと取り込みを利用者の権限で」)
 - #4: 移行の書き出しは、名前だけでの除外をやめ、~/work の中で見つけた node_modules・__pycache__・.venv のパスと、Orca のキャッシュ(~/.config/orca の中に固定したパターン)だけを除く。tests/test_backup.py で、同じ名前のファイルとブランチが残ることを確かめる(Docker の中)。VM での書き出しと取り込みの通しはしていない
 - #5: netclient では nut-server を入れないので、nut の HOME(/var/lib/nut)が無く、通知が送られなかった。85-ups.sh が mode に関わらず作り、agent-notify は記録を書けなくても送る。HOME の無いユーザーで偽の Slack に届くことを Docker で確かめた。netclient を VM・実機の NUT サーバーにつないでは確かめていない
 - #7: 移行の書き出しに ~/.aws・~/.config/gcloud(logs を除く)・~/.azure・~/.config/tea・~/.config/mise を足した(tests/test_backup.py)
@@ -385,6 +385,21 @@ v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめ�
 - 推定(確かめていない): rootless Docker のコンテナはすべて `app.slice/docker.service` に入るので、コンテナの中の暴走では、ほかのコンテナも一緒に止まる。Orca の画面そのものが膨らんだときは、画面のスコープが止まる(端末は daemon のスコープにつながっていて残るはず)
 - 実機(32GB 以上)で、エージェントを並べたときに圧迫の 50%・20 秒に届くかは未確認
 
+### 移行の書き出しと取り込みを利用者の権限で(2026-10-25、#23・#24)
+
+Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼んだエージェントが見つけ、主担当も Docker(ubuntu:26.04、GNU tar 1.35)で再現した。
+
+- 書き出し: root の `tar -c -C / home/<利用者>/...` は、引数のパスの途中のリンクをたどる。利用者が `~/.config` を root だけが読めるディレクトリ(700)へのリンクにすると、その中の 600 のファイルが書庫に入った(利用者が直接読むと Permission denied)。末端のリンクは、リンクとして書庫に入る(たどらない)
+- 取り込み: root の `tar -x -C /` は、展開先に元からある相対パスのリンク(`~/.config` → `../../srv/...`)をたどって、ホームの外に書いた。書庫に項目のあるディレクトリ(`~/.config/tea/` など)は、元のリンクを本物のディレクトリに置き換えた。推敲のエージェントの試験では、書庫の中のリンクを経由する書き込みと、展開先に元からある絶対パスのリンクは tar が拒んだ(仕組みは確かめていない)。`chown -R` は、ツリーの中のリンクも、引数がリンクの場合もたどらなかった(GNU coreutils 9.4、uutils 0.10.0)
+- 直し方: 書き出しは、root の tar(記録とホストの身元)のあとに、利用者ごとに `runuser` の tar を同じ出力に続ける(tar の連結。読むときは `-i`)。あるものの確認と ~/work の中の探索も利用者の権限で行い、一覧は引数と標準入力で渡す(root だけが読める一時ディレクトリにあるため)。取り込みは、ホームの外を root で、ホームの分を利用者ごとに `runuser` の tar(書庫は root が開いて標準入力で渡す)で展開する。所有者は展開した利用者になるので `chown -R` をやめた。v0.2.0 の書き出し(記録は `agent_uid=` だけ)は、`uid.agent=`・`home.agent=home/agent` として読む
+- 利用者に読めないもの: 書き出しの対象のパス自体が見えない(途中が 700 の root など)ものは、ないものとして飛ばす。見えるが読めないもの(rootless Docker のコンテナが subuid の持ち物で作った 700 のディレクトリ、711 の先の 600 のファイルなど)は、利用者の権限の `find ! -readable` で先に見つけて除き、記録に `unreadable=` として残し、書き出しと取り込みの最後に出す(止めると、ほかの全員の分を移せなくなるため)。リンクはリンクとして書庫に入るので見ない
+- 1 人の tar が失敗しても(読んでいる間に変わったファイルがあると 1、読めないものが途中で増えると 2)、ほかの人の分は書き、最後にいちばん大きい終了コードで終わる。取り込みも、1 人が失敗してもほかの人の分とホストの身元は取り込み、失敗した利用者を出して 1 で終わる。取り込み先のホームにホームの外を指すリンクがあると、その利用者の tar は失敗する(試験では「Cannot mkdir: Invalid cross-device link」。EXDEV になる仕組みは確かめていない)
+- 除くものの一覧は、`--exclude-from=-` で標準入力から渡す(`/dev/stdin` は利用者の権限で開きなおすので、root の umask が 077 だと読めなかった)
+- 独立のレビュー(別のエージェント)で、失敗のしかたの回帰(~/work に読めないディレクトリがあると何も出さずに止まる、1 人の失敗で後の人の分が入らない、umask 077)と、試験の取りこぼし(711 の先の 600 のファイル)を指摘され、直した。tar を root に戻す変異は、先に除く仕組みがあるため試験では捕まえられない(二重の守り)
+- tests/test_backup.py: 途中のリンクの先の root のファイルが書庫に入らない、元からある相対パスのリンクをたどらない、取り込んだものが利用者の持ち物になる、v0.2.0 の形も取り込める。直す前のコードでは前の 3 つが失敗することを確かめた
+- #24: 80-agent-session.sh の `rm -f "$agent_env"` を `agent_run rm -f` にした。#1 のときに見落とした。パスを変数で受けていたので、ホームのパスを探す grep に当たらなかった
+- 未確認: VM での書き出しから取り込みまでの通し(just vm-test は取り込みを試さない)
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -401,7 +416,6 @@ v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめ�
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
-- agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、利用者のホームの外を書き換えられないか(#1 と同じ種類の問題)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意

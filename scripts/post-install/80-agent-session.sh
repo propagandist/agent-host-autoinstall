@@ -120,7 +120,7 @@ block="$(sed -n '/^# >>> agent-host-autoinstall$/,/^# <<< agent-host-autoinstall
 if [ -n "$block" ]; then
     printf '%s\n' "$block" | write_agent_file 644 "$agent_env"
 else
-    rm -f "$agent_env"
+    agent_run rm -f "$agent_env"
 fi
 # Chrome は CA 証明書をシステムのストアではなく、ユーザーごとの NSS のデータベースから読む
 if compgen -G "/usr/local/share/ca-certificates/agent-host/*.crt" >/dev/null; then
