@@ -35,7 +35,7 @@ build)
     sed 's/^/  /' "$RUN_DIR/BUILD-INFO"
     ;;
 *)
-    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//' >&2
+    awk 'NR > 1 && /^#/ {sub(/^# ?/, ""); print; next} NR > 1 {exit}' "$0" >&2
     exit 2
     ;;
 esac

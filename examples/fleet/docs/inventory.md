@@ -5,4 +5,4 @@
 
 | ホスト | 置き場所 | 機種 | IP | 道具の版 | 入れた日 | 使う人・用途 | 記録 |
 |---|---|---|---|---|---|---|---|
-| agent-host-01 | (棚・席) | (機種) | 192.0.2.10 | v0.1.0 | YYYY-MM-DD | (チーム) | [hosts/agent-host-01.md](hosts/agent-host-01.md) |
+| agent-host-01 | (棚・席) | (機種) | 192.0.2.10 | v0.2.0 | YYYY-MM-DD | (使う人) | [hosts/agent-host-01.md](hosts/agent-host-01.md) |

@@ -85,9 +85,9 @@ fi
 if [ -f "$AH_ROOT/BUILD-INFO" ]; then
     # shellcheck source=/dev/null
     tool="$(. "$AH_ROOT/BUILD-INFO" && echo "$tool")"
-    ok "作った版の記録がある(道具 $tool)"
+    ok "置いた版の記録がある(道具 $tool)"
 else
-    ng "作った版の記録がある" "$AH_ROOT/BUILD-INFO がない"
+    ng "置いた版の記録がある" "$AH_ROOT/BUILD-INFO がない"
 fi
 eq "ホスト名が env.yaml と同じ" "$(hostname)" "$AH_HOSTNAME"
 failed_units="$(systemctl --failed --no-legend --plain 2>/dev/null | awk '{print $1}' | tr '\n' ' ' || true)"
@@ -343,6 +343,27 @@ usb | netclient)
     check "nut が通知の記録を書ける(/var/lib/nut)" runuser -u nut -- test -w /var/lib/nut
     ;;
 esac
+
+section "agent の設定(post-install が置くもの)"
+env_d="$AGENT_HOME/.config/environment.d"
+# shellcheck disable=SC2016  # $HOME はファイルの中の文字のまま探す
+check "ホームのフォルダー名が英語(user-dirs.dirs)" grep -q 'XDG_DESKTOP_DIR="$HOME/Desktop"' "$AGENT_HOME/.config/user-dirs.dirs"
+check "更新の通知(update-notifier)を出さない" grep -q '^Hidden=true' "$AGENT_HOME/.config/autostart/update-notifier.desktop"
+if [ -f /etc/default/apport ]; then
+    check "apport(クラッシュの報告)が無効" grep -q '^enabled=0' /etc/default/apport
+fi
+check "開けるファイルの数の既定(65536)" grep -q 'DefaultLimitNOFILE=65536' /etc/systemd/user.conf.d/60-agent-host-nofile.conf
+check "Orca の利用統計を送らない" grep -qx 'ORCA_TELEMETRY_DISABLED=1' "$env_d/60-orca.conf"
+check "mise の shims を PATH に入れる" grep -q 'mise/shims' "$env_d/995-mise.conf"
+if selected "${AH_CLOUDS:-}" aws; then
+    check "AWS CLI の出力をページャーに渡さない" grep -qx 'AWS_PAGER=' "$env_d/63-aws.conf"
+fi
+if [ -n "${AH_GITEA_URL:-}" ]; then
+    check "Gitea の URL(GITEA_SERVER_URL)" grep -qx "GITEA_SERVER_URL=$AH_GITEA_URL" "$env_d/60-gitea.conf"
+fi
+eq "root の containerd は止めている" "$(systemctl is-enabled containerd.service 2>/dev/null || true)" masked
+eq "agent の git の名前が env.yaml と同じ" "$(runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" git config --global user.name 2>/dev/null || true)" "$AH_GIT_USER_NAME"
+eq "agent の git のメールが env.yaml と同じ" "$(runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" git config --global user.email 2>/dev/null || true)" "$AH_GIT_USER_EMAIL"
 
 section "エージェントへの説明と通知"
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do

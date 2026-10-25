@@ -44,7 +44,7 @@ find "$stage" -type f \( -name '*.sh' -o -path '*/notify/*' -o -path '*/migrate/
     -exec chmod 755 {} +
 chmod 600 "$stage/env.sh" "$stage/agent_authorized_keys" "$stage/sysadmin_authorized_keys"
 
-# 3. 作った版の記録(just status と just facts で見る。秘密情報は入れない)
+# 3. 置いた版の記録(just status と just facts で見る。秘密情報は入れない)
 if [ -n "$build_info" ]; then
     install -m 644 "$build_info" "$stage/BUILD-INFO"
 fi

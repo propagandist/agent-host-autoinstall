@@ -32,7 +32,7 @@ iso host:
 update host target=host:
     scripts/with-env.sh {{host}} just -f {{tool}} update {{target}}
 
-# ホストの状態と作った版を見る
+# ホストの状態と、置いた版・最後に適用に成功した版を見る
 status target:
     just -f {{tool}} status {{target}}
 

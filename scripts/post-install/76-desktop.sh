@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# RDP で入って使うときのデスクトップの使い勝手: 端末(Xfce Terminal)とクリップボードの履歴(Clipboard Indicator)。
+# RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、
+# Chrome のポリシー、壁紙の色と Dock(desktop-env.sh に渡し、ログイン中ならその場で入れる)、Files のブックマーク。
 # キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -41,7 +42,7 @@ chmod -R u=rwX,go=rX "$ext_dir"
 log "Clipboard Indicator(版 71)を入れた"
 
 # --- Chrome: 利用統計・パスワードの保存・宣伝を止め、初回の案内を出さない ---
-# パスワードを保存させないのは、agent に個人の秘密情報を置かない前提(SPEC.md §4)に合わせるため
+# パスワードを保存させないのは、agent に置く秘密を各サービスのログインだけにする前提(SPEC.md §4)に合わせるため
 install -d -m 755 /etc/opt/chrome/policies/managed
 cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
 {

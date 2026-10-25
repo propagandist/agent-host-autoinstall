@@ -46,7 +46,7 @@ copy_envs() {
     [ "$i" -gt 0 ] || { echo "env.yaml を 1 つ以上渡す" >&2; exit 2; }
 }
 
-# 作った版の記録を RUN_DIR/BUILD-INFO に書く(ホストの /opt/agent-host/BUILD-INFO になる。秘密情報は入れない)。
+# 置いた版の記録を RUN_DIR/BUILD-INFO に書く(ホストの /opt/agent-host/BUILD-INFO になる。秘密情報は入れない)。
 # 構成リポジトリは、自分の版を AGENT_HOST_CONFIG_REV で渡す
 write_build_info() {
     local f names=()

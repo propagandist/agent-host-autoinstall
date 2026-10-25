@@ -61,11 +61,11 @@ rdp host:
 ssh host:
     ssh ${AGENT_HOST_SSH_OPTS:-} sysadmin@{{host}}
 
-# ホストの状態を見る(作った版、構成、RDP、セッション、ディスク、メモリ、失敗した unit)
+# ホストの状態を見る(置いた版と成功した版、構成、RDP、セッション、ディスク、メモリ、失敗した unit)
 status host:
     scripts/local/host.sh status {{host}}
 
-# 台帳のためにホストの情報を YAML で出す(機種、シリアル、MAC、ディスク、メモリ、OS、作った版、鍵の指紋)
+# 台帳のためにホストの情報を YAML で出す(機種、シリアル、MAC、ディスク、メモリ、OS、置いた版、鍵の指紋)
 facts host:
     scripts/local/host.sh facts {{host}}
 

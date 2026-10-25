@@ -28,6 +28,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
    - `gitea_url` はGitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
    - `agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
+   - `ups` は UPS を使うときだけ(下の「UPS」)
    - `sysadmin.password_hash` は `mkpasswd -m sha-512`(または `openssl passwd -6`)で作る
 2. 検査して ISO を作る
    ```
@@ -37,7 +38,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    ```
 3. `build/agent-host.iso` を USB メモリに書き込む(Rufus なら「DD イメージ」モード)
 
-できた ISO と USB メモリには、パスワードハッシュ、RDP のパスワード、Slack の Webhook の URL が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
+できた ISO と USB メモリには、パスワードハッシュ、RDP のパスワード、Slack の Webhook の URL、UPS のパスワード(netclient のとき)が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
 
 env.yaml は複数のファイルに分けて重ねられる(`just check-env common.yaml host.yaml`、`just iso build/x.iso common.yaml host.yaml`。後のファイルの値が勝つ)。ホストが 2 台以上になったら、env.yaml を別の非公開リポジトリで管理する([fleet.md](fleet.md))。
 
@@ -46,6 +47,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 ## 1. BIOS
 
 - Restore on AC Power Loss(名称は機種による)を **Power On** にする
+- UEFI で起動する。USB から起動できるようにする
 - NVIDIA の GPU で Secure Boot が有効なら、そのままにしておく(インストールの中で入る NVIDIA のドライバーが、署名済みのモジュールで動くかは未確認。動かなければ just verify の「GPU」が ✗ になる)
 - UPS を使うとき(env.yaml の `ups`)は、下の「UPS」も行う
 - HDMI ダミープラグを挿す。デスクトップ共有は実際の画面をそのまま映すので、RDP の解像度はプラグの解像度になる(手元からは変えられない)。1920×1080 のプラグを選ぶ(4K だと文字がとても小さい)
@@ -60,7 +62,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 | `netclient` | NAS など、UPS をつないだ別の機器の NUT サーバーを見る。`server`・`name`・`username`・`password` は、その NUT サーバーの監視用のユーザー(secondary) | 出力を止めるのは NUT サーバーの側。そちらの設定で、電源が戻ったときに出力が戻るようにする |
 
 - UPS の側で「電源が戻ったら出力を戻す」(自動再起動)を有効にしておく(多くの機種で既定)
-- 通知: バッテリー運転になった、バッテリーが少ない、まもなく終了する、状態を読めない、は Slack と IP Messenger に、電源が戻った、は Slack に届く
+- 通知: バッテリー運転になった、バッテリーが少ない、まもなく終了する、状態を読めない、バッテリーの交換時期、は Slack と IP Messenger に、電源が戻った、状態をまた読めるようになった、は Slack に届く
 - 確かめる: `just verify <ホスト>` の「UPS」に、UPS の状態(`OL` は電源から給電)が出る。ホストで `upsc <name>@localhost` でも見られる
 - 停電を試すときは、UPS の電源プラグを抜いて、バッテリー運転の通知が届くことを確かめ、すぐ挿しなおす(バッテリーが少なくなるまで待つと終了する)
 
@@ -74,8 +76,8 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 
 ```
 just status <ホスト>   # 構成・RDP・セッション・ディスク・メモリ・失敗した unit
-just logs <ホスト>     # 構成・first-login・セッションの見張りの記録
-just verify <ホスト>   # 仕様どおりかを約 100 項目で確かめる(✗ の行を直す。何も変えない)
+just logs <ホスト>     # 構成・最後の just update・first-login・セッションの見張りの記録
+just verify <ホスト>   # 仕様どおりかを 100 項目あまりで確かめる(✗ の行を直す。何も変えない)
 just verify-rdp <ホスト>   # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
 ```
 
@@ -108,7 +110,7 @@ just rdp <ホスト>      # build/<ホスト>.rdp を作る(Windows のリモー
 
 - Windows キーを常にホストへ送る(Super+Space などが使える)。クリップボードを共有する。色は 24 ビット(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)
 - 初回の証明書の警告で、mstsc なら「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
-- **デスクトップ共有は 1 つの画面を全員で共有する。2 人が同時に入ると操作がぶつかるので、入る前に一声かける**
+- **このホストは 1 人で使う。Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない(規約に反するおそれがある)。複数の人で使うときは、人数分のホストを用意する(2 台目からは構成リポジトリでまとめて管理できる。docs/fleet.md)。デスクトップ共有は画面の前のセッションをそのまま映すので、入るのは本人だけ**
 
 使い勝手:
 
@@ -203,7 +205,7 @@ Claude Code に Pro / Max / Team / Enterprise のアカウントでログイン�
 
 ### Orca Mobile
 
-Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる(Orca の公式のアプリ)。**スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。** 画面のロックをかけたスマホだけをペアリングし、無くしたら Orca の「設定 > モバイル」からその端末を外す。
+Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる(Orca の公式のアプリ)。**スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。** 画面のロックをかけたスマホだけをペアリングし、無くしたら Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)からその端末を外す。
 
 つなぎ方は 2 つある(Orca の画面で選ぶ)。
 
@@ -212,7 +214,7 @@ Orca のワークツリーやターミナルの出力をスマホで見て、コ
 | LAN | スマホがホストの 6768 番に直接つなぐ(通信は暗号化される)。アカウントは要らない | env.yaml の `dev_ports` に `6768` を足して `just update`(`lan_cidrs` からだけ開く)。LAN の外からは、VPN か、ホストとスマホの両方に Tailscale などを入れて、そのアドレスを選ぶ |
 | Orca Relay(ベータ) | ホストとスマホが Orca のサーバーに外向きにつなぎ、サーバーが中継する。モバイル回線からも使える | ポートは開けない。ホストの Orca で Orca のアカウントにサインインする(アカウントによっては使えない)。通信は Orca のサービスを通る |
 
-1. RDP で入り、Orca の「設定 > モバイル」で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
+1. RDP で入り、Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
 2. スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 
 Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリングの操作で LAN にも開く。一度つないだ端末があれば、次の起動からは最初から LAN にも開く(v1.4.237 のソース。このホストでは未確認)。
@@ -229,7 +231,7 @@ Windows では [WinSCP](https://winscp.net/) を使う。
 
 macOS や Linux からは、FileZilla か、端末の `sftp agent@<ホスト>` を使う。FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
 
-小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(VirtualBox では未確認)。
+小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(未確認)。
 
 ## 15. 設定やスクリプトを変えたとき(運用)
 
@@ -256,10 +258,11 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 - RDP の認証情報(env.yaml の `rdp`)を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる(古いものは使えなくなる)
 - NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
-- どの版の道具(と構成)を置いたかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「置いた版」に出る。構成が最後まで成功した版は `/var/lib/agent-host/BUILD-INFO.ok` に残り、「最後に適用に成功した版」に出る。just update が途中で失敗すると「構成: 前回の実行が最後まで終わっていない」と出るので、`just logs` で原因を見て、直してから just update する。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
+- どの版の道具(と構成)を置いたかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「置いた版」に出る。構成が最後まで成功した版は `/var/lib/agent-host/BUILD-INFO.ok` に残り、「最後に適用に成功した版」に出る。just update が途中で失敗すると「構成: 前回の実行が最後まで終わっていない」と出るので、`just logs` の「最後の just update」(ホストの `/var/log/agent-host-update.log`)で止まったスクリプトを見て、直してから just update する。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
 - ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
 - agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
 - 壁紙の色と Dock は、ログインのたびに動く自動起動(`first-login/desktop-env.sh`)が、env.yaml かエディターが変わったときだけ入れなおす。自分で変えた Dock は、それまで残る
+- Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
 
 ## 16. 環境を入れ替える(OS の入れなおし、機種の交換)
 
@@ -319,6 +322,8 @@ curl -fsSL https://releases.ubuntu.com/26.04/SHA256SUMS | grep 'desktop-amd64' |
 scripts/build-usb.sh ubuntu-26.04.1-desktop-amd64.iso build/agent-host.iso autoinstall/env.yaml
 ```
 
+`--build-info <ファイル>` を渡さないと、ホストに置いた版の記録(`/opt/agent-host/BUILD-INFO`)が置かれず、`just status` は「記録なし」、`just verify` は「置いた版の記録がある」が ✗ になる(just は自動で作って渡す)。
+
 Windows では Docker の Ubuntu の中で同じことをする(Git Bash から)。
 
 ```
@@ -333,13 +338,15 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo ubuntu:26.04 ba
 ssh sysadmin@<ホスト>
 test -f /var/lib/agent-host/provisioned && echo 構成済み
 ss -tln | grep 3389                                      # RDP の待ち受け
-sudo journalctl -u agent-host-provision.service           # 構成の記録
+sudo journalctl -u agent-host-provision.service           # 初回の構成の記録
+sudo tail -40 /var/log/agent-host-update.log               # 最後の just update の記録
 sudo cat /home/agent/.local/state/agent-host/first-login.log
+sudo /opt/agent-host/verify.sh                             # 仕様どおりかを確かめる(just verify と同じ)
 ```
 
 ### 設定やスクリプトを変えたとき
 
-`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>`(env.yaml は複数並べられる)で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh と agent_authorized_keys は 600、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
+`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>`(env.yaml は複数並べられる)で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh・agent_authorized_keys・sysadmin_authorized_keys は 600、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
 
 ### 移行の書き出しと取り込み
 

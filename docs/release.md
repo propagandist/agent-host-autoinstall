@@ -31,7 +31,7 @@ git-flow のタグに `v` を付ける(手元の設定で、リポジトリに�
 git config gitflow.prefix.versiontag v
 ```
 
-`just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。
+`just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。Ubuntu の ISO は `just fetch-iso` で build/ に取得しておく。
 
 - `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 と 3389 は、手元の PC の 127.0.0.1:2222 と 127.0.0.1:13389 に転送する)
 - 試験用の鍵を作り(`ssh-keygen -t ed25519 -f build/test/id_ed25519 -N ""`)、公開鍵を `sysadmin.ssh_authorized_keys` に入れる
@@ -86,7 +86,7 @@ git config gitflow.prefix.versiontag v
    git checkout main && git pull
    git flow hotfix start 0.1.1
    ```
-2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付>` を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/notes.md にも、何が起きてどう直したかを書く
+2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付> — <位置づけ>`(手順 3 と同じ形。例: 実機の RDP を直す版)を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/notes.md にも、何が起きてどう直したかを書く
 3. 確かめる
    ```sh
    just release-check    # hotfix ブランチでも使える

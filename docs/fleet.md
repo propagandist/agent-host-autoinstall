@@ -34,7 +34,7 @@ justfile                 just check / iso / update / status / facts など
 
 env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)。後のファイルの値が勝つ。辞書(`network`、`notify` など)はキーごとに重なり、並び(`editors`、`lan_cidrs` など)と値は置き換わる。知らないキー(書き間違い)はエラーになる。
 
-作ったホストの `/opt/agent-host/BUILD-INFO` には、道具の版、構成リポジトリの版(`AGENT_HOST_CONFIG_REV`)、使った env のファイル名、作った日時が残る。`just status` と `just facts` で見える。
+作ったホストの `/opt/agent-host/BUILD-INFO`(置いた版)と `/var/lib/agent-host/BUILD-INFO.ok`(構成が最後まで成功した版)には、道具の版、構成リポジトリの版(`AGENT_HOST_CONFIG_REV`)、使った env のファイル名、作った日時が残る。`just status` と `just facts` で見える。
 
 ## 3. 構成リポジトリを作る(最初に 1 回)
 
@@ -47,7 +47,7 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
    cd <構成リポジトリ>
    git init
    git submodule add https://github.com/<組織>/agent-host-autoinstall.git tool
-   git -C tool checkout v0.1.0
+   git -C tool checkout v0.2.0
    just setup
    ```
 3. 作業する人ごとに age の鍵を作る(秘密鍵は手元とパスワード管理に置き、リポジトリには入れない)
@@ -103,7 +103,7 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 2. submodule を新しいタグにし、すべてのホストの env.yaml を検査する
    ```
    git -C tool fetch --tags
-   git -C tool checkout v0.2.0
+   git -C tool checkout v0.3.0
    just check-all
    ```
    止まったら、CHANGELOG に従って `common.yaml` や `hosts/` を直す
@@ -150,7 +150,8 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 2. その人が知っている秘密情報を替える(過去のコミットは、その人の鍵で復号できるため)
    - RDP のパスワード: `rdp.password` を替えて、すべてのホストに `just update`
    - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(ホストのパスワードもこの値に置き換わる)
-   - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替える
+   - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替え、`just update`
+   - UPS の監視用のパスワード(netclient のとき): NUT サーバーの側で替えて `ups.password` を替え、`just update`
    - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
 
 ## 9. 記録の決まり

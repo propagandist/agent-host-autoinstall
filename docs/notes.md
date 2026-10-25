@@ -9,6 +9,7 @@
 - ISO は ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った。USB からの起動から構成の完了まで約 47〜67 分、再起動から RDP の待ち受けまで約 80 秒
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
+- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの 100 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
@@ -20,8 +21,9 @@
    - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない(主な理由)
    - Ubuntu の GNOME のセッションは 25.10 から Wayland だけ(上流の mutter が 49 で X11 を既定で無効にし、50 で削除)。xrdp は Xorg のセッションを作るので、GNOME を動かせない。xrdp・xorgxrdp と、Xfce などの X11 のセッションは 26.04 にもある(Ubuntu 26.04 のリリースノート「Other desktop sessions, such as KDE on X11, Xfce, ... can still be launched using an X.org session」。2026-10-25 に確認)
    - デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立する
-5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(専用ユーザー・秘密情報なしが前提)
+5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(1 人で使う専用ユーザーで、置く秘密はその人の各サービスのログインだけ、が前提)
 6. post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)
+7. 1 台は 1 人で使う。複数の人が同じセッション(agent)に入ると、Claude Code・Codex のログインが 1 つになり、ひとりのサブスクリプション(個人の契約)を全員で使うことになる。`CLAUDE_CONFIG_DIR` などで分けても、同じセッションに入れる人は誰の認証情報でも使えるので、分けたことにならない。複数の人で使うときはホストを人数分にする
 
 詳細は SPEC.md §8 を参照。
 
@@ -101,12 +103,12 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 
 エージェントをどこで動かすかを比べた。各社の文書は 2026-10-25 に読んだもの。
 
-- **手元の PC**: エージェントの CLI は手元で動くので、閉じる・スリープ・再起動で止まる。確認なしで動かすと、私的なファイルや個人のログイン情報(SSH の鍵、ブラウザーのログイン、パスワードの管理ソフトなど)と同じ環境で動くことになる
+- **手元の PC**: エージェントの CLI は手元で動くので、閉じる・スリープ・再起動で止まる。確認なしで動かすと、私的なファイルや個人のログイン情報(SSH の鍵、ブラウザのログイン、パスワードの管理ソフトなど)と同じ環境で動くことになる
 - **Claude Code の cloud sessions**(code.claude.com/docs/en/claude-code-on-the-web): Anthropic が管理する隔離された VM で動き、手元を閉じても続く。Pro・Max・Team と一部の Enterprise で使え、利用の上限はほかの Claude の利用と共有。リポジトリの clone と PR の作成は GitHub が要る(Team・Enterprise は GitHub Enterprise Server も)。GitLab などは手元から送れるが、そのリモートには push で戻せない。ネットワークは既定で制限され、許可した先にだけ届く。組織が自前の実行環境(self-hosted environment)を用意すれば、そちらで動かせる。使わない時間が続くと VM が片付けられ、動いていたコマンドは戻らない。組織が IP の許可リストを使っていると失敗する
 - **Codex cloud**(learn.chatgpt.com/docs/cloud): 作業ごとに作業場所があり、手元が眠っていても続く。手順は GitHub のリポジトリを選ぶところから始まる。インターネットへの接続は環境ごとに設定する。どのプランで使えるか、時間の上限、LAN の中に届くかは、読んだ範囲では書かれていなかった
 - **クラウドの VM**: Orca は SSH の先や VPS でも動く(Orca の文書の Ways to run)。費用は比べていない。LAN の資源には VPN が要る。このリポジトリの autoinstall は物理の PC に USB から入れる前提で、クラウドの VM のイメージでは試していない
 - **Orca の想定**(Orca の文書の Remote Orca Servers、v1.4.237 のソースの docs): Remote Orca Server では、作業する側がプロジェクト・worktree・端末・タブ・エージェントのアカウントとセッションを持ち、クライアントは画面になる。クライアントのノート PC が眠っても、つながりが切れても、エージェントは動き続ける。ログインは作業する側で行い、ノート PC のログインは引き継がれない。Remote Orca Servers はベータで、Tailscale か信頼できる LAN の中で使うことを勧めている。画面のない Linux では `orca-ide serve` で同じことができる
-- この構成は、その「作業する側」を、OS の自動ログイン・キーリング・RDP・セッションの見張り・UPS まで含めて人手なしで保つもの。画面のない `orca serve` ではなくデスクトップと RDP にしたのは、ログインにブラウザーが要るため(Claude Code は Chrome でログインした。受け入れテスト 2)、手元に何も入れずに Windows のリモート デスクトップ接続でつなげるため、人が同じデスクトップで手を入れられるため
+- この構成は、その「作業する側」を、OS の自動ログイン・キーリング・RDP・セッションの見張り・UPS まで含めて人手なしで保つもの。画面のない `orca serve` ではなくデスクトップと RDP にしたのは、ログインにブラウザが要るため(Claude Code は Chrome でログインした。受け入れテスト 2)、手元に何も入れずに Windows のリモート デスクトップ接続でつなげるため、人が同じデスクトップで手を入れられるため
 - 未確認: このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと(LAN なら env.yaml の dev_ports に 6768 を足すことになるはず)
 
 ### Orca を選んだ理由(2026-10-24 の調査)
@@ -219,7 +221,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 ### 構成リポジトリに合わせた道具の変更(2026-10-24 追加、VirtualBox で確認)
 - env.yaml を複数のファイルで重ねられるようにした(render-autoinstall.py。後のファイルが勝ち、辞書はキーごと、並びと値は置き換え)。知らないキーと、SOPS で暗号化されたままのファイルはエラーにする
 - Docker の中から見えるのはこのリポジトリだけなので、scripts/local/envs.sh が env.yaml を build/ の下の実行ごとの一時ディレクトリ(build/.run.XXXXXX)に写してから渡し、終わったら消す(固定の名前を共有すると、並行に動かしたときに別のホストの env.yaml が混ざった。Issue #9)。相対パスは just を呼んだディレクトリ(invocation_directory)から見る。ISO も build/ に作ってから出力先に移す
-- 作った版を /opt/agent-host/BUILD-INFO(道具の git describe、AGENT_HOST_CONFIG_REV、env のファイル名、日時)に残し、just status に出す。just facts で台帳のための YAML(機種、シリアル、MAC、ディスク、メモリ、OS、ホスト鍵と RDP の証明書の指紋)を出す
+- 置いた版を /opt/agent-host/BUILD-INFO(道具の git describe、AGENT_HOST_CONFIG_REV、env のファイル名、日時)に、構成が最後まで成功した版を /var/lib/agent-host/BUILD-INFO.ok に残し、just status に出す(#10)。just facts で台帳のための YAML(機種、シリアル、MAC、ディスク、メモリ、OS、ホスト鍵と RDP の証明書の指紋)を出す
 - just update のホスト名の確認は、重ねた結果の env.sh の AH_HOSTNAME で行う
 - 確かめたこと: リポジトリの外の common.yaml + hosts/x.yaml で check-env・iso・update が通る。書き間違い・暗号化のまま・hostname がないときは止まる。別のホストの env.yaml では update が止まる。examples/fleet をコピーし、sops 3.13.3 と age 1.3.2 で common.yaml の秘密情報を暗号化した構成リポジトリから、just check・update・status・facts が通り、復号したファイルが残らない
 - 手順は docs/fleet.md、ひな形は examples/fleet/
@@ -250,6 +252,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 初回の起動では、起動画面(plymouth)が構成のあいだ(約 23 分)出たままで CPU を 1 分 20 秒使い、GDM の起動のときに SEGV で落ちて plymouth-start.service が failed で残った。構成サービスの最初に `plymouth quit` し、GRUB の `GRUB_CMDLINE_LINUX_DEFAULT` を `quiet` にした(splash を外す)
 - 初回の起動のカーネル引数は、インストーラーが書いたもの(crashkernel あり)のまま。kdump を消して update-grub しても、再起動するまで /proc/cmdline には残る。just verify は GRUB の設定(grub.cfg)で確かめ、動いているカーネルに残っているときは「再起動で反映」と出すだけにした
 - 入れなおしから RDP の待ち受けまで人手なし、強制的な電源断のあと、gnome-shell の SEGV のあと、のいずれも、verify(106 項目)と verify-rdp が通った(VirtualBox 7.2、CPU 1、メモリ 4GB)
+- 2026-10-25、v0.2.0 の前(レビューの指摘 #1〜#14 の修正と全体の整合の直しを含むスクリプト)で、もう一度 just vm-test を通した。ISO の起動から RDP の待ち受けまで約 75 分(CPU 1)。入れた直後・強制的な電源断のあと・gnome-shell の SEGV のあとのいずれも、verify(128 項目。agent の設定の確認を足した版)と verify-rdp が通り、8 項目すべて通った。入れた直後はカーネルの引数に splash が残る旨を出す(再起動で反映)。GPU は VM にないので対象外
 
 ### UPS(2026-10-24 追加)
 
@@ -276,6 +279,16 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #2: sysadmin の鍵(`/opt/agent-host/sysadmin_authorized_keys` → `~sysadmin/.ssh/authorized_keys`。インストーラーもここに書いていた)とパスワード(`usermod -p`)を just update のたびに env.yaml に合わせる。VM で、鍵を 1 本足すと入れ、外すと `Permission denied (publickey)` になること、パスワードのハッシュを替えると新しいパスワードで sudo でき、古いものでは通らないことを確かめた
 - #3: RDP の認証情報は、渡したもののハッシュを `/var/lib/agent-host/rdp-credentials.sha256`(root だけ)に置き、env.yaml と違えば `rdp.env` を置きなおす。キーリングに入れるのは `first-login/rdp-credentials.sh`(ログインのたびの自動起動)。agent がログイン中なら just update がその場でセッションのバスを通して呼ぶ。VM で、パスワードを替えると新しいもので verify-rdp が通り、古いものでは通らない(終了コード 134)ことを確かめた。動いている gnome-remote-desktop は、再起動なしで新しい認証情報を使った
 - 未確認: agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで #1 と同じ問題を起こすか
+- #4: 移行の書き出しは、名前だけでの除外をやめ、~/work の中で見つけた node_modules・__pycache__・.venv のパスと、Orca のキャッシュ(~/.config/orca の中に固定したパターン)だけを除く。tests/test_backup.py で、同じ名前のファイルとブランチが残ることを確かめる(Docker の中)。VM での書き出しと取り込みの通しはしていない
+- #5: netclient では nut-server を入れないので、nut の HOME(/var/lib/nut)が無く、通知が送られなかった。85-ups.sh が mode に関わらず作り、agent-notify は記録を書けなくても送る。HOME の無いユーザーで偽の Slack に届くことを Docker で確かめた。netclient を VM・実機の NUT サーバーにつないでは確かめていない
+- #7: 移行の書き出しに ~/.aws・~/.config/gcloud(logs を除く)・~/.azure・~/.config/tea・~/.config/mise を足した(tests/test_backup.py)
+- #8: env.yaml の検査に型の表(TYPES)、hostname・ハッシュ・SSH の鍵の形、dev_ports の順、ipmsg_broadcast の IPv4 を足した(tests/test_render.py)
+- #9: 手元の一時ファイルは実行ごとの build/.run.XXXXXX、構成リポジトリのひな形の復号先は build/.dec/<ホスト>.XXXXXX に置く(tests/test_envs.py で寿命を重ねても混ざらないことを確かめる)
+- #10: provision.sh が実行中の印 provision-incomplete を置き、成功したら消して BUILD-INFO.ok を残す。VM で、存在しない UPS のドライバーで 85-ups.sh を失敗させると just status が「前回の実行が最後まで終わっていない」を出し、verify の 2 項目が失敗し、直して just update すると戻ることを確かめた。just update の構成の出力はホストの /var/log/agent-host-update.log に残り、just logs で見られる
+- #11: 入れなおしたホストに取り込むまでは、一時の known_hosts でつなぎ、指紋を新しいホストの画面で照らす(文書だけ。検証のときに Docker で回避できることを再現した)
+- #12: /dev/dri がなくても verify が止まらない(静的に確認)
+- #13: just update で反映する範囲を UPDATE_SCOPE と文書の表に持つ。壁紙の色と Dock は first-login/desktop-env.sh がログインのたびに、変わったときだけ入れる。VM で desktop_color を変えて just update すると、ログイン中のセッションの壁紙の色がその場で変わった
+- #14: xrdp を採らなかった主な理由を「別のセッションを作る」に直した(上の「設計で決めたこと」)
 - #6: Node.js はシステムの証明書ストアを見ないので、05-proxy-ca.sh が CA を OS に入れても、構成の途中の npm は TLS を検査するプロキシの下で `UNABLE_TO_VERIFY_LEAF_SIGNATURE` になる(自己署名の CA と https のサーバーを Docker で立てて再現。`NODE_EXTRA_CA_CERTS` で通る)。provision.sh が CA があるとき `NODE_EXTRA_CA_CERTS`・`SSL_CERT_FILE`・`REQUESTS_CA_BUNDLE` を export し、`apt-get update` を 05-proxy-ca.sh のあとに回した。実際の TLS を検査するプロキシの下での通しは未確認のまま
 
 ## 確認できていないこと
@@ -291,6 +304,9 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - systemd-oomd がメモリ不足のときに Orca ごと止めないか
+- UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
+- このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
+- agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、agent のホームの外を書き換えられないか(#1 と同じ種類の問題)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意

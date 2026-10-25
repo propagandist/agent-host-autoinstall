@@ -4,7 +4,7 @@
 
 ## 1. 目的
 
-背景: コーディングエージェントは 1 つの作業に長い時間がかかり、確認なしで動かすことも多い。手元の PC で並べて動かすと、閉じられず、私的なファイルや個人のログイン情報のある環境を触らせることになる。クラウドのエージェントは各社ごとに別々で、GitHub が前提で、LAN の資源に届かない。そこで、LAN の中に専用の PC を置き、Orca でエージェントを並べて見比べ、どこからでも RDP でその画面に入れるようにする。Orca の Remote Orca Server と同じく「作業する PC」と「操作する PC」を分ける形で、作業する側を OS ごと人手なしで保つ(比較は notes.md「専用の PC を置く理由」)。
+背景: コーディングエージェントは 1 つの作業に長い時間がかかり、確認なしで動かすことも多い。手元の PC で並べて動かすと、閉じられず、私的なファイルや個人のログイン情報のある環境を触らせることになる。クラウドのエージェントは各社ごとに別々で、標準では GitHub が前提で、LAN の資源に届かない(組織が自前の実行環境を用意すれば別)。そこで、LAN の中に専用の PC を置き、Orca でエージェントを並べて見比べ、どこからでも RDP でその画面に入れるようにする。Orca の Remote Orca Server と同じく「作業する PC」と「操作する PC」を分ける形で、作業する側を OS ごと人手なしで保つ(比較は notes.md「専用の PC を置く理由」)。
 
 - USBメモリ1本から、決まった構成の Ubuntu Desktop を無人に近い形でインストールできること
 - 再起動やセッションの異常終了のあとも、人手を介さず Orca が起動し、RDP で接続できる状態に戻ること(電源が戻ったときに起動するのは BIOS の設定で行う)
@@ -15,8 +15,8 @@
 | 項目 | 内容 |
 |---|---|
 | OS | Ubuntu Desktop 26.04 LTS(GNOME のセッションは Wayland のみ。xrdp は別のセッションを作り、GNOME の画面の前のセッションを共有できないため不採用) |
-| 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc(autoinstall.yaml と first-login で固定) |
-| ハードウェア | x86_64 の物理PC。メモリ 32GB 以上、NVMe SSD 推奨 |
+| 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc(autoinstall.yaml、76-desktop.sh、first-login で固定) |
+| ハードウェア | x86_64 の物理PC。メモリ 32GB 以上、NVMe SSD 推奨、有線 LAN。GPU は Intel の第 6 世代以降の内蔵 GPU か AMD を推奨(RDP の画面を GPU で符号化する) |
 | 画面 | 物理モニターなし運用。HDMI ダミープラグを挿す |
 | ネットワーク | LAN。固定IP(または DHCP 予約) |
 | 遠隔操作 | GNOME 標準リモートデスクトップの「デスクトップ共有」(RDP) |
@@ -41,22 +41,25 @@ LAN の RDP クライアント → :3389 → agent のデスクトップを操�
 | `sysadmin` | OS 管理・更新 | あり | SSH 鍵認証のみ(パスワード認証は無効) |
 | `agent` | Orca / Claude Code / Codex の実行 | なし | GDM 自動ログイン。SSH は SFTP 専用(env.yaml に鍵を書いた人だけ。シェルには入れない) |
 
-`agent` に個人の秘密情報は置かない。
+`agent` はこのホストを使う 1 人のためのユーザー。置く秘密は、その人の各サービスのログイン(サブスクリプションを含む)だけにする。複数の人で 1 台を共有しない(サブスクリプションの共有になる)。
 
 ## 5. 機能要件
 
 ### 5.1 OS インストール(autoinstall)
-- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc と日本語フォントは、ロケールの指定でインストーラーが入れる)
+- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc・言語パック・日本語フォントは、インストーラーが入れないことがあったので 76-desktop.sh で入れる)
 - キーボード配列は env.yaml の `keyboard_layout`(`us` / `jp`)で台ごとに決める。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるので、RDP で使う人のキーボードに合わせる
-- ストレージは LVM、ディスク全体を使用(`sizing-policy: all`。既定の scaled はボリュームグループの半分ほどを空けて残す。暗号化はオプション。§8 参照)
+- ストレージは LVM、ディスク全体を使用(`sizing-policy: all`。既定の scaled はボリュームグループの半分ほどを空けて残す。暗号化はしない。§8 参照)
 - ネットワークは env.yaml の `network` で、DHCP か固定 IP(アドレス、ゲートウェイ、DNS、検索ドメイン)を台ごとに決める。インストール中もこの設定で通信し、インストール後は NetworkManager が管理する
 - `sysadmin` ユーザーと SSH 公開鍵を登録
 - openssh-server を導入
+- 要る機種では追加のドライバー(NVIDIA など)をインストールの中で入れる(`drivers: install: true`)
+- env.yaml の `proxy` をインストール中の apt にも使う
 
 ### 5.2 インストール後の構成(late-commands / スクリプト)
-late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回起動時の構成サービス(`agent-host-provision.service`)を有効にするだけにする。構成そのものは、初回起動時にこのサービスが `post-install/` を番号順に実行する(GDM の起動前)。インストール中の chroot では ufw などが動かないため。`agent` のセッションが要る設定(gsettings、grdctl)は first-login で行う。
+late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回起動時の構成サービス(`agent-host-provision.service`)を有効にするだけにする。構成そのものは、初回起動時にこのサービスが `post-install/` を番号順に実行する(GDM の起動前。最初に起動画面(plymouth)を閉じる)。インストール中の chroot では ufw などが動かないため。`agent` のセッションが要る設定(gsettings、grdctl)のうち、初回だけのものは first-login で行う。env.yaml で変わるもの(RDP の認証情報、壁紙の色と Dock)は、ログインのたびの自動起動(first-login/rdp-credentials.sh、desktop-env.sh)が変わったときだけ入れ、`just update` のときに agent がログイン中ならその場でも入れる。root は agent のホームの中を root で書かない(agent の権限で書く)。
 
 - `agent` ユーザー作成(sudo なし)
+- `sysadmin` の SSH の鍵とパスワードは、`just update` のたびに env.yaml の `sysadmin` に合わせる(手で足した鍵は消える。反映のあと入りなおせるかを確かめる)
 - GDM 自動ログイン:`/etc/gdm3/custom.conf` に `AutomaticLoginEnable=true` / `AutomaticLogin=agent`。GNOME のセッションが落ちてログイン画面のままになったら、見張りのタイマーが GDM を再起動して自動ログインさせ、通知する
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - `agent` のホームのフォルダー名(デスクトップ、ダウンロードなど)は英語名(Desktop、Downloads など)にする
@@ -85,17 +88,17 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - UPS(任意。env.yaml の `ups`):NUT で見る。`usb` はこの PC につないだ UPS をドライバーで読み(upsd は 127.0.0.1 だけ)、`netclient` はほかの機器の NUT サーバーを見る。バッテリーが少なくなるか、NUT サーバーが終了を指示したら正しく終了する。`usb` では終了の最後に UPS の出力を止め、電源が戻ったら UPS が出力を戻し、BIOS の「電源が戻ったら起動」で起動する(そのあとは自動ログインと RDP まで人手なしで戻る)。停電・復電・まもなく終了などを `agent-notify` で知らせる
 - IP Messenger の通知先は、ユーザー名・PC 名・ニックネームか IP で指定する。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く)
 - サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。agent のファイルの索引作り、予定表、Xwayland の常時起動などを止める。snap と snapd(apt でも入らないように止める)、kdump、使わないパッケージ(画面の読み上げ・点字、印刷のドライバー、sssd、VPN・モデム、Bluetooth、中国語の入力、whoopsie・apport・ubuntu-report・ubuntu-insights)を消す。cups 本体はデスクトップのまとめの必須なので、消さずに止める
-- 資源の最適化:zram(メモリの半分)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の画面の符号化を GPU に任せる(gnome-remote-desktop の Vulkan と VA-API による H.264。Intel は VA-API の full 版、AMD は Mesa、NVIDIA はインストールの中でプロプライエタリ ドライバーを入れて NVENC)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、構成の最後に apt のキャッシュと古いダウンロードを消す
+- 資源の最適化:zram(メモリの半分)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の画面の符号化を GPU に任せる(gnome-remote-desktop の Vulkan と VA-API による H.264。Intel は VA-API の full 版、AMD は Mesa、NVIDIA はインストールの中でプロプライエタリ ドライバーを入れて NVENC)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、起動画面(splash)を出さない、構成の最後に apt のキャッシュと古いダウンロードを消す
 - デスクトップ:端末は Xfce Terminal(右クリックで貼り付け、選択でコピー)、Caps Lock は無効(caps:none)、クリップボードの履歴は Clipboard Indicator、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
 - 移行:agent-host-backup / agent-host-restore で、ホストの身元・ログインと設定・~/work を移す(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない。~/work からは実際に見つけた node_modules・__pycache__・.venv だけを除き、名前だけでは除かない)
 - SSH:パスワード認証無効、root ログイン無効
-- ufw:SSH(22)と RDP(3389)を LAN だけ許可、それ以外は拒否
+- ufw:SSH(22)と RDP(3389)、`dev_ports`、IP Messenger を使うときの UDP 2425 を LAN(`lan_cidrs`)だけ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
 - 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`。env.yaml の `gitea_url` を tea のログインの既定の接続先にし、エージェント向けの説明にも載せる)、uv、mise、CCManager、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、`agent` 専用の rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。`agent` を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、`agent` の `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、`agent` の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する
-- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを固定する(勝手に上がらないように)
+- Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code とその拡張機能、Zed、クラウドの CLI、Clipboard Indicator はバージョンを固定する(勝手に上がらないように)
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に
@@ -108,13 +111,15 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 8. 選んだ追加のエージェント(OpenCode・Copilot CLI・Antigravity CLI)とクラウドの CLI(`aws sso login`・`gcloud auth login`・`az login`)のログイン
 9. 通知の確認と、使う場合は Claude Code の Remote Control
 
-2〜3 はスクリプト化した(2 は空パスワードのキーリングを最初から置く、3 は first-login で `grdctl` を実行する)。ただし実機では未確認なので、効かなかったときの手作業を docs/manual-steps.md に残す。
+2〜3 はスクリプト化した(2 は空パスワードのキーリングを最初から置く、3 は first-login で `grdctl` を実行し、RDP の認証情報は rdp-credentials.sh が入れる)。ただし実機では未確認なので、効かなかったときの手作業を docs/manual-steps.md に残す。
 
 ## 6. 非機能要件
 - スクリプトは冪等(何度流しても同じ結果)
 - リポジトリに秘密情報を含めない(パスワードハッシュ・SSH 公開鍵・IP 範囲などの環境固有値は別ファイルに分離し、サンプルのみコミット)
-- 構成変更は OS 再インストールなしで適用できる形を目指す(後で Ansible 化しやすいように、late-commands からは同梱スクリプトを呼ぶだけにする)
-- 実機の構成は、別の非公開リポジトリ(構成リポジトリ)で管理できるようにする(docs/fleet.md)。env.yaml は複数のファイルを重ねて使え(共通 + ホスト)、知らないキーはエラーにする。リポジトリの外の env.yaml も扱える。作った版(道具の版、構成の版、作った日時)をホストの `/opt/agent-host/BUILD-INFO` に残し、`just status` と `just facts` で見せる
+- 構成の変更は `just update` で OS を入れなおさずに反映する。hostname・network・keyboard_layout はインストールのときだけ効き、rdp・desktop_color はセッションで反映する(線引きは render-autoinstall.py の UPDATE_SCOPE と manual-steps の表)。late-commands からは同梱スクリプトを呼ぶだけにする(後で Ansible 化しやすいように)
+- root は agent のホームの中を root で読み書きしない(`agent_run`・`write_agent_file`。agent の置いたリンクをたどってホームの外を書き換えないため)
+- 手元の一時ファイル(写した env.yaml、ISO など)は、実行ごとの `build/.run.XXXXXX` に置き、終わったら消す
+- 実機の構成は、別の非公開リポジトリ(構成リポジトリ)で管理できるようにする(docs/fleet.md)。env.yaml は複数のファイルを重ねて使え(共通 + ホスト)、知らないキーはエラーにする。リポジトリの外の env.yaml も扱える。置いた版(道具の版、構成の版、作った日時)をホストの `/opt/agent-host/BUILD-INFO`、構成が最後まで成功した版を `/var/lib/agent-host/BUILD-INFO.ok` に残し、実行中の印 `provision-incomplete` で失敗・中断を見分ける。`just status`・`just facts`・`just verify` で見せる
 - 受け入れテストのうち人が見なくても判定できるものは、機械で確かめられるようにする(docs/acceptance-test.md「機械で確かめる」)。env.yaml の検査の試験(`just test`)、ホストの構成の検査(`just verify`。読むだけ)、RDP の認証(`just verify-rdp`)、VM への入れなおしから電源断・セッションの異常終了からの戻りまでの通し(`just vm-test`)
 
 ## 7. 受け入れテスト
@@ -137,9 +142,12 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 | Ubuntu Desktop 26.04 LTS | 常時稼働でもGUIが必要。Server + デスクトップ追加より手直しが少ない |
 | xrdp ではなく GNOME デスクトップ共有 | xrdp は別のセッションを作るので、自動ログインで起動した Orca が見えない。また Ubuntu の GNOME のセッションは 25.10 から Wayland だけで、xrdp の Xorg のセッションでは GNOME が動かない(Xfce などは動く)。デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立し、再起動後も人手不要 |
 | 「リモートログイン」モードは使わない | 再起動後にログインするまでOrcaが動かない。併用するとデスクトップ共有が3390番に移り混乱する |
-| `agent` のキーリングを空パスワードに | 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めないため。`agent` は専用ユーザーで秘密情報を置かない前提で許容 |
+| `agent` のキーリングを空パスワードに | 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めないため。`agent` は 1 人で使う専用ユーザーで、置く秘密はその人の各サービスのログインだけ、という前提で許容 |
+| 1 分ごとの見張りで GDM を再起動(GDM の TimedLogin は使わない) | 自動ログインは起動時の 1 回だけ。TimedLogin は、agent がログイン画面の一覧に出ないため機能しなかった |
+| sudo のない専用ユーザーと rootless Docker(docker グループは使わない) | docker グループに入れると実質 root と同じになる |
+| ホームはローカルのディスク(NFS は使わない) | NFS が見えないと自動ログインが失敗する。rootless Docker の置き場や各ツールの SQLite が NFS の上では崩れる |
 | HDMI ダミープラグ | モニターなしだと描画されない機種がある |
-| ディスク暗号化はオプション | 使うなら TPM 連動の暗号化(パスフレーズなしで無人再起動できる)。パスフレーズ方式は無人復帰と両立しない |
+| ディスクは暗号化しない | 選ぶ手段は用意していない。使うなら TPM 連動の暗号化(パスフレーズなしで無人再起動できる)を autoinstall.yaml を手で直して行う(未対応・未確認)。パスフレーズ方式は無人復帰と両立しない |
 | LAN の外からは VPN 経由 | 3389 をインターネットに開けない |
 
 ## 9. 未確定事項(実装時に確認)
@@ -154,5 +162,6 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 
 ## 10. 対象外
 - Orca / Claude Code / Codex の利用ルールやアカウント管理
+- 複数の人で 1 台を使う仕組み(利用者ごとのセッション)。今は 1 人 1 台
 - 複数台の一括展開(PXE、MAAS 等)
 - Ansible 化(将来課題。スクリプト構成はそれを妨げないようにする)
