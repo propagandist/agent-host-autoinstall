@@ -92,7 +92,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。利用者のセッションのファイルの索引作り、予定表、Xwayland の常時起動などを止める。snap と snapd(apt でも入らないように止める)、kdump、使わないパッケージ(画面の読み上げ・点字、印刷のドライバー、sssd、VPN・モデム、Bluetooth、中国語の入力、whoopsie・apport・ubuntu-report・ubuntu-insights)を消す。cups 本体はデスクトップのまとめの必須なので、消さずに止める
 - 資源の最適化:zram(メモリの半分。vm.swappiness 180、vm.page-cluster 0)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の画面の符号化を GPU に任せる(gnome-remote-desktop の Vulkan と VA-API による H.264。Intel は VA-API の full 版、AMD は Mesa、NVIDIA はインストールの中でプロプライエタリ ドライバーを入れて NVENC)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、起動画面(splash)を出さない、構成の最後に apt のキャッシュと古いダウンロードを消す
 - デスクトップ:端末は Xfce Terminal(右クリックで貼り付け、選択でコピー)、Caps Lock は無効(caps:none)、クリップボードの履歴は Clipboard Indicator、PDF は Atril(既定のアプリ)、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
-- 移行:agent-host-backup / agent-host-restore で、ホストの身元・利用者全員のログインと設定・~/work を移す(取り込みはこのホストの users にいる名前の分だけ。RDP の認証情報もホームごと移る)(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない。~/work からは実際に見つけた node_modules・__pycache__・.venv だけを除き、名前だけでは除かない)
+- 移行:agent-host-backup / agent-host-restore で、ホストの身元・利用者全員のログインと設定・~/work を移す(ホームの分は書き出しも取り込みも利用者の権限で行う。取り込みはこのホストの users にいる名前の分だけ。RDP の認証情報もホームごと移る)(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない。~/work からは実際に見つけた node_modules・__pycache__・.venv だけを除き、名前だけでは除かない)
 - SSH:パスワード認証無効、root ログイン無効
 - SSH に入れるのは sysadmin と今の利用者だけ(`AllowUsers`)
 - ufw:SSH(22)と利用者ごとの RDP のポート(外した人の分は消す)、`dev_ports`、IP Messenger を使うときの UDP 2425 を LAN(`lan_cidrs`)だけ許可、それ以外は拒否

@@ -4,7 +4,9 @@
 #   read -rsp "sysadmin のパスワード: " PW; echo
 #   printf '%s\n' "$PW" | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
 # 取り込みは agent-host-restore。書き出しにはログインの情報が入るので、暗号化された場所に置き、取り込んだら消す。
-# 利用者(env.yaml の users)全員のホームの分を書き出す。
+# 利用者(env.yaml の users)全員のホームの分を書き出す。ホームの分は利用者の権限で読む(root で読むと、
+# 利用者が置いたリンクをたどって、利用者に読めない root のファイルまで書き出してしまう。Issue #23)。
+# 書き出しは、root の tar(記録とホストの身元)のあとに、利用者ごとの tar を続けたもの(読むときは tar -i)。
 # 作りなおせるもの(ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイル、~/work の中の
 # node_modules・__pycache__・.venv、Orca のキャッシュ)は含めない。
 set -euo pipefail
@@ -22,15 +24,13 @@ paths=(
     etc/ssh/ssh_host_ed25519_key etc/ssh/ssh_host_ed25519_key.pub
     etc/ssh/ssh_host_rsa_key etc/ssh/ssh_host_rsa_key.pub
 )
-anchored_excludes=()
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
-: >"$work/exclude"
 : >"$work/users"
 add_user_paths() {
-    local home="${AGENT_HOME#/}"
+    local home="${AGENT_HOME#/}" upaths anchored_excludes
     printf 'uid.%s=%s\nhome.%s=%s\n' "$AGENT_USER" "$(id -u "$AGENT_USER")" "$AGENT_USER" "$home" >>"$work/users"
-    paths+=(
+    upaths=(
         # ホストの身元: RDP の TLS 証明書(変わると RDP の証明書の警告が出る)と、認証情報(TPM がないとき。
         # 本人が変えたパスワードをそのまま運ぶ)
         "$home/.local/share/gnome-remote-desktop"
@@ -54,13 +54,18 @@ add_user_paths() {
     #   - Orca(Electron)のキャッシュは、Orca の設定ディレクトリの中に固定したパターンで除く
     #   - ~/work の中は、依存のパッケージ・Python のバイトコード・仮想環境のディレクトリ(node_modules、__pycache__、.venv)を
     #     実際に探し、見つけたパスだけを除く。.git の中は見ない。dist・target・.cache などのビルドの出力は除かない
-    anchored_excludes+=(
+    anchored_excludes=(
         "$home/.config/orca/*Cache" "$home/.config/orca/Crashpad" "$home/.config/orca/*Shared Dictionary"
         "$home/.config/gcloud/logs"
     )
-    if [ -d "/$home/work" ]; then
-        find "/$home/work" -path '*/.git' -prune -o -type d \( -name node_modules -o -name __pycache__ -o -name .venv \) \
-            -print -prune | sed 's|^/||' >>"$work/exclude"
+    printf '%s\n' "${anchored_excludes[@]}" >"$work/anchored.$AGENT_USER"
+    # あるものを確かめるのも、~/work の中を探すのも利用者の権限で行う
+    # shellcheck disable=SC2016  # 利用者の sh の中で展開する
+    agent_run sh -c 'for p; do [ -e "/$p" ] && printf "%s\n" "$p"; done; true' sh "${upaths[@]}" >"$work/paths.$AGENT_USER"
+    : >"$work/exclude.$AGENT_USER"
+    if agent_run test -d "/$home/work"; then
+        agent_run find "/$home/work" -path '*/.git' -prune -o -type d \( -name node_modules -o -name __pycache__ -o -name .venv \) \
+            -print -prune | sed 's|^/||' >"$work/exclude.$AGENT_USER"
     fi
 }
 for_each_user add_user_paths
@@ -80,17 +85,32 @@ done
     done
     echo "node=$(node --version 2>/dev/null || echo none)"
     echo "codex=$(codex --version 2>/dev/null || echo none)"
-    printf 'path=%s\n' "${existing[@]}"
-    sed 's/^/excluded=/' "$work/exclude"
+    [ "${#existing[@]}" -eq 0 ] || printf 'path=%s\n' "${existing[@]}"
+    cat "$work"/paths.* | sed 's/^/path=/'
+    cat "$work"/exclude.* | sed 's/^/excluded=/'
 } >"$work/agent-host-manifest.txt"
 
-# Orca のキャッシュと gcloud の記録はパターン(先頭から合わせる)、~/work の中は見つけたパスそのもの(ワイルドカードとして読まない)で除く
-exclude_args=(--anchored)
-for e in "${anchored_excludes[@]}"; do
-    exclude_args+=("--exclude=$e")
-done
-exclude_args+=(--no-wildcards "--exclude-from=$work/exclude")
-echo "[agent-host] 書き出す: ${#existing[@]} か所(ホスト $(hostname))。~/work から除くもの: $(grep -c . "$work/exclude") か所" >&2
-# Orca などが使っているソケットは tar が飛ばす(移す必要もない)ので、その警告は出さない
-tar --zstd --warning=no-file-ignored -cf - -C "$work" agent-host-manifest.txt -C / "${exclude_args[@]}" "${existing[@]}"
+# 利用者ごとの tar を標準出力に書く。利用者の権限で読むので、利用者に読めないものは入らない。
+# Orca のキャッシュと gcloud の記録はパターン(先頭から合わせる)、~/work の中は見つけたパスそのもの(ワイルドカードとして読まない)で除く。
+# 一覧は root だけが読める場所にあるので、書き出すものは引数で、~/work から除くものは標準入力で渡す
+write_user_tar() {
+    local exclude_args=(--anchored) e upaths
+    mapfile -t upaths <"$work/paths.$AGENT_USER"
+    [ "${#upaths[@]}" -gt 0 ] || return 0
+    while IFS= read -r e; do
+        exclude_args+=("--exclude=$e")
+    done <"$work/anchored.$AGENT_USER"
+    exclude_args+=(--no-wildcards --exclude-from=/dev/stdin)
+    # Orca などが使っているソケットは tar が飛ばす(移す必要もない)ので、その警告は出さない
+    agent_run tar --warning=no-file-ignored -cf - -C / "${exclude_args[@]}" "${upaths[@]}" <"$work/exclude.$AGENT_USER"
+}
+echo "[agent-host] 書き出す: $(grep -c '^path=' "$work/agent-host-manifest.txt") か所(ホスト $(hostname))。~/work から除くもの: $(grep -c '^excluded=' "$work/agent-host-manifest.txt" || true) か所" >&2
+{
+    if [ "${#existing[@]}" -gt 0 ]; then
+        tar -cf - -C "$work" agent-host-manifest.txt -C / "${existing[@]}"
+    else
+        tar -cf - -C "$work" agent-host-manifest.txt
+    fi
+    for_each_user write_user_tar
+} | zstd -q -c
 echo "[agent-host] 書き出しが終わった" >&2
