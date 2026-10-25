@@ -90,7 +90,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(VirtualBox の新規インストールで、固定 IP がインストール後も NetworkManager で同じ設定になることを確認済み。実機の LAN では未確認)
 - 26.04 の時刻同期は chrony(systemd-timesyncd は入っていない)。同期先は `/etc/chrony/sources.d/*.sources`、DHCP で配られた NTP も使う。35-system.sh が `ntp_servers` を `agent-host.sources` に書く(VirtualBox で確認済み)
 - agent の git 設定、GitHub CLI(リリースの .deb を SHA256 照合、2.103.2。apt リポジトリは最新版しか置かない)、build-essential 等、inotify の上限、apport の無効化、update-notifier の停止、`check-alive-timeout 0` を足した(動いている VM に反映して確認済み)
-- 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
+- systemd-oomd がメモリ不足のときに Orca ごと止めるかは、2026-10-25 に VM で確かめた(下の「メモリ不足のときの systemd-oomd」。端末 1 つだけが止まる)
 - SPEC.md §10 の対象外だが気付いた点: Orca の初回の案内で「Yolo モード」(確認なしでコマンド実行)が最初からオン。agent でログインしたアカウントのスキルが `~/.claude/skills/synced/` に同期される。どのアカウントでログインするかは決めておく
 
 ### Docker(2026-10-24 追加)
@@ -327,6 +327,17 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - ファイルのスワップは優先度の低い予備として残した。swappiness が高いので、zram が満ちたあとはディスクにも積極的に送る(推定)
 - 未確認: 26.04 の既定の値(推定 60)、エージェントを並べたときの応答・圧縮率・systemd-oomd の挙動への効き目(32GB 以上の実機で確かめる)。最近のカーネルでは zram の読み込みが先読みを通らない場合があり、page-cluster 0 の効き目は小さいかもしれない
 
+### メモリ不足のときの systemd-oomd(2026-10-25、VirtualBox で確認、#16)
+
+v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめた。**設定は変えていない。**
+
+- 既定: systemd-oomd は動いている。user@.service に Ubuntu の drop-in(`10-oomd-user-service-defaults.conf`)で `ManagedOOMMemoryPressure=kill`・`ManagedOOMMemoryPressureLimit=50%`、圧迫の時間は 20 秒(`oomctl dump`)。agent の user のマネージャーの `DefaultOOMPolicy` は stop
+- Orca は端末ごとに cgroup を分けている。画面は `app.slice/app-orca-<pid>.scope`、端末の daemon は `app.slice/orca-daemon-<uuid>.scope`、端末は 1 つずつ `orca_ptys_<daemon>.slice/orca_pty_<daemon>_<n>.scope`(daemon が `systemd-run --user --scope` で作る。`OOMPolicy=continue`、daemon のスコープに `BindsTo`。`out/main/daemon-entry.js`)
+- 試したこと: `orca terminal create` で端末を 3 つ作り、2 つで 2 秒ごとに時刻を書くループ、1 つで 64MB ずつ確保し続ける Python を動かした。約 50 秒で 2.7GB に達し、oomd が「memory pressure for …/user@1001.service being 81.58% > 50.00% for > 20s」で、**確保していた端末のスコープだけ**を止めた。ほかの 2 つの端末は書き続け(圧迫の間は間隔が最大 6 秒に延びた)、Orca の画面と daemon も動き続けた。カーネルの OOM killer は動かなかった
+- つまり、エージェントの 1 つ(とそこから動かしたビルド)が暴走しても、止まるのはその端末だけ。Orca が端末を分けているおかげなので、Orca の版を上げたら同じかを確かめる(`/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service/orca_ptys_*.slice/` に端末ごとのスコープがあるか)
+- 推定(確かめていない): rootless Docker のコンテナはすべて `app.slice/docker.service` に入るので、コンテナの中の暴走では、ほかのコンテナも一緒に止まる。Orca の画面そのものが膨らんだときは、画面のスコープが止まる(端末は daemon のスコープにつながっていて残るはず)
+- 実機(32GB 以上)で、エージェントを並べたときに圧迫の 50%・20 秒に届くかは未確認
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -339,7 +350,7 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
-- systemd-oomd がメモリ不足のときに Orca ごと止めないか
+- rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
 - agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、agent のホームの外を書き換えられないか(#1 と同じ種類の問題)

@@ -1312,7 +1312,7 @@ scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
   \item 実際の UPS での終了・出力の停止・復電での起動、NUT サーバー(netclient)への接続
   \item 実機の GPU での符号化(Secure Boot のときの NVIDIA を含む)
   \item Zed での日本語入力、RDP のクリップボードでのファイルのコピー
-  \item systemd-oomd がメモリ不足のときに Orca ごと止めないか
+  \item rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか
 \end{itemize}
 最新の状況は \code{docs/notes.md} の「確認できていないこと」を見る。
 
