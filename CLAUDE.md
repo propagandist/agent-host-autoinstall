@@ -112,6 +112,13 @@ GitFlow(git-flow AVH)で運用する。
 - `feature/<内容>`:作業はここで行い、`git flow feature finish` で develop に戻す
 - `release/<版>` / `hotfix/<版>`:main に入れるときだけ使う
 
+## 作業の型
+
+後片付けなどの作業の道具が読む、このリポジトリの値。決めたものだけを置く。
+
+- 既定ブランチ:`develop`
+- 常設ブランチ:`main`(既定ブランチ以外で消さないもの)
+
 ## 検証
 
 - autoinstall の動作確認は、まず仮想マシンで行う。KVM/QEMU(virt-manager 等)を基本とし、KVM が使えない Windows では VirtualBox で代える(UEFI で作る)
