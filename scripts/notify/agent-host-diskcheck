@@ -13,4 +13,4 @@ today="$(date +%F)"
 mkdir -p "$(dirname "$state")"
 echo "$today" >"$state"
 /usr/local/bin/agent-notify error "ディスクの残りが少ない" \
-    "/ の使用率が ${use}%(閾値 ${threshold}%)。docker system df や du -sh ~agent/* で大きいものを確かめる"
+    "/ の使用率が ${use}%(閾値 ${threshold}%)。docker system df や sudo du -sh /home/* で大きいものを確かめる"

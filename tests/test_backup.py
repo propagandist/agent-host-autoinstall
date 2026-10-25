@@ -33,6 +33,9 @@ class TestBackupExcludes(unittest.TestCase):
     def setUpClass(cls):
         os.makedirs("/opt/agent-host/lib", exist_ok=True)
         shutil.copy(os.path.join(REPO, "scripts", "lib", "common.sh"), "/opt/agent-host/lib/common.sh")
+        # 書き出しは env.sh の利用者(AH_USERS)全員の分を書く
+        write("/opt/agent-host/env.sh", "AH_USERS=agent\n")
+        write("/opt/agent-host/users/agent.env", "AH_USER_PORT=3389\n")
         try:
             pwd.getpwnam("agent")
         except KeyError:
@@ -95,6 +98,11 @@ class TestBackupExcludes(unittest.TestCase):
                      f"{HOME}/.config/gcloud/logs"):
             with self.subTest(path=path):
                 self.assertFalse(self.has(path), path)
+
+    def test_manifest_lists_users(self):
+        # 取り込みは利用者ごとに UID を比べ、このホストにいない人の分を除く
+        self.assertIn(f"uid.agent={pwd.getpwnam('agent').pw_uid}", self.manifest)
+        self.assertIn("home.agent=home/agent", self.manifest)
 
     def test_manifest_lists_excluded(self):
         self.assertIn(f"excluded={WORK.lstrip('/')}/proj/node_modules", self.manifest)

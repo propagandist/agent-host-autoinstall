@@ -5,13 +5,16 @@
 AH_ROOT=/opt/agent-host
 AH_ENV="${AH_ENV:-$AH_ROOT/env.sh}"
 AH_CACHE=/var/cache/agent-host
-AGENT_USER=agent
-AGENT_HOME=/home/agent
+# 利用者(env.yaml の users)全員が入るグループ。外した利用者を見つけるのと、通知の設定を読ませるのに使う
+AH_USERS_GROUP=agent-host-users
+# いま構成している利用者(for_each_user・use_user が設定する)。以下の agent_* の関数はこの利用者に対して働く
+AGENT_USER=""
+AGENT_HOME=""
 
 log() { echo "[agent-host] $*"; }
 
-# agent の権限でコマンドを実行する。agent のホームの中は root で読み書きしない。
-# agent が置いたシンボリックリンク(末端でも途中のディレクトリでも)を root がたどると、
+# 利用者の権限でコマンドを実行する。利用者のホームの中は root で読み書きしない。
+# 利用者が置いたシンボリックリンク(末端でも途中のディレクトリでも)を root がたどると、
 # ホームの外の root のファイルを書き換えたり所有者を変えたりできてしまうため(Issue #1)。
 # 作業ディレクトリは / にする(root のホームに入れず警告が出るのを避ける)
 agent_run() { (cd / && runuser -u "$AGENT_USER" -- "$@"); }
@@ -23,9 +26,62 @@ load_env() {
     . "$AH_ENV"
 }
 
+# 利用者 <名前> を「いま構成している利用者」にし、利用者ごとの値(users/<名前>.env)を読む
+use_user() {
+    local env_file="$AH_ROOT/users/$1.env"
+    [ -r "$env_file" ] || { log "利用者ごとの値 $env_file が読めない"; exit 1; }
+    AGENT_USER="$1"
+    AGENT_HOME="$(getent passwd "$1" | cut -d: -f6)"
+    AGENT_HOME="${AGENT_HOME:-/home/$1}"
+    # shellcheck source=/dev/null
+    . "$env_file"
+}
+
+# env.yaml の users の 1 人ずつ、use_user してから <関数> を呼ぶ。load_env のあとで使う
+for_each_user() {
+    local fn="$1" u
+    for u in $AH_USERS; do
+        use_user "$u"
+        "$fn"
+    done
+}
+
+# 標準入力の内容を、利用者全員のホームの <ホームからのパス> に書く(1 人ずつ write_agent_file で)。
+# 終わったあとの「いま構成している利用者」は最後の 1 人になる
+write_users_file() {
+    local mode="$1" rel="$2" content u
+    content="$(cat)"
+    for u in $AH_USERS; do
+        use_user "$u"
+        printf '%s\n' "$content" | write_agent_file "$mode" "$AGENT_HOME/$rel"
+    done
+}
+
+# スクリプトの残りを利用者ごとに動かす。全体が利用者ごとの処理のスクリプトで、load_env のあとに呼ぶ。
+# 利用者の 1 人ずつ同じスクリプトを実行しなおし(その中では use_user した状態で続きが動く)、呼んだ側は終わる
+run_per_user() {
+    if [ -n "${AH_FOR_USER:-}" ]; then
+        use_user "$AH_FOR_USER"
+        return 0
+    fi
+    local u
+    for u in $AH_USERS; do
+        AH_FOR_USER="$u" bash "$0"
+    done
+    exit 0
+}
+
+# 利用者のユーザーのバス(linger で、セッションがなくてもある)でコマンドを動かす。gsettings・grdctl・systemctl --user に使う
+agent_bus_run() {
+    local uid
+    uid="$(id -u "$AGENT_USER")"
+    agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$uid" \
+        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" "$@"
+}
+
 # ini 形式のファイルの [section] に key=value を設定する。
 # 既にある行(コメントアウトされた行を含む)は置き換え、なければ section の末尾に足す。
-# agent のホームの中のファイルは、先頭に --as-agent を付けて agent の権限で書く
+# 利用者のホームの中のファイルは、先頭に --as-agent を付けて利用者の権限で書く
 ini_set() {
     local run=()
     if [ "${1:-}" = --as-agent ]; then
@@ -97,47 +153,17 @@ npm_global() {
     log "$pkg $version を入れた"
 }
 
-# agent がログイン中なら、その GNOME のセッションの中でコマンドを動かす(gsettings や grdctl はセッションのバスを使う)。
-# ログインしていなければ何もせず 2 を返す
+# 利用者の GNOME のセッションが動いていれば、そのバスでコマンドを動かす(その場で反映したいとき)。
+# セッションがなければ何もせず 2 を返す
 agent_session_run() {
-    local uid
-    uid="$(id -u "$AGENT_USER")"
-    if ! { [ -S "/run/user/$uid/bus" ] &&
-        loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; }; then
+    if ! loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
         return 2
     fi
-    agent_run env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="/run/user/$uid" \
-        DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$uid/bus" "$@"
+    agent_bus_run "$@"
 }
 
-# RDP の認証情報(env.yaml の rdp)を agent のセッションに渡す。ログインのたびの自動起動
-# (first-login/rdp-credentials.sh)がキーリングに入れ、渡したファイルを消す。
-# 前に渡したものと同じなら何もせず 1 を返す(--force で必ず渡す)。替えたら just update で入れ替わる(Issue #3)。
-# 渡したものの印(ハッシュ)は root だけが読める場所に置く。load_env のあとで呼ぶ
-queue_rdp_credentials() {
-    local mark=/var/lib/agent-host/rdp-credentials.sha256 want
-    want="$(printf '%s\n%s\n' "$AH_RDP_USER" "$AH_RDP_PASSWORD" | sha256sum | cut -d' ' -f1)"
-    write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-rdp-credentials.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=agent-host RDP credentials
-Exec=$AH_ROOT/first-login/rdp-credentials.sh
-X-GNOME-Autostart-enabled=true
-NoDisplay=true
-EOF
-    if [ "${1:-}" != --force ] && [ "$(cat "$mark" 2>/dev/null)" = "$want" ]; then
-        return 1
-    fi
-    {
-        printf 'RDP_USER=%q\n' "$AH_RDP_USER"
-        printf 'RDP_PASSWORD=%q\n' "$AH_RDP_PASSWORD"
-    } | write_agent_file 600 "$AGENT_HOME/.config/agent-host/rdp.env"
-    install -d -m 755 /var/lib/agent-host
-    (umask 077 && printf '%s\n' "$want" >"$mark")
-}
-
-# 標準入力の内容を agent のホーム配下のファイルに書く。途中のディレクトリも含めて、すべて agent の権限で行う
-# (root で書くと、agent が置いたリンクをたどってホームの外に書けてしまう。Issue #1)。
+# 標準入力の内容を利用者のホーム配下のファイルに書く。途中のディレクトリも含めて、すべて利用者の権限で行う
+# (root で書くと、利用者が置いたリンクをたどってホームの外に書けてしまう。Issue #1)。
 # 同じディレクトリに一時ファイルを作ってから置き換えるので、末端がリンクでもリンク先は変えない
 write_agent_file() {
     local mode="$1" dest="$2"

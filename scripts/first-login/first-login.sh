@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# agent の初回ログイン時に一度だけ実行する(~/.config/autostart から起動される)。
-# GNOME の省電力・画面ロックを止め、デスクトップ共有(RDP)を有効にする。
-# 失敗したら印を付けないので、次のログインでもう一度動く。再実行は agent のセッションでこのファイルを実行する。
+# 利用者の GNOME の設定を一度だけ入れる。セッションを立てる前に、88-start-sessions.sh が root から
+# 利用者の権限とユーザーのバス(linger)で実行する(gsettings・xfconf はセッションがなくても書ける)。
+# 画面ロックを先に止めておかないと、立てた直後のセッションがロックされ、パスワードのない利用者は外せない(#15 の段 0)。
+# 失敗したら印を付けないので、次の構成でもう一度動く。RDP の設定は 20-sessions.sh が行う。
 set -euo pipefail
 
 state_dir="$HOME/.config/agent-host"
@@ -17,6 +18,8 @@ echo "[agent-host] first-login 開始: $(date -Is)"
 # 画面がロックされると RDP の接続が切れる(gnome-remote-desktop の文書で確認済み)
 gsettings set org.gnome.desktop.session idle-delay 0
 gsettings set org.gnome.desktop.screensaver lock-enabled false
+# ロックの操作もできなくする。利用者のパスワードはロックしてあるので、ロックすると本人も外せない
+gsettings set org.gnome.desktop.lockdown disable-lock-screen true
 gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'
 # 忙しいアプリに「応答していません」を出さない(誰も見ていない画面に残る)
 gsettings set org.gnome.mutter check-alive-timeout 0
@@ -64,30 +67,8 @@ if [[ "$enabled" != *"'$ext'"* ]]; then
     fi
 fi
 
-# --- デスクトップ共有(RDP) ---
-# TLS 証明書は grdctl もデーモンも作らないので自分で作る(置き場所は upstream の docs/configuration.md の慣例)
-cert_dir="$HOME/.local/share/gnome-remote-desktop"
-mkdir -p "$cert_dir"
-if [ ! -f "$cert_dir/tls.crt" ] || [ ! -f "$cert_dir/tls.key" ]; then
-    openssl req -new -newkey rsa:4096 -days 3650 -nodes -x509 \
-        -subj "/CN=$(hostname)" -keyout "$cert_dir/tls.key" -out "$cert_dir/tls.crt"
-    chmod 600 "$cert_dir/tls.key"
-fi
-# grdctl が "RDP server certificate is invalid" を出すが、最終的な状態は正常で RDP も待ち受ける(VirtualBox)。
-# 証明書を先にしても出た。原因は未調査
-grdctl rdp set-tls-cert "$cert_dir/tls.crt"
-grdctl rdp set-tls-key "$cert_dir/tls.key"
-
-# 認証情報(80-agent-session.sh が渡した rdp.env)をキーリングに入れる。ログインのたびの自動起動でも同じものが動く
-"$(dirname "$0")/rdp-credentials.sh"
-
-# 既定では閲覧のみなので操作を許可する。ポートは 3389 に固定する(使用中でも別ポートへずらさない)
-grdctl rdp disable-view-only
-grdctl rdp disable-port-negotiation
-# enable は gnome-remote-desktop.service(systemd user)の起動と永続的な有効化まで行う
-grdctl rdp enable
-grdctl status || true
-
+mkdir -p "$state_dir"
 touch "$done_mark"
+# 0.2 までのホストでは、ログインのたびの自動起動から動かしていた
 rm -f "$autostart"
 echo "[agent-host] first-login 完了: $(date -Is)"

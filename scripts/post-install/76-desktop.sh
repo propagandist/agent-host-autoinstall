@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、
 # Chrome のポリシー、壁紙の色と Dock(desktop-env.sh に渡し、ログイン中ならその場で入れる)、Files のブックマーク。
-# キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
+# キー割り当てと拡張機能の有効化は first-login で行う。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
@@ -24,19 +24,25 @@ log "日本語入力(Mozc)と日本語の言語パックを入れた"
 # GPU を使わず軽い(VirtualBox で 1 つあたり約 27MB。Ghostty は約 148MB、Alacritty は約 73MB)。
 # 右クリックで貼り付けと選択でコピーは、セッションが要る xfconf で設定するので first-login で行う
 apt-get install -y xfce4-terminal
-# 既定の端末(xdg-terminal-exec が読む。Files の「端末で開く」など)
-printf 'xfce4-terminal.desktop\n' | write_agent_file 644 "$AGENT_HOME/.config/xdg-terminals.list"
+terminal_default() {
+    # 既定の端末(xdg-terminal-exec が読む。Files の「端末で開く」など)
+    printf 'xfce4-terminal.desktop\n' | write_agent_file 644 "$AGENT_HOME/.config/xdg-terminals.list"
+}
+for_each_user terminal_default
 log "Xfce Terminal を入れ、agent の既定の端末にした"
 
 # --- PDF ビューアー: Atril(Ubuntu の公式パッケージ。OS の更新に任せる) ---
 # GTK3 で、メニューとツールバーのある普通の画面(RDP でマウスだけでも使える)。zathura は vim 風のキー操作が前提、
 # MuPDF は X11 なので開くたびに Xwayland が起動する、qpdfview は Qt を一式入れることになるので選ばなかった
-apt-get install -y atril
-mimeapps="$AGENT_HOME/.config/mimeapps.list"
-if [ ! -f "$mimeapps" ]; then
-    printf '[Default Applications]\n' | write_agent_file 644 "$mimeapps"
-fi
-ini_set --as-agent "$mimeapps" "Default Applications" application/pdf atril.desktop
+pdf_default() {
+    apt-get install -y atril
+    mimeapps="$AGENT_HOME/.config/mimeapps.list"
+    if [ ! -f "$mimeapps" ]; then
+        printf '[Default Applications]\n' | write_agent_file 644 "$mimeapps"
+    fi
+    ini_set --as-agent "$mimeapps" "Default Applications" application/pdf atril.desktop
+}
+for_each_user pdf_default
 log "Atril を入れ、agent の PDF の既定のアプリにした"
 
 # --- クリップボードの履歴: Clipboard Indicator(GNOME の拡張機能) ---
@@ -62,13 +68,14 @@ cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
   "PromotionsEnabled": false
 }
 EOF
-: | write_agent_file 644 "$AGENT_HOME/.config/google-chrome/First Run"
+desktop_user() {
+    : | write_agent_file 644 "$AGENT_HOME/.config/google-chrome/First Run"
 
-# --- 壁紙の色と Dock(env.yaml の desktop_color と editors で変わる) ---
-# desktop-env.sh がログインのたびに読み、変わっていれば入れる。ログイン中なら、その場でも入れる(Issue #13)
-printf 'DESKTOP_COLOR=%s\n' "${AH_DESKTOP_COLOR:-#4a4a4a}" |
-    write_agent_file 644 "$AGENT_HOME/.config/agent-host/desktop.env"
-write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop" <<EOF
+    # --- 壁紙の色と Dock(env.yaml の desktop_color と editors で変わる) ---
+    # desktop-env.sh がログインのたびに読み、変わっていれば入れる。ログイン中なら、その場でも入れる(Issue #13)
+    printf 'DESKTOP_COLOR=%s\n' "${AH_DESKTOP_COLOR:-#4a4a4a}" |
+        write_agent_file 644 "$AGENT_HOME/.config/agent-host/desktop.env"
+    write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop" <<EOF
 [Desktop Entry]
 Type=Application
 Name=agent-host desktop settings
@@ -76,21 +83,23 @@ Exec=$AH_ROOT/first-login/desktop-env.sh
 X-GNOME-Autostart-enabled=true
 NoDisplay=true
 EOF
-if [ -f "$AGENT_HOME/.config/agent-host/first-login.done" ]; then
-    rc=0
-    agent_session_run "$AH_ROOT/first-login/desktop-env.sh" >/dev/null || rc=$?
-    [ "$rc" = 0 ] || [ "$rc" = 2 ] || log "注意: 壁紙の色と Dock をその場では入れられなかった。次のログインで入る"
-fi
+    if [ -f "$AGENT_HOME/.config/agent-host/first-login.done" ]; then
+        rc=0
+        agent_session_run "$AH_ROOT/first-login/desktop-env.sh" >/dev/null || rc=$?
+        [ "$rc" = 0 ] || [ "$rc" = 2 ] || log "注意: 壁紙の色と Dock をその場では入れられなかった。次のログインで入る"
+    fi
 
-# --- Files のサイドバーに ~/work ---
-# 新規インストールではまだファイルがない(xdg-user-dirs-gtk-update は 80 で止めている)ので、よく使う場所も一緒に書く
-bookmarks="$AGENT_HOME/.config/gtk-3.0/bookmarks"
-if [ ! -f "$bookmarks" ]; then
-    printf 'file://%s/%s\n' "$AGENT_HOME" Documents "$AGENT_HOME" Downloads "$AGENT_HOME" Pictures |
-        write_agent_file 664 "$bookmarks"
-fi
-if ! grep -q "^file://$AGENT_HOME/work " "$bookmarks"; then
-    # shellcheck disable=SC2016  # agent の sh の中で展開する
-    agent_run sh -c 'printf "file://%s/work work\n" "$2" >>"$1"' sh "$bookmarks" "$AGENT_HOME"
-fi
+    # --- Files のサイドバーに ~/work ---
+    # 新規インストールではまだファイルがない(xdg-user-dirs-gtk-update は 80 で止めている)ので、よく使う場所も一緒に書く
+    bookmarks="$AGENT_HOME/.config/gtk-3.0/bookmarks"
+    if [ ! -f "$bookmarks" ]; then
+        printf 'file://%s/%s\n' "$AGENT_HOME" Documents "$AGENT_HOME" Downloads "$AGENT_HOME" Pictures |
+            write_agent_file 664 "$bookmarks"
+    fi
+    if ! grep -q "^file://$AGENT_HOME/work " "$bookmarks"; then
+        # shellcheck disable=SC2016  # agent の sh の中で展開する
+        agent_run sh -c 'printf "file://%s/work work\n" "$2" >>"$1"' sh "$bookmarks" "$AGENT_HOME"
+    fi
+}
+for_each_user desktop_user
 log "Chrome のポリシー、壁紙の色、~/work のブックマークを設定した"

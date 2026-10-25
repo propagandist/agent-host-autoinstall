@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # env.yaml の clouds で選んだクラウドの CLI を入れる(aws / gcp / azure)。
-# 選ばなくなったものは消さない。認証情報は agent のホーム(~/.aws、~/.config/gcloud、~/.azure)に残るので、
+# 選ばなくなったものは消さない。認証情報は利用者のホーム(~/.aws、~/.config/gcloud、~/.azure)に残るので、
 # 短い時間だけ有効なログイン(SSO、デバイスコード)と、権限を絞ったアカウントで使う(手順書)。
 # Terraform・OpenTofu・kubectl・Helm などはプロジェクトごとに版が違うので入れない(エージェントが mise で入れる)。
 set -euo pipefail
@@ -20,7 +20,6 @@ AZURE_CLI_VERSION=2.91.0-1~resolute
 MICROSOFT_KEY_FPR=BC528686B50D79E339D3721CEB3E94ADBE1229CF
 
 selected() { [[ " ${AH_CLOUDS:-} " == *" $1 "* ]]; }
-env_d="$AGENT_HOME/.config/environment.d"
 
 # apt の署名鍵を置く(fingerprint が一致したときだけ)
 install_apt_key() {
@@ -49,7 +48,7 @@ if selected aws; then
         rm -rf "$tmp"
     fi
     # 出力を less に渡さない(エージェントが端末で止まらないように)
-    printf 'AWS_PAGER=\n' | write_agent_file 644 "$env_d/63-aws.conf"
+    printf 'AWS_PAGER=\n' | write_users_file 644 ".config/environment.d/63-aws.conf"
     log "AWS CLI $AWSCLI_VERSION を入れた"
 fi
 
@@ -65,7 +64,7 @@ if selected gcp; then
     fi
     apt-mark hold google-cloud-cli
     # 利用状況の送信と、更新の確認を止める(版は apt で固定している)
-    write_agent_file 644 "$env_d/63-gcloud.conf" <<'EOF'
+    write_users_file 644 ".config/environment.d/63-gcloud.conf" <<'EOF'
 CLOUDSDK_CORE_DISABLE_USAGE_REPORTING=true
 CLOUDSDK_COMPONENT_MANAGER_DISABLE_UPDATE_CHECK=true
 EOF
@@ -85,6 +84,6 @@ if selected azure; then
     fi
     apt-mark hold azure-cli
     # 利用状況の送信を止める
-    printf 'AZURE_CORE_COLLECT_TELEMETRY=false\n' | write_agent_file 644 "$env_d/63-azure.conf"
+    printf 'AZURE_CORE_COLLECT_TELEMETRY=false\n' | write_users_file 644 ".config/environment.d/63-azure.conf"
     log "Azure CLI $AZURE_CLI_VERSION を入れて hold した"
 fi

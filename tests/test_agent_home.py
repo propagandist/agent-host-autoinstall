@@ -16,8 +16,8 @@ IN_CONTAINER = os.path.exists("/.dockerenv") and os.geteuid() == 0
 
 
 def sh(script, stdin=""):
-    """common.sh を読み込んだ root の bash で動かす。"""
-    return subprocess.run(["bash", "-c", f'set -uo pipefail; . "{COMMON}"; {script}'],
+    """common.sh を読み込んだ root の bash で、agent を「いま構成している利用者」にして動かす。"""
+    return subprocess.run(["bash", "-c", f'set -uo pipefail; . "{COMMON}"; AGENT_USER=agent AGENT_HOME={HOME}; {script}'],
                           input=stdin, capture_output=True, text=True)
 
 

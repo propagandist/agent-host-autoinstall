@@ -4,6 +4,7 @@
 #   read -rsp "sysadmin のパスワード: " PW; echo
 #   printf '%s\n' "$PW" | ssh sysadmin@<ホスト> 'sudo -S -p "" agent-host-backup' > agent-host-<ホスト名>-<日付>.tar.zst
 # 取り込みは agent-host-restore。書き出しにはログインの情報が入るので、暗号化された場所に置き、取り込んだら消す。
+# 利用者(env.yaml の users)全員のホームの分を書き出す。
 # 作りなおせるもの(ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイル、~/work の中の
 # node_modules・__pycache__・.venv、Orca のキャッシュ)は含めない。
 set -euo pipefail
@@ -12,58 +13,68 @@ set -euo pipefail
 
 [ "$(id -u)" -eq 0 ] || { echo "root で実行する(sudo agent-host-backup)" >&2; exit 2; }
 [ -t 1 ] && { echo "標準出力をファイルに向ける: ssh ... 'sudo agent-host-backup' > backup.tar.zst" >&2; exit 2; }
+load_env
 
 # --- 移すもの(/ からの相対パス。ないものは飛ばす) ---
-home="${AGENT_HOME#/}"
 paths=(
     # ホストの身元: SSH のホスト鍵(変わると接続する全員に警告が出る)
     etc/ssh/ssh_host_ecdsa_key etc/ssh/ssh_host_ecdsa_key.pub
     etc/ssh/ssh_host_ed25519_key etc/ssh/ssh_host_ed25519_key.pub
     etc/ssh/ssh_host_rsa_key etc/ssh/ssh_host_rsa_key.pub
-    # ホストの身元: RDP の TLS 証明書(変わると RDP の証明書の警告が出る)
-    "$home/.local/share/gnome-remote-desktop"
-    # ログインキーリング(RDP の認証情報や、アプリが保存したログイン)
-    "$home/.local/share/keyrings"
-    # エージェントのログインと設定
-    "$home/.claude" "$home/.claude.json" "$home/.codex" "$home/.copilot" "$home/.gemini"
-    "$home/.config/opencode" "$home/.local/share/opencode"
-    "$home/.config/gh" "$home/.docker/config.json" "$home/.ssh" "$home/.gitconfig"
-    # Gitea CLI(tea)のログイン、クラウドの CLI のログインと設定、mise の全体の設定(Issue #7)
-    "$home/.config/tea" "$home/.aws" "$home/.config/gcloud" "$home/.azure" "$home/.config/mise"
-    # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
-    "$home/.config/orca" "$home/.orca"
-    "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
-    "$home/.bash_history"
-    # 作業中のもの(push していない変更を含む。Orca の worktree もこの下)
-    "$home/work"
 )
-# 作りなおせるもの・キャッシュは除く。名前だけで除くと、同じ名前の原本のディレクトリ・ファイルや、git の ref
-# (dist や target という名前のブランチ)まで消える(Issue #4)。そこで、
-#   - Orca(Electron)のキャッシュは、Orca の設定ディレクトリの中に固定したパターンで除く
-#   - ~/work の中は、依存のパッケージ・Python のバイトコード・仮想環境のディレクトリ(node_modules、__pycache__、.venv)を
-#     実際に探し、見つけたパスだけを除く。.git の中は見ない。dist・target・.cache などのビルドの出力は除かない
-anchored_excludes=(
-    "$home/.config/orca/*Cache" "$home/.config/orca/Crashpad" "$home/.config/orca/*Shared Dictionary"
-    "$home/.config/gcloud/logs"
-)
+anchored_excludes=()
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+: >"$work/exclude"
+: >"$work/users"
+add_user_paths() {
+    local home="${AGENT_HOME#/}"
+    printf 'uid.%s=%s\nhome.%s=%s\n' "$AGENT_USER" "$(id -u "$AGENT_USER")" "$AGENT_USER" "$home" >>"$work/users"
+    paths+=(
+        # ホストの身元: RDP の TLS 証明書(変わると RDP の証明書の警告が出る)と、認証情報(TPM がないとき。
+        # 本人が変えたパスワードをそのまま運ぶ)
+        "$home/.local/share/gnome-remote-desktop"
+        # ログインキーリング(アプリが保存したログイン)
+        "$home/.local/share/keyrings"
+        # エージェントのログインと設定
+        "$home/.claude" "$home/.claude.json" "$home/.codex" "$home/.copilot" "$home/.gemini"
+        "$home/.config/opencode" "$home/.local/share/opencode"
+        "$home/.config/gh" "$home/.docker/config.json" "$home/.ssh" "$home/.gitconfig"
+        # Gitea CLI(tea)のログイン、クラウドの CLI のログインと設定、mise の全体の設定(Issue #7)
+        "$home/.config/tea" "$home/.aws" "$home/.config/gcloud" "$home/.azure" "$home/.config/mise"
+        # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
+        "$home/.config/orca" "$home/.orca"
+        "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
+        "$home/.bash_history"
+        # 作業中のもの(push していない変更を含む。Orca の worktree もこの下)
+        "$home/work"
+    )
+    # 作りなおせるもの・キャッシュは除く。名前だけで除くと、同じ名前の原本のディレクトリ・ファイルや、git の ref
+    # (dist や target という名前のブランチ)まで消える(Issue #4)。そこで、
+    #   - Orca(Electron)のキャッシュは、Orca の設定ディレクトリの中に固定したパターンで除く
+    #   - ~/work の中は、依存のパッケージ・Python のバイトコード・仮想環境のディレクトリ(node_modules、__pycache__、.venv)を
+    #     実際に探し、見つけたパスだけを除く。.git の中は見ない。dist・target・.cache などのビルドの出力は除かない
+    anchored_excludes+=(
+        "$home/.config/orca/*Cache" "$home/.config/orca/Crashpad" "$home/.config/orca/*Shared Dictionary"
+        "$home/.config/gcloud/logs"
+    )
+    if [ -d "/$home/work" ]; then
+        find "/$home/work" -path '*/.git' -prune -o -type d \( -name node_modules -o -name __pycache__ -o -name .venv \) \
+            -print -prune | sed 's|^/||' >>"$work/exclude"
+    fi
+}
+for_each_user add_user_paths
 
 existing=()
 for p in "${paths[@]}"; do
     [ -e "/$p" ] && existing+=("$p")
 done
 
-work="$(mktemp -d)"
-trap 'rm -rf "$work"' EXIT
-: >"$work/exclude"
-if [ -d "/$home/work" ]; then
-    find "/$home/work" -path '*/.git' -prune -o -type d \( -name node_modules -o -name __pycache__ -o -name .venv \) \
-        -print -prune | sed 's|^/||' >"$work/exclude"
-fi
 {
     echo "# agent-host-backup の記録"
     echo "hostname=$(hostname)"
     echo "date=$(date -Is)"
-    echo "agent_uid=$(id -u "$AGENT_USER")"
+    cat "$work/users"
     for pkg in claude-code orca-ide docker-ce code gh google-chrome-stable; do
         echo "pkg.$pkg=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo none)"
     done
