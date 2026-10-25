@@ -3,7 +3,7 @@
 # 復号できる人(age の公開鍵)を足したり外したりしたら、sops updatekeys で全ファイルに反映する(tool/docs/fleet.md)
 creation_rules:
   - path_regex: (^|/)(common|hosts/[^/]+)\.yaml$
-    encrypted_regex: ^(password_hash|password|slack_webhook_url)$
+    encrypted_regex: ^(password_hash|password|initial_password|slack_webhook_url)$
     # 作業する人ごとの age の公開鍵(age-keygen で作る)。カンマで区切る
     age: >-
       age1CHANGE_ME_operator1,
