@@ -31,4 +31,4 @@ notify:
   ipmsg_broadcast: []
 
 dev_ports:
-  - "3000:3999"
+  - "3000:3099"

@@ -322,7 +322,7 @@ def main():
     for p in dev_ports:
         m = re.fullmatch(r"(\d+)(?::(\d+))?", p)
         if not m or not all(1024 <= int(x) <= 65535 for x in m.groups() if x):
-            fail(f"dev_ports の {p} は 1024〜65535 のポートか範囲(3000:3999)にする")
+            fail(f"dev_ports の {p} は 1024〜65535 のポートか範囲(3000:3099)にする")
         if m.group(2) and int(m.group(1)) > int(m.group(2)):
             fail(f"dev_ports の {p} は 始め:終わり の順にする(ufw が逆順を受け付けず、構成が止まる)")
     users = check_users(env.get("users"), dev_ports)
