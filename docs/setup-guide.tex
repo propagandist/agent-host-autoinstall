@@ -413,6 +413,7 @@ Zed & 軽くて速い GUI エディター(GPU が要る)。TOML、Docker、HTML�
 \multicolumn{3}{@{}l}{\headstyle\color{accent}デスクトップ} \\
 Google Chrome & 既定のブラウザ。エージェントのログインや画面の確認に使う & Dock から \\
 Xfce Terminal & 軽い端末。右クリックで貼り付け、選択でコピー & \key{Ctrl}+\key{Alt}+\key{T} \\
+Atril & PDF ビューアー(PDF の既定のアプリ) & Files で PDF をダブルクリック \\
 Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え \\
 Clipboard Indicator & クリップボードの履歴 & 上部のバーから選ぶ \\
 \addlinespace
@@ -739,7 +740,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{70-orca.sh} & Orca と、その自動起動 \\
 \code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
 \code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
-\code{76-desktop.sh} & 日本語入力と言語パック、端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色と Dock(ログインのたびに入れる自動起動。ログイン中ならその場で)、ブックマーク \\
+\code{76-desktop.sh} & 日本語入力と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色と Dock(ログインのたびに入れる自動起動。ログイン中ならその場で)、ブックマーク \\
 \code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、RDP の認証情報の受け渡し(変わったら入れなおす。ログイン中ならその場で)、first-login の準備 \\
 \code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
 \code{85-ups.sh} & env.yaml の \code{ups} で選んだ UPS を NUT で見る。バッテリーが少ないと終了し、USB でつないだときは UPS の出力を止めて、電源が戻ったら起動させる。停電と復電を通知する \\
@@ -1191,7 +1192,7 @@ Zed & 1.25.3 & リリースの tar(SHA256) \\
 Zed の拡張機能 & 固定しない & zed.dev(初めて入れたときの最新。その後は更新しない) \\
 Google Chrome & 固定しない & Google の apt、自動更新 \\
 Clipboard Indicator & 71 & extensions.gnome.org(SHA256) \\
-Xfce Terminal、python-is-python3、Neovim、passt、NUT(UPS)、Intel の VA-API(full 版)、Mesa の Vulkan ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
+Xfce Terminal、python-is-python3、Atril、Neovim、passt、NUT(UPS)、Intel の VA-API(full 版)、Mesa の Vulkan ほか & Ubuntu の版 & Ubuntu の apt(OS の更新に任せる) \\
 NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨する版 & インストーラーの ubuntu-drivers \\
 \bottomrule
 \end{longtable}}

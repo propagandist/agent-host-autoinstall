@@ -53,6 +53,7 @@ sudo ss -tlnp | grep 33
 | 壁紙の色と Dock | RDP で見る。`sudo cat /home/agent/.config/agent-host/desktop.applied` | env.yaml の desktop_color の色。入っているエディターが Dock に並ぶ |
 | バージョンの固定 | `apt-mark showhold` | `claude-code`、`containerd.io`、`docker-*`(5 つ)、`gh`、`orca-ide`。選んだときは `code`、`google-cloud-cli`、`azure-cli` も |
 | 既定のブラウザ | `sudo -u agent DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u agent)/bus xdg-settings get default-web-browser` | `google-chrome.desktop` |
+| PDF の既定のアプリ | `sudo -u agent xdg-mime query default application/pdf`。RDP で日本語を含む PDF を Files でダブルクリックする | `atril.desktop`。Atril で開き、日本語が表示される |
 | Chrome の自動更新 | `sudo unattended-upgrade --dry-run --debug 2>&1 \| grep -i 'Google LLC'` | 許可元に `o=Google LLC,a=stable` がある |
 | ホームのフォルダー名 | `sudo ls /home/agent` | Desktop・Downloads などの英語名だけで、日本語名のフォルダーがない |
 | ディスク | `df -h /; sudo vgs` | ルートがボリュームグループのほぼ全部を使っている(VFree がほぼ 0) |

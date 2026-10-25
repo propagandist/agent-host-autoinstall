@@ -198,6 +198,8 @@ check "Google Chrome が入っている" installed google-chrome-stable
 check "Chrome のポリシー" test -f /etc/opt/chrome/policies/managed/agent-host.json
 check "既定のブラウザが Chrome" grep -q 'x-scheme-handler/https=google-chrome.desktop' "$AGENT_HOME/.config/mimeapps.list"
 check "Xfce Terminal が入っている" installed xfce4-terminal
+check "Atril が入っている" installed atril
+check "PDF の既定のアプリが Atril" grep -q '^application/pdf=atril.desktop' "$AGENT_HOME/.config/mimeapps.list"
 npm_ver() { node -p "require('$(npm root -g)/$1/package.json').version" 2>/dev/null || true; }
 selected "${AH_AGENTS:-}" opencode && eq "OpenCode $(pin OPENCODE_VERSION)" "$(npm_ver opencode-ai)" "$(pin OPENCODE_VERSION)"
 selected "${AH_AGENTS:-}" copilot && eq "GitHub Copilot CLI $(pin COPILOT_VERSION)" "$(npm_ver @github/copilot)" "$(pin COPILOT_VERSION)"

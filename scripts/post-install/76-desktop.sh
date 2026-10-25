@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、
+# RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、
 # Chrome のポリシー、壁紙の色と Dock(desktop-env.sh に渡し、ログイン中ならその場で入れる)、Files のブックマーク。
 # キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
 set -euo pipefail
@@ -27,6 +27,17 @@ apt-get install -y xfce4-terminal
 # 既定の端末(xdg-terminal-exec が読む。Files の「端末で開く」など)
 printf 'xfce4-terminal.desktop\n' | write_agent_file 644 "$AGENT_HOME/.config/xdg-terminals.list"
 log "Xfce Terminal を入れ、agent の既定の端末にした"
+
+# --- PDF ビューアー: Atril(Ubuntu の公式パッケージ。OS の更新に任せる) ---
+# GTK3 で、メニューとツールバーのある普通の画面(RDP でマウスだけでも使える)。zathura は vim 風のキー操作が前提、
+# MuPDF は X11 なので開くたびに Xwayland が起動する、qpdfview は Qt を一式入れることになるので選ばなかった
+apt-get install -y atril
+mimeapps="$AGENT_HOME/.config/mimeapps.list"
+if [ ! -f "$mimeapps" ]; then
+    printf '[Default Applications]\n' | write_agent_file 644 "$mimeapps"
+fi
+ini_set --as-agent "$mimeapps" "Default Applications" application/pdf atril.desktop
+log "Atril を入れ、agent の PDF の既定のアプリにした"
 
 # --- クリップボードの履歴: Clipboard Indicator(GNOME の拡張機能) ---
 ext_dir="/usr/share/gnome-shell/extensions/$CLIPBOARD_INDICATOR_UUID"
