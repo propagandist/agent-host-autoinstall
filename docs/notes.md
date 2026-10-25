@@ -90,7 +90,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(VirtualBox の新規インストールで、固定 IP がインストール後も NetworkManager で同じ設定になることを確認済み。実機の LAN では未確認)
 - 26.04 の時刻同期は chrony(systemd-timesyncd は入っていない)。同期先は `/etc/chrony/sources.d/*.sources`、DHCP で配られた NTP も使う。35-system.sh が `ntp_servers` を `agent-host.sources` に書く(VirtualBox で確認済み)
 - agent の git 設定、GitHub CLI(リリースの .deb を SHA256 照合、2.103.2。apt リポジトリは最新版しか置かない)、build-essential 等、inotify の上限、apport の無効化、update-notifier の停止、`check-alive-timeout 0` を足した(動いている VM に反映して確認済み)
-- 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
+- systemd-oomd がメモリ不足のときに Orca ごと止めるかは、2026-10-25 に VM で確かめた(下の「メモリ不足のときの systemd-oomd」。端末 1 つだけが止まる)
 - SPEC.md §10 の対象外だが気付いた点: Orca の初回の案内で「Yolo モード」(確認なしでコマンド実行)が最初からオン。agent でログインしたアカウントのスキルが `~/.claude/skills/synced/` に同期される。どのアカウントでログインするかは決めておく
 
 ### Docker(2026-10-24 追加)
@@ -169,6 +169,9 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
 - Caps Lock: RDP(mstsc)で手元とホストの状態がずれた。原因は未調査(gnome-remote-desktop 50 にはロックキーの同期の修正が入っている。IBus が先に受け取っている可能性)。caps:none で使わないことにした
 - mstsc の色 32 ビットは遅いという報告(gnome-remote-desktop #333、同じ 26.04)があるので、.rdp のひな形は 24 ビットにした
+  - 2026-10-25 にソースで見直した(#17): gnome-remote-desktop 50.2 は、クライアントがグラフィックス パイプラインかコーデックに対応していると、色の深さを 32 にする(`grd-session-rdp.c`「Client prefers colour depth %u, invalidated by support of codecs or graphics pipeline」)。ホストの側では 24 にしても軽くならない。mstsc の側で 24 と 32 で何かが変わるか(#333 の遅さの原因)は未確認なので、値は 24 のまま残し、実機で比べてから決める
+  - 同じときに、ひな形の `networkautodetect` を 0 から 1 にした。自動検出がないと RTT が 0 のままで、確認の返らないフレームが 2 つで送る量を絞る(`grd-rdp-gfx-frame-controller.c` の `activate_throttling_th = MAX (2, MIN (delayed_frames + 2, refresh_rate))`。grd も「High latency connections will suffer!」と出す)。60Hz・RTT 1ms の LAN では 1 にしても同じ 2 だが、RTT 50ms(VPN 越しなど)では 5 になる(静的な確認。実機の VPN 越しでは未確認)
+  - #17 のもう 1 つの案(4K のダミープラグのとき、env.yaml で解像度を固定する)は入れなかった。#15 で seat0 の自動ログインとダミープラグをやめ、ヘッドレスのセッションにする予定のため
 - RDP の extend モード(仮想の画面を足し、大きさを手元に合わせる)は、VirtualBox(GPU なし)で仮想の画面を足した直後に GNOME Shell が signal 11 で異常終了した。採用せず mirror-primary のまま。実機での動作は未確認
 - GNOME のセッションが落ちると、自動ログインは起動時の 1 回だけなのでログイン画面のままになり、再起動まで RDP に戻れない。TimedLogin は agent がログイン画面の一覧に出ないので効かなかった。見張りのタイマー(agent-host-session-watchdog、1 分ごと、2 回続けて seat0 にログインのセッションがなければ GDM を再起動)を置き、GNOME Shell をわざと落として約 1 分 20 秒で戻ることを確かめた
 
@@ -354,6 +357,24 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 - 外した利用者は、ユーザーとホームを残して期限切れにする(`usermod --expiredate 1`)。パスワードのロックだけでは鍵の SSH は止まらない。`AllowUsers` からも外す(`Match User` から外れた人が鍵でシェルに入れるのを防ぐ)
 - `just verify-rdp` は、仮のパスワードで通らなかったときに成功にも失敗にもせず「未検証」と出す。変えたのか、設定の誤りや障害かを区別できないので、`--ask` で今のパスワードを確かめる経路を足した
 
+### zram のスワップの sysctl(2026-10-25 追加、#18)
+
+- `vm.swappiness = 180`、`vm.page-cluster = 0` を `/etc/sysctl.d/60-agent-host-zram.conf` に置いた(36-minimize.sh)
+- 根拠: カーネルの文書(admin-guide/sysctl/vm.rst)は、swappiness は 0〜200 で既定 60、「zram や zswap のようなメモリ上のスワップでは 100 を超える値も考えられる」とする(180 を勧めてはいない)。page-cluster は「0 で先読みを完全に止める」。Pop!_OS は zram のとき swappiness 180、zstd なら page-cluster 0 にしている(pop-os/default-settings)。systemd-zram-generator は sysctl を設定しない
+- ファイルのスワップは優先度の低い予備として残した。swappiness が高いので、zram が満ちたあとはディスクにも積極的に送る(推定)
+- 未確認: 26.04 の既定の値(推定 60)、エージェントを並べたときの応答・圧縮率・systemd-oomd の挙動への効き目(32GB 以上の実機で確かめる)。最近のカーネルでは zram の読み込みが先読みを通らない場合があり、page-cluster 0 の効き目は小さいかもしれない
+
+### メモリ不足のときの systemd-oomd(2026-10-25、VirtualBox で確認、#16)
+
+v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめた。**設定は変えていない。**
+
+- 既定: systemd-oomd は動いている。user@.service に Ubuntu の drop-in(`10-oomd-user-service-defaults.conf`)で `ManagedOOMMemoryPressure=kill`・`ManagedOOMMemoryPressureLimit=50%`、圧迫の時間は 20 秒(`oomctl dump`)。agent の user のマネージャーの `DefaultOOMPolicy` は stop
+- Orca は端末ごとに cgroup を分けている。画面は `app.slice/app-orca-<pid>.scope`、端末の daemon は `app.slice/orca-daemon-<uuid>.scope`、端末は 1 つずつ `orca_ptys_<daemon>.slice/orca_pty_<daemon>_<n>.scope`(daemon が `systemd-run --user --scope` で作る。`OOMPolicy=continue`、daemon のスコープに `BindsTo`。`out/main/daemon-entry.js`)
+- 試したこと: `orca terminal create` で端末を 3 つ作り、2 つで 2 秒ごとに時刻を書くループ、1 つで 64MB ずつ確保し続ける Python を動かした。約 50 秒で 2.7GB に達し、oomd が「memory pressure for …/user@1001.service being 81.58% > 50.00% for > 20s」で、**確保していた端末のスコープだけ**を止めた。ほかの 2 つの端末は書き続け(圧迫の間は間隔が最大 6 秒に延びた)、Orca の画面と daemon も動き続けた。カーネルの OOM killer は動かなかった
+- つまり、エージェントの 1 つ(とそこから動かしたビルド)が暴走しても、止まるのはその端末だけ。Orca が端末を分けているおかげなので、Orca の版を上げたら同じかを確かめる(`/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service/orca_ptys_*.slice/` に端末ごとのスコープがあるか)
+- 推定(確かめていない): rootless Docker のコンテナはすべて `app.slice/docker.service` に入るので、コンテナの中の暴走では、ほかのコンテナも一緒に止まる。Orca の画面そのものが膨らんだときは、画面のスコープが止まる(端末は daemon のスコープにつながっていて残るはず)
+- 実機(32GB 以上)で、エージェントを並べたときに圧迫の 50%・20 秒に届くかは未確認
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -367,6 +388,7 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - 利用者ごとのヘッドレスのセッションで: 本人が端末で `grdctl --headless rdp set-credentials` を実行してパスワードを変えられること、TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
 - agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、利用者のホームの外を書き換えられないか(#1 と同じ種類の問題)
