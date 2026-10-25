@@ -73,7 +73,8 @@ setup_rdp() {
     # 認証情報は、まだないときだけ仮の値を入れる。本人が最初の RDP で変えたものは上書きしない。
     # TPM がないと ~/.local/share/gnome-remote-desktop/credentials.ini(600)に入る
     have="$(agent_bus_run grdctl --headless status --show-credentials 2>/dev/null | sed -n 's/^[[:space:]]*Username:[[:space:]]*//p' | head -1)"
-    if [ -z "$have" ] || [ "$have" = "(empty)" ]; then
+    # 認証情報がないと Username は (null) と出る(gnome-remote-desktop 50.2、VirtualBox で確認)
+    if [ -z "$have" ] || [ "$have" = "(null)" ] || [ "$have" = "(empty)" ]; then
         agent_bus_run grdctl --headless rdp set-credentials "$AH_RDP_USER" "$AH_RDP_INITIAL_PASSWORD" 2>/dev/null
         log "$AGENT_USER の RDP の認証情報に仮のパスワードを入れた(本人が最初の RDP で変える)"
     fi
