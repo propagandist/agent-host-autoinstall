@@ -352,7 +352,7 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 | GDM のリモートログイン(RDP でつないだときにログインする) | つなぐまでセッションと Orca が立たないので、再起動のあとに誰かがログインするまでエージェントが動かない |
 | 1 つのセッションで CLAUDE_CONFIG_DIR などを分ける | 同じセッションに入れる人は、誰の認証情報でも使えるので、分けたことにならない |
 
-- RDP のパスワードは、env.yaml の値を初回だけの仮のものにし、本人が `grdctl --headless rdp set-credentials` で変える。構成は認証情報がまだないときだけ仮の値を入れる。利用者どうしを隔てる実質の境界なので、管理者(env.yaml と ISO を見られる人)が知らない値にする
+- RDP のパスワードは、env.yaml の値を初回だけの仮のものにし、本人が `grdctl --headless rdp set-credentials` で変える。動いている RDP のデーモンは起動したときの認証情報を使い続け、変えたあとも古いパスワードで通り、新しいものは拒まれた。`systemctl --user restart gnome-remote-desktop-headless.service` で新しいものに替わった(2026-10-25、VirtualBox で確認。just update のあとも変えた値が残り、verify-rdp はその人を「未検証」、`--ask` の経路で今のパスワードを渡すと通った)。構成は認証情報がまだないときだけ仮の値を入れる。利用者どうしを隔てる実質の境界なので、管理者(env.yaml と ISO を見られる人)が知らない値にする
 - RDP のポートは利用者に固定する(env.yaml で必須)。並び順で割り当てると、外したり並べ替えたりしたときに残った人の接続先が変わる(計画のレビューの指摘)
 - 外した利用者は、ユーザーとホームを残して期限切れにする(`usermod --expiredate 1`)。パスワードのロックだけでは鍵の SSH は止まらない。`AllowUsers` からも外す(`Match User` から外れた人が鍵でシェルに入れるのを防ぐ)
 - `just verify-rdp` は、仮のパスワードで通らなかったときに成功にも失敗にもせず「未検証」と出す。変えたのか、設定の誤りや障害かを区別できないので、`--ask` で今のパスワードを確かめる経路を足した
@@ -387,7 +387,7 @@ v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめ�
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
-- 利用者ごとのヘッドレスのセッションで: 本人が端末で `grdctl --headless rdp set-credentials` を実行してパスワードを変えられること、TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと

@@ -22,7 +22,7 @@
       ssh_authorized_keys: <agent_ssh_authorized_keys>
   ```
 - `users[].port` は必須で、`dev_ports` と重ねられない。`dev_ports` に `"3000:3999"` などの 3389 を含む範囲を書いていたら狭める(例 `"3000:3099"`)
-- `rdp.password` は `users[].rdp.initial_password`(初回だけの仮の値)になった。本人が最初の RDP で `grdctl --headless rdp set-credentials` で変える。just update は認証情報がまだないときだけ入れる
+- `rdp.password` は `users[].rdp.initial_password`(初回だけの仮の値)になった。本人が最初の RDP で `grdctl --headless rdp set-credentials` で変え、RDP のデーモンを再起動する(manual-steps の 4)。just update は認証情報がまだないときだけ入れる
 - 0.2 のホストに just update すると、途中で GDM を再起動して seat0 のセッション(自動ログイン)を終わらせ、ヘッドレスのセッションに移る。端末やエージェントは終わるので、作業していないときに行う
 
 ### 変更

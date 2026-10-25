@@ -105,7 +105,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 
 ### 5.3 手作業(初回のみ。docs/manual-steps.md に手順化する)
 1. BIOS:Restore on AC Power Loss を Power On に
-2. (利用者ごと)最初の RDP で、自分の RDP のパスワードを変える(`grdctl --headless rdp set-credentials`)
+2. (利用者ごと)最初の RDP で、自分の RDP のパスワードを変える(`grdctl --headless rdp set-credentials` のあと、RDP のデーモンを再起動する)
 3. (利用者ごと、以下同じ)Claude Code のログイン
 4. Codex のログイン(`codex login --device-auth`。事前に ChatGPT のセキュリティ設定でデバイスコード認証を有効化)
 5. Orca 初回起動、`~/.claude` / `~/.codex` 設定の取り込み、利用統計と更新の通知をオフ

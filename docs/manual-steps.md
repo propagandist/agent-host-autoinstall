@@ -98,12 +98,16 @@ env.yaml の `rdp.initial_password` は初回だけの仮の値で、ISO と構�
 
 ```
 grdctl --headless rdp set-credentials <rdp.username> <新しいパスワード>
+systemctl --user restart gnome-remote-desktop-headless.service
 ```
 
-- ユーザー名は env.yaml の `rdp.username` と同じにする。次の接続から新しいパスワードになる(今の接続は切れない)
+- ユーザー名は env.yaml の `rdp.username` と同じにする
+- 2 行目で RDP のデーモンを再起動するまでは、古いパスワードのままになる(デーモンは起動したときの認証情報を使い続ける。VirtualBox で確認)。再起動すると今の接続が切れるので、新しいパスワードで入りなおす。セッションと端末の中の処理は続く
+- 「Init TPM credentials failed because No TPM device found, using GKeyFile as fallback」は、TPM のない機械では毎回出る(ファイルに保存したという意味で、失敗ではない)
+- 端末の履歴にパスワードが残るので、気になるなら打ったあとに `history -d` で消す
 - `just update` は、RDP の認証情報がまだないときだけ仮の値を入れるので、変えたパスワードは上書きされない。移行(下の「移行」)でも、ホームごと移る
 - 変えたあとの `just verify-rdp` は、その人を「未検証」と出す(失敗ではない)。今のパスワードで確かめるなら `just verify-rdp <ホスト> --ask <名前> <env.yaml>`
-- 忘れたとき: 管理者が `sudo rm <その人のホーム>/.local/share/gnome-remote-desktop/credentials.ini` で消してから `just update <ホスト>` を実行すると、仮の値に戻る(TPM のある機械では認証情報が TPM に入り、このファイルがないことがある。未確認)
+- 忘れたとき: 管理者が `sudo rm <その人のホーム>/.local/share/gnome-remote-desktop/credentials.ini` で消してから `just update <ホスト>` を実行すると、仮の値に戻る(デーモンも再起動する)(TPM のある機械では認証情報が TPM に入り、このファイルがないことがある。未確認)
 
 ## 5. RDP でつなぐ
 

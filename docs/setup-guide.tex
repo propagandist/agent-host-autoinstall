@@ -826,8 +826,11 @@ just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る
 RDP のパスワードは、利用者どうし(と各自のサブスクリプション)を隔てる実質の唯一の境界になる。
 \begin{term}
 grdctl --headless rdp set-credentials <ユーザー名> <新しいパスワード>
+systemctl --user restart gnome-remote-desktop-headless.service
 \end{term}
-ユーザー名は env.yaml の \code{rdp.username} と同じにする。次の接続から新しい値になる。just update と移行のあとも、変えた値が残る
+ユーザー名は env.yaml の \code{rdp.username} と同じにする。2 行目で RDP のデーモンを再起動するまでは古いパスワードのままになる
+(デーモンは起動したときの認証情報を使い続ける)。再起動すると今の接続が切れるので、新しいパスワードで入りなおす
+(セッションと端末の中の処理は続く)。TPM のない機械では「Init TPM credentials failed …」と出るが、ファイルに保存したという意味で、失敗ではない。just update と移行のあとも、変えた値が残る
 (just update は、認証情報がまだないときだけ仮の値を入れる)。端末の履歴にパスワードが残るので、気になるなら打ったあとに
 \code{history -d} で消す。
 

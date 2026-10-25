@@ -76,6 +76,8 @@ setup_rdp() {
     # 認証情報がないと Username は (null) と出る(gnome-remote-desktop 50.2、VirtualBox で確認)
     if [ -z "$have" ] || [ "$have" = "(null)" ] || [ "$have" = "(empty)" ]; then
         agent_bus_run grdctl --headless rdp set-credentials "$AH_RDP_USER" "$AH_RDP_INITIAL_PASSWORD" 2>/dev/null
+        # 動いているデーモンは起動したときの認証情報を使い続けるので、動いていれば再起動する(VirtualBox で確認)
+        agent_bus_run systemctl --user try-restart gnome-remote-desktop-headless.service >/dev/null 2>&1 || true
         log "$AGENT_USER の RDP の認証情報に仮のパスワードを入れた(本人が最初の RDP で変える)"
     fi
     agent_bus_run grdctl --headless rdp enable 2>/dev/null
