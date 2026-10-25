@@ -29,7 +29,7 @@ iso out="build/agent-host.iso" +envs=env:
 
 # shellcheck と構文の検査
 lint:
-    scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/notify/agent-host-ups-notify scripts/migrate/agent-host-* scripts/watchdog/agent-host-* examples/fleet/scripts/*.sh'
+    scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/notify/agent-host-ups-notify scripts/migrate/agent-host-* examples/fleet/scripts/*.sh'
     scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/local/gen-cover.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py", "tests/test_notify.py", "tests/test_envs.py")]'
     @echo "検査は問題ない"
 
@@ -51,11 +51,11 @@ release-check:
     just guide
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
 
-# ホスト用の RDP の接続ファイルを build/<ホスト>.rdp に作る
-rdp host:
+# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートは env.yaml の users の port)
+rdp host port="3389":
     mkdir -p build
-    sed -e 's/\r$//' -e 's/^full address:s:.*/full address:s:{{host}}:3389/' -e 's/$/\r/' docs/agent-host.rdp.example > build/{{host}}.rdp
-    @echo "作成した: build/{{host}}.rdp(ダブルクリックで接続)"
+    sed -e 's/\r$//' -e 's/^full address:s:.*/full address:s:{{host}}:{{port}}/' -e 's/$/\r/' docs/agent-host.rdp.example > build/{{host}}-{{port}}.rdp
+    @echo "作成した: build/{{host}}-{{port}}.rdp(ダブルクリックで接続)"
 
 # sysadmin で SSH する(AGENT_HOST_SSH_OPTS でオプションを足せる)
 ssh host:
@@ -73,9 +73,10 @@ facts host:
 verify host:
     scripts/local/host.sh verify {{host}}
 
-# env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP。画面は開かない)。host は <ホスト>[:ポート]
-verify-rdp host +envs=env:
-    scripts/local/host.sh verify-rdp {{host}} {{envs}}
+# 利用者ごとに RDP の認証が通るかを確かめる(FreeRDP。画面は開かない)。env.yaml の users の仮のパスワードで確かめ、
+# 本人が変えていれば「未検証」と出る。今のパスワードで確かめるなら: just verify-rdp <ホスト> --ask <利用者> <env.yaml>
+verify-rdp host +args=env:
+    scripts/local/host.sh verify-rdp {{host}} {{args}}
 
 # VirtualBox の VM に入れなおし、検査・電源を切ったあと・セッションが落ちたあとを通しで確かめる(VM の中身は消える。1〜2 時間)
 vm-test +envs="build/test/env.yaml":

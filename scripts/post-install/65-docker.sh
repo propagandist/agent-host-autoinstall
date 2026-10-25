@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# Docker を公式 apt リポジトリから固定バージョンで入れ、agent 専用の rootless Docker にする。
-# agent を docker グループに入れると実質 root になるので使わない(SPEC.md §4 の「sudo なし」を保つ)。
+# Docker を公式 apt リポジトリから固定バージョンで入れ、利用者ごとの rootless Docker にする。
+# 利用者を docker グループに入れると実質 root になるので使わない(SPEC.md §4 の「sudo なし」を保つ)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+load_env
 
 # --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # 公式リポジトリには過去の版も残るので、版を指定して入れ、apt-mark hold する
@@ -57,49 +58,48 @@ rm -f /var/run/docker.sock
 # 通信の中継を pasta にする(既定の gvisor-tap-vsock より速い。Docker の文書の推奨)
 apt-get install -y passt
 
-# --- agent の rootless Docker ---
-# subuid/subgid は useradd が割り当てる。無ければ止める(範囲の重なりを避けるため手で決める)
-if ! grep -q "^$AGENT_USER:" /etc/subuid || ! grep -q "^$AGENT_USER:" /etc/subgid; then
-    log "$AGENT_USER の /etc/subuid か /etc/subgid が無い。usermod --add-subuids/--add-subgids で 65536 個割り当てる"
-    exit 1
-fi
+# --- 利用者ごとの rootless Docker ---
+setup_rootless_docker() {
+    local agent_uid runtime_dir
+    # subuid/subgid は useradd が割り当てる。無ければ止める(範囲の重なりを避けるため手で決める)
+    if ! grep -q "^$AGENT_USER:" /etc/subuid || ! grep -q "^$AGENT_USER:" /etc/subgid; then
+        log "$AGENT_USER の /etc/subuid か /etc/subgid が無い。usermod --add-subuids/--add-subgids で 65536 個割り当てる"
+        exit 1
+    fi
 
-# ログインしていなくても agent の systemd(ユーザー)を動かし、再起動後に Docker が自動で上がるようにする
-loginctl enable-linger "$AGENT_USER"
-agent_uid="$(id -u "$AGENT_USER")"
-runtime_dir="/run/user/$agent_uid"
-for _ in $(seq 1 30); do
-    [ -S "$runtime_dir/bus" ] && break
-    sleep 1
-done
-[ -S "$runtime_dir/bus" ] || { log "$runtime_dir/bus ができない(linger が効いていない)"; exit 1; }
+    # セッションがなくても利用者の systemd(ユーザー)を動かし、再起動後に Docker が自動で上がるようにする
+    # (20-sessions.sh でも有効にしている)
+    loginctl enable-linger "$AGENT_USER"
+    agent_uid="$(id -u "$AGENT_USER")"
+    runtime_dir="/run/user/$agent_uid"
+    for _ in $(seq 1 30); do
+        [ -S "$runtime_dir/bus" ] && break
+        sleep 1
+    done
+    [ -S "$runtime_dir/bus" ] || { log "$runtime_dir/bus ができない(linger が効いていない)"; exit 1; }
 
-as_agent() {
-    runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" XDG_RUNTIME_DIR="$runtime_dir" \
-        DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" "$@"
-}
-if [ ! -f "$AGENT_HOME/.config/systemd/user/docker.service" ]; then
-    # docker.service(ユーザー)と CLI のコンテキスト rootless を作り、rootless を既定にする
-    as_agent dockerd-rootless-setuptool.sh install
-fi
-# pasta で通信し、公開したポートも pasta に任せる(implicit)
-write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker.service.d/agent-host.conf" <<'EOF'
+    if [ ! -f "$AGENT_HOME/.config/systemd/user/docker.service" ]; then
+        # docker.service(ユーザー)と CLI のコンテキスト rootless を作り、rootless を既定にする
+        agent_bus_run dockerd-rootless-setuptool.sh install
+    fi
+    # pasta で通信し、公開したポートも pasta に任せる(implicit)
+    write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker.service.d/agent-host.conf" <<'EOF'
 # agent-host-autoinstall が置いた設定
 [Service]
 Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta
 Environment=DOCKERD_ROOTLESS_ROOTLESSKIT_PORT_DRIVER=implicit
 EOF
-# コンテナのログは 1 つあたり 10MB × 3 まで(json-file は既定で上限がない)。既にある設定には手を入れない
-if [ ! -f "$AGENT_HOME/.config/docker/daemon.json" ]; then
-    write_agent_file 644 "$AGENT_HOME/.config/docker/daemon.json" <<'EOF'
+    # コンテナのログは 1 つあたり 10MB × 3 まで(json-file は既定で上限がない)。既にある設定には手を入れない
+    if [ ! -f "$AGENT_HOME/.config/docker/daemon.json" ]; then
+        write_agent_file 644 "$AGENT_HOME/.config/docker/daemon.json" <<'EOF'
 {
   "log-driver": "json-file",
   "log-opts": { "max-size": "10m", "max-file": "3" }
 }
 EOF
-fi
-# 週 1 回、使われていないイメージ(タグのないもの)と 7 日より古いビルドのキャッシュを消す
-write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker-prune.service" <<'EOF'
+    fi
+    # 週 1 回、使われていないイメージ(タグのないもの)と 7 日より古いビルドのキャッシュを消す
+    write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker-prune.service" <<'EOF'
 [Unit]
 Description=使われていない Docker のイメージとビルドのキャッシュを消す(agent-host-autoinstall)
 [Service]
@@ -107,7 +107,7 @@ Type=oneshot
 ExecStart=/usr/bin/docker image prune -f
 ExecStart=/usr/bin/docker builder prune -f --filter until=168h
 EOF
-write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker-prune.timer" <<'EOF'
+    write_agent_file 644 "$AGENT_HOME/.config/systemd/user/docker-prune.timer" <<'EOF'
 [Unit]
 Description=週 1 回 Docker を掃除する(agent-host-autoinstall)
 [Timer]
@@ -116,12 +116,14 @@ Persistent=true
 [Install]
 WantedBy=timers.target
 EOF
-as_agent systemctl --user daemon-reload
-as_agent systemctl --user enable --now docker.service docker-prune.timer
-as_agent systemctl --user restart docker.service
+    agent_bus_run systemctl --user daemon-reload
+    agent_bus_run systemctl --user enable --now docker.service docker-prune.timer
+    agent_bus_run systemctl --user restart docker.service
 
-# コンテキストを見ないツール(Testcontainers など)のために DOCKER_HOST も入れる。
-# environment.d は systemd(ユーザー)と GNOME のセッションに入り、Orca や端末に引き継がれる
-printf 'DOCKER_HOST=unix://%s/docker.sock\n' "$runtime_dir" |
-    write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-docker.conf"
-log "agent の rootless Docker を有効にした"
+    # コンテキストを見ないツール(Testcontainers など)のために DOCKER_HOST も入れる。
+    # environment.d は systemd(ユーザー)と GNOME のセッションに入り、Orca や端末に引き継がれる
+    printf 'DOCKER_HOST=unix://%s/docker.sock\n' "$runtime_dir" |
+        write_agent_file 644 "$AGENT_HOME/.config/environment.d/60-docker.conf"
+    log "$AGENT_USER の rootless Docker を有効にした"
+}
+for_each_user setup_rootless_docker

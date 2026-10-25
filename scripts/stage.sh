@@ -28,21 +28,22 @@ stage="$out/agent-host"
 rm -rf "$render" "$stage"
 mkdir -p "$stage"
 
-# 1. autoinstall.yaml と env.sh・公開鍵・CA 証明書を生成する
+# 1. autoinstall.yaml と env.sh・利用者ごとの値・公開鍵・CA 証明書を生成する
 python3 "$repo/scripts/render-autoinstall.py" "$repo/autoinstall/autoinstall.yaml" "${env_yamls[@]}" "$render"
 cp "$render/autoinstall.yaml" "$out/autoinstall.yaml"
-cp "$render/env.sh" "$render/agent_authorized_keys" "$render/sysadmin_authorized_keys" "$stage/"
-cp -a "$render/ca" "$stage/ca"
+cp "$render/env.sh" "$render/sysadmin_authorized_keys" "$stage/"
+cp -a "$render/ca" "$render/users" "$stage/"
 rm -rf "$render"
 
 # 2. スクリプトをそろえる
 cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" "$repo/scripts/verify.sh" \
     "$repo/scripts/lib" "$repo/scripts/post-install" "$repo/scripts/first-login" \
-    "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$repo/scripts/watchdog" "$stage/"
+    "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$stage/"
 find "$stage" -name '__pycache__' -prune -exec rm -rf {} +
-find "$stage" -type f \( -name '*.sh' -o -path '*/notify/*' -o -path '*/migrate/*' -o -path '*/watchdog/*' \) \
+find "$stage" -type f \( -name '*.sh' -o -path '*/notify/*' -o -path '*/migrate/*' \) \
     -exec chmod 755 {} +
-chmod 600 "$stage/env.sh" "$stage/agent_authorized_keys" "$stage/sysadmin_authorized_keys"
+chmod 600 "$stage/env.sh" "$stage/sysadmin_authorized_keys" "$stage"/users/*
+chmod 700 "$stage/users"
 
 # 3. 置いた版の記録(just status と just facts で見る。秘密情報は入れない)
 if [ -n "$build_info" ]; then

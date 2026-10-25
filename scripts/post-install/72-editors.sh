@@ -47,7 +47,7 @@ ZED_EXTENSIONS=(toml dockerfile docker-compose html make sql env git-firefly)
 selected() { [[ " ${AH_EDITORS:-} " == *" $1 "* ]]; }
 cloud_selected() { [[ " ${AH_CLOUDS:-} " == *" $1 "* ]]; }
 
-# agent のエディターの設定(JSON)に、足りない項目だけ足す。値が {} の項目は中の足りないキーだけ足す。
+# 利用者のエディターの設定(JSON)に、足りない項目だけ足す。値が {} の項目は中の足りないキーだけ足す。
 # 人が変えた値は変えない。コメント入りなど JSON として読めないときは触らない
 merge_agent_json() {
     local path="$1" wanted="$2"
@@ -105,49 +105,51 @@ if selected vscode; then
         apt-get install -y --allow-downgrades --allow-change-held-packages "code=$VSCODE_VERSION"
     fi
     apt-mark hold code
-    # 本体と拡張機能の自動更新、テレメトリを止める(redhat.telemetry.enabled は YAML の拡張機能が初回に聞いてくるもの)
-    merge_agent_json "$AGENT_HOME/.config/Code/User/settings.json" \
-        '{"update.mode": "none", "telemetry.telemetryLevel": "off",
-          "extensions.autoUpdate": false, "extensions.autoCheckUpdates": false,
-          "redhat.telemetry.enabled": false}'
     log "VS Code $VSCODE_VERSION を入れて hold した"
+    vscode_user() {
+        # 本体と拡張機能の自動更新、テレメトリを止める(redhat.telemetry.enabled は YAML の拡張機能が初回に聞いてくるもの)
+        merge_agent_json "$AGENT_HOME/.config/Code/User/settings.json" \
+            '{"update.mode": "none", "telemetry.telemetryLevel": "off",
+              "extensions.autoUpdate": false, "extensions.autoCheckUpdates": false,
+              "redhat.telemetry.enabled": false}'
+        log "$AGENT_USER の VS Code の設定を入れた"
 
-    # --- VS Code の拡張機能 ---
-    # agent のホーム(~/.vscode/extensions)に、版を固定して入れる。選ばなくなったものは消さない
-    exts=("${VSCODE_EXTENSIONS[@]}")
-    cloud_selected aws && exts+=("$VSCODE_EXT_AWS")
-    cloud_selected gcp && exts+=("$VSCODE_EXT_GCP")
-    cloud_selected azure && exts+=("$VSCODE_EXT_AZURE")
-    [ -n "${AH_CLOUDS:-}" ] && exts+=("$VSCODE_EXT_TERRAFORM")
-    # env.yaml の vscode_extensions(ID か ID@版。版を書かなければ、初めて入れたときの最新)
-    for ext in ${AH_VSCODE_EXTENSIONS:-}; do exts+=("$ext"); done
-    agent_code() { runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" code "$@"; }
-    installed="$(agent_code --list-extensions --show-versions 2>/dev/null | tr '[:upper:]' '[:lower:]')"
-    for ext in "${exts[@]}"; do
-        lower="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
-        if [[ "$ext" == *@* ]]; then
-            grep -qxF "$lower" <<<"$installed" && continue
-        else
-            grep -q "^${lower}@" <<<"$installed" && continue
+        # --- VS Code の拡張機能 ---
+        # 利用者のホーム(~/.vscode/extensions)に、版を固定して入れる。選ばなくなったものは消さない
+        exts=("${VSCODE_EXTENSIONS[@]}")
+        cloud_selected aws && exts+=("$VSCODE_EXT_AWS")
+        cloud_selected gcp && exts+=("$VSCODE_EXT_GCP")
+        cloud_selected azure && exts+=("$VSCODE_EXT_AZURE")
+        [ -n "${AH_CLOUDS:-}" ] && exts+=("$VSCODE_EXT_TERRAFORM")
+        # env.yaml の vscode_extensions(ID か ID@版。版を書かなければ、初めて入れたときの最新)
+        for ext in ${AH_VSCODE_EXTENSIONS:-}; do exts+=("$ext"); done
+        agent_code() { runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" code "$@"; }
+        installed="$(agent_code --list-extensions --show-versions 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+        for ext in "${exts[@]}"; do
+            lower="$(printf '%s' "$ext" | tr '[:upper:]' '[:lower:]')"
+            if [[ "$ext" == *@* ]]; then
+                grep -qxF "$lower" <<<"$installed" && continue
+            else
+                grep -q "^${lower}@" <<<"$installed" && continue
+            fi
+            agent_code --install-extension "$ext" --force >/dev/null
+        done
+        log "$AGENT_USER の VS Code の拡張機能を入れた(${#exts[@]} 個)"
+        # 表示を日本語にする(Language Pack は入れただけでは効かない。「表示言語を構成する」と同じく argv.json に書く)。
+        # argv.json はコメント入りなので JSON として書き換えず、locale がないときだけ { の次の行に足す
+        argv="$AGENT_HOME/.vscode/argv.json"
+        if [ ! -f "$argv" ]; then
+            printf '{\n\t"locale": "ja"\n}\n' | write_agent_file 644 "$argv"
+        elif ! grep -q '"locale"' "$argv"; then
+            agent_run sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
         fi
-        agent_code --install-extension "$ext" --force >/dev/null
-    done
-    log "VS Code の拡張機能を入れた(${#exts[@]} 個)"
-    # 表示を日本語にする(Language Pack は入れただけでは効かない。「表示言語を構成する」と同じく argv.json に書く)。
-    # argv.json はコメント入りなので JSON として書き換えず、locale がないときだけ { の次の行に足す
-    argv="$AGENT_HOME/.vscode/argv.json"
-    if [ ! -f "$argv" ]; then
-        printf '{\n\t"locale": "ja"\n}\n' | write_agent_file 644 "$argv"
-    elif ! grep -q '"locale"' "$argv"; then
-        agent_run sed -i '0,/{/s//{\n\t"locale": "ja",/' "$argv"
-    fi
-    # 入っている Language Pack の一覧(~/.config/Code/languagepacks.json)は、VS Code が最初の起動の途中で作る。
-    # 表示言語は起動の最初に決まるので、そのままだと最初の起動だけ英語になる(VirtualBox で確認)。
-    # VS Code と同じ形で先に作っておく。hash は UUID と版をつなげた MD5(VS Code が作ったものと一致を確認)。
-    # 既にあれば触らない(以後は VS Code が保つ)
-    lp_json="$AGENT_HOME/.config/Code/languagepacks.json"
-    if [ ! -f "$lp_json" ]; then
-        runuser -u "$AGENT_USER" -- python3 - "$AGENT_HOME/.vscode/extensions" "$lp_json" <<'EOF'
+        # 入っている Language Pack の一覧(~/.config/Code/languagepacks.json)は、VS Code が最初の起動の途中で作る。
+        # 表示言語は起動の最初に決まるので、そのままだと最初の起動だけ英語になる(VirtualBox で確認)。
+        # VS Code と同じ形で先に作っておく。hash は UUID と版をつなげた MD5(VS Code が作ったものと一致を確認)。
+        # 既にあれば触らない(以後は VS Code が保つ)
+        lp_json="$AGENT_HOME/.config/Code/languagepacks.json"
+        if [ ! -f "$lp_json" ]; then
+            runuser -u "$AGENT_USER" -- python3 - "$AGENT_HOME/.vscode/extensions" "$lp_json" <<'EOF'
 import glob
 import hashlib
 import json
@@ -180,7 +182,9 @@ if packs:
     with open(out, "w", encoding="utf-8") as f:
         json.dump(packs, f, ensure_ascii=False)
 EOF
-    fi
+        fi
+    }
+    for_each_user vscode_user
 fi
 
 # --- Neovim(Ubuntu の公式パッケージ。OS の更新に任せる) ---
@@ -221,6 +225,9 @@ print(json.dumps({
     "auto_update_extensions": {n: False for n in names},
 }))')"
     # 本体の自動更新とテレメトリも止める
-    merge_agent_json "$AGENT_HOME/.config/zed/settings.json" "$zed_wanted"
+    zed_user() {
+        merge_agent_json "$AGENT_HOME/.config/zed/settings.json" "$zed_wanted"
+    }
+    for_each_user zed_user
     log "Zed $ZED_VERSION を入れた(拡張機能 ${#zed_exts[@]} 個は次の起動で入る)"
 fi

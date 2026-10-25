@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Google Chrome を公式 apt リポジトリから入れ、agent の既定のブラウザにする。
+# Google Chrome を公式 apt リポジトリから入れ、利用者の既定のブラウザにする。
 # Google のリポジトリには最新版しか置かれないので、バージョンは固定しない。
 # 更新は unattended-upgrades が自動で行う(50-updates.sh で許可元に足している)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+load_env
 
 # Google の署名鍵(Google Inc. Linux Package Signing Authority)の主鍵の fingerprint
 GOOGLE_KEY_FPR=EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796
@@ -36,13 +37,16 @@ if ! dpkg-query -W -f='${Status}' google-chrome-stable 2>/dev/null | grep -q 'in
 fi
 log "Google Chrome $(dpkg-query -W -f='${Version}' google-chrome-stable) を使う"
 
-# agent の既定のブラウザにする(~/.config/mimeapps.list)
-mimeapps="$AGENT_HOME/.config/mimeapps.list"
-if [ ! -f "$mimeapps" ]; then
-    printf '[Default Applications]\n' | write_agent_file 644 "$mimeapps"
-fi
-for mime in text/html application/xhtml+xml \
-    x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown; do
-    ini_set --as-agent "$mimeapps" "Default Applications" "$mime" google-chrome.desktop
-done
-log "agent の既定のブラウザを Chrome にした"
+# 利用者の既定のブラウザにする(~/.config/mimeapps.list)
+set_default_browser() {
+    mimeapps="$AGENT_HOME/.config/mimeapps.list"
+    if [ ! -f "$mimeapps" ]; then
+        printf '[Default Applications]\n' | write_agent_file 644 "$mimeapps"
+    fi
+    for mime in text/html application/xhtml+xml \
+        x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown; do
+        ini_set --as-agent "$mimeapps" "Default Applications" "$mime" google-chrome.desktop
+    done
+    log "$AGENT_USER の既定のブラウザを Chrome にした"
+}
+for_each_user set_default_browser

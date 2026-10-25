@@ -40,7 +40,7 @@ sed -i "/^$begin\$/,/^$end\$/d" "$env_file"
 if [ -n "$block" ]; then
     printf '%s\n%s%s\n' "$begin" "$block" "$end" >>"$env_file"
 fi
-# agent の environment.d と Chrome の証明書は、agent を作ったあとの 80-agent-session.sh で置く
+# 利用者の environment.d と Chrome の証明書は、利用者を作ったあとの 80-agent-session.sh で置く
 
 # --- apt ---
 apt_conf=/etc/apt/apt.conf.d/80agent-host-proxy
