@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 # VirtualBox の VM に、今のスクリプトで作った ISO を入れなおし、受け入れテストのうち機械で確かめられるものを通しで行う。
-#   1. ISO を作る → VM のディスクを空にして ISO から起動する(無人インストール → 初回の構成 → 自動ログイン)
-#   2. RDP が待ち受けるまで待ち、just verify と just verify-rdp
+#   1. ISO を作る → VM のディスクを空にして ISO から起動する(無人インストール → 初回の構成 → 利用者ごとのセッション)
+#   2. 利用者全員の RDP が待ち受けるまで待ち、just verify と just verify-rdp
 #   3. 電源を切って(強制)起動しなおし、人手なしで戻るか(2 と同じ検査)
-#   4. agent の gnome-shell を落とし、見張りが GDM を再起動して戻るか(RDP の認証)
+#   4. 1 人目の gnome-shell を落とし、その人のセッションだけが立ちなおり、2 人目は続いているか(RDP の認証)
 # VM が無ければ作る。あれば、ディスクを消して作りなおす(VM の中身はすべて消える)。
 #
 # 使い方: scripts/local/vm-test.sh <env.yaml>...(just vm-test)
 #   env.yaml は試験用のもの。lan_cidrs に VirtualBox の NAT(10.0.2.0/24)を入れ、sysadmin の公開鍵に
-#   AGENT_HOST_VM_SSH_KEY の鍵を入れておく(docs/release.md)
+#   AGENT_HOST_VM_SSH_KEY の鍵を入れておく。users は 2 人以上にし、port は 3389〜3392 にする
+#   (VM は 127.0.0.1:13389〜13392 に転送する。docs/release.md)
 # 環境変数(括弧内は既定):
 #   AGENT_HOST_SUDO_PASSWORD  sysadmin の sudo のパスワード(無ければ最初に聞く)
 #   AGENT_HOST_VM_NAME        VM の名前(agent-host-vm)
@@ -29,7 +30,9 @@ cpus="${AGENT_HOST_VM_CPUS:-1}"
 memory="${AGENT_HOST_VM_MEMORY:-4096}"
 timeout_min="${AGENT_HOST_VM_TIMEOUT:-120}"
 ssh_port=2222
-rdp_port=13389
+# 利用者の RDP のポート 3389〜3392 を、手元の PC の 13389〜13392 に転送する(verify-rdp はポートに 10000 を足す)
+rdp_ports=(3389 3390 3391 3392)
+export AGENT_HOST_RDP_PORT_OFFSET=10000
 vbm="${VBOXMANAGE:-$(command -v VBoxManage || echo "/c/Program Files/Oracle/VirtualBox/VBoxManage.exe")}"
 [ -x "$vbm" ] || { echo "VBoxManage がない(VBOXMANAGE で場所を指定する)" >&2; exit 1; }
 [ -f "$key" ] || { echo "$key がない(AGENT_HOST_VM_SSH_KEY で指定する)" >&2; exit 1; }
@@ -58,20 +61,25 @@ record() { results+=("$1 $2"); }
 # check_all <場面>: 構成の検査と RDP の認証
 check_all() {
     if scripts/local/host.sh verify 127.0.0.1; then record ✓ "$1: just verify"; else record ✗ "$1: just verify"; fi
-    if scripts/local/host.sh verify-rdp "127.0.0.1:$rdp_port" "${envs[@]}"; then
+    if scripts/local/host.sh verify-rdp 127.0.0.1 "${envs[@]}"; then
         record ✓ "$1: just verify-rdp"
     else
         record ✗ "$1: just verify-rdp"
     fi
 }
-# wait_ready <分> [<前の起動の boot_id>]: 構成が終わり、RDP が待ち受けるまで待つ(boot_id を渡すと、起動しなおしたことも確かめる)
+# wait_ready <分> [<前の起動の boot_id>]: 構成が終わり、利用者全員の RDP が待ち受けるまで待つ
+# (boot_id を渡すと、起動しなおしたことも確かめる)。利用者の数は agent-host-users グループの人数
 wait_ready() {
     local deadline=$((SECONDS + $1 * 60)) old_boot="${2:-}" boot
     while [ "$SECONDS" -lt "$deadline" ]; do
         case "$(vm_state)" in poweroff | aborted) echo "VM が止まった" >&2; return 1 ;; esac
-        boot="$(vm_ssh 'test -f /var/lib/agent-host/provisioned && ss -tlnH | grep -q ":3389 " && cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)"
+        # shellcheck disable=SC2016  # VM の中で展開する
+        boot="$(vm_ssh 'test -f /var/lib/agent-host/provisioned &&
+            n="$(getent group agent-host-users | cut -d: -f4 | tr , "\n" | grep -c .)" &&
+            [ "$n" -gt 0 ] && [ "$(ss -tlnH | awk "{print \$4}" | grep -c -E ":339[0-2]\$")" -ge "$n" ] &&
+            cat /proc/sys/kernel/random/boot_id' 2>/dev/null || true)"
         if [ -n "$boot" ] && [ "$boot" != "$old_boot" ]; then
-            sleep 30  # first-login の残り(拡張機能の有効化など)を待つ
+            sleep 30  # セッションの中の自動起動(Orca など)を待つ
             return 0
         fi
         sleep 30
@@ -79,7 +87,9 @@ wait_ready() {
     echo "$1 分待っても RDP が待ち受けなかった" >&2
     return 1
 }
-agent_session() { vm_ssh "loginctl list-sessions --no-legend | awk '\$3 == \"agent\" && \$6 == \"user\" {print \$1}'" 2>/dev/null || true; }
+# user_session <利用者>: その利用者のセッションの番号
+user_session() { vm_ssh "loginctl list-sessions --no-legend | awk '\$3 == \"$1\" && \$6 == \"user\" {print \$1}'" 2>/dev/null || true; }
+shell_pid() { vm_ssh "pgrep -u $1 -x gnome-shell" 2>/dev/null || true; }
 summary() {
     local r fail=0
     printf '\n=== 結果\n'
@@ -99,7 +109,7 @@ if ! "$vbm" showvminfo "$name" >/dev/null 2>&1; then
     "$vbm" modifyvm "$name" --firmware efi --memory "$memory" --cpus "$cpus" --vram 128 \
         --graphicscontroller vmsvga --nic1 nat --audio-enabled off --usb-ohci off \
         --boot1 disk --boot2 dvd --boot3 none --boot4 none \
-        --natpf1 "ssh,tcp,127.0.0.1,$ssh_port,,22" --natpf1 "rdp,tcp,127.0.0.1,$rdp_port,,3389"
+        --natpf1 "ssh,tcp,127.0.0.1,$ssh_port,,22"
     "$vbm" storagectl "$name" --name SATA --add sata --controller IntelAhci --portcount 2
 else
     case "$(vm_state)" in running | paused | stuck) "$vbm" controlvm "$name" poweroff; sleep 5 ;; esac
@@ -109,6 +119,12 @@ else
         "$vbm" closemedium disk "$old_disk" --delete
     fi
 fi
+# 利用者の RDP の転送をそろえる(0.2 までの VM は 3389 の 1 本だけ)
+for p in "${rdp_ports[@]}"; do
+    "$vbm" modifyvm "$name" --natpf1 delete "rdp$p" >/dev/null 2>&1 || true
+    "$vbm" modifyvm "$name" --natpf1 "rdp$p,tcp,127.0.0.1,$((p + 10000)),,$p"
+done
+"$vbm" modifyvm "$name" --natpf1 delete rdp >/dev/null 2>&1 || true
 disk="$base/$name/$name-$(date +%Y%m%d-%H%M%S).vdi"
 mkdir -p "$(dirname "$disk")"
 "$vbm" createmedium disk --filename "$(winpath "$disk")" --size 40960 --format VDI
@@ -138,29 +154,43 @@ else
     record ✗ "電源を切ったあと、RDP の待ち受けまで(人手なし)"
 fi
 
-step "4. agent の gnome-shell を落とし、見張りが戻すか"
-before="$(agent_session)"
-vm_sudo pkill -SEGV -u agent -x gnome-shell || true
+step "4. 1 人目の gnome-shell を落とし、その人だけが立ちなおるか"
+mapfile -t vm_users < <(vm_ssh "getent group agent-host-users | cut -d: -f4 | tr , '\n'" 2>/dev/null | grep . || true)
+if [ "${#vm_users[@]}" -lt 2 ]; then
+    record ✗ "利用者が 2 人以上いない(試験用の env.yaml の users を 2 人以上にする)"
+    summary
+    exit 1
+fi
+u1="${vm_users[0]}"
+u2="${vm_users[1]}"
+before="$(user_session "$u1")"
+other_before="$(shell_pid "$u2")"
+vm_sudo pkill -SEGV -u "$u1" -x gnome-shell || true
 deadline=$((SECONDS + 300))
 now=""
 while [ "$SECONDS" -lt "$deadline" ]; do
     sleep 20
-    now="$(agent_session)"
-    if [ -n "$now" ] && [ "$now" != "$before" ] && vm_ssh 'ss -tlnH | grep -q ":3389 "'; then
+    now="$(user_session "$u1")"
+    if [ -n "$now" ] && [ "$now" != "$before" ]; then
         break
     fi
     now=""
 done
 if [ -n "$now" ]; then
-    sleep 30
-    record ✓ "セッションが落ちたあと、新しいセッション(${before:-なし} → $now)"
-    if scripts/local/host.sh verify-rdp "127.0.0.1:$rdp_port" "${envs[@]}"; then
-        record ✓ "セッションが落ちたあと: just verify-rdp"
+    sleep 60  # RDP の待ち受けが戻るのを待つ(起動のときは約 60 秒かかった)
+    record ✓ "$u1 のセッションが落ちたあと、新しいセッション(${before:-なし} → $now)"
+    if scripts/local/host.sh verify-rdp 127.0.0.1 "${envs[@]}"; then
+        record ✓ "セッションが落ちたあと: just verify-rdp(全員)"
     else
-        record ✗ "セッションが落ちたあと: just verify-rdp"
+        record ✗ "セッションが落ちたあと: just verify-rdp(全員)"
     fi
 else
-    record ✗ "セッションが落ちたあと、5 分以内に新しいセッション(前は ${before:-なし})"
+    record ✗ "$u1 のセッションが落ちたあと、5 分以内に新しいセッション(前は ${before:-なし})"
+fi
+if [ -n "$other_before" ] && [ "$(shell_pid "$u2")" = "$other_before" ]; then
+    record ✓ "$u1 が落ちても、$u2 の gnome-shell は続いている(PID $other_before)"
+else
+    record ✗ "$u1 が落ちたとき、$u2 の gnome-shell が変わった(${other_before:-なし} → $(shell_pid "$u2"))"
 fi
 
 summary

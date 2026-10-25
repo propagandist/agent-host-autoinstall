@@ -2,11 +2,13 @@
 # 手元の PC から、動いているホストを扱う(just のレシピから使う)。
 #
 # 使い方: scripts/local/host.sh <操作> <ホスト> [引数]
-#   status  <ホスト>                 置いた版と成功した版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
+#   status  <ホスト>                 置いた版と成功した版・構成・RDP・利用者のセッション・ディスク・メモリ・失敗した unit を見る
 #   facts   <ホスト>                 台帳のための情報を YAML で出す(sudo のパスワードを聞かれる)
-#   logs    <ホスト>                 構成・最後の just update・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
+#   logs    <ホスト>                 構成・最後の just update・利用者ごとの first-login の記録を見る(sudo のパスワードを聞かれる)
 #   verify  <ホスト>                 仕様どおりに構成されているかを確かめる(scripts/verify.sh。何も変えない)
-#   verify-rdp <ホスト>[:ポート] <env.yaml>...  env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP)
+#   verify-rdp <ホスト> [--ask <利用者>] <env.yaml>...  利用者ごとに RDP の認証が通るかを確かめる(FreeRDP)。
+#                                    仮のパスワードで確かめる。--ask で、その利用者の今のパスワードを聞いて確かめる。
+#                                    ポートに足す数は環境変数 AGENT_HOST_RDP_PORT_OFFSET(試験用の VM は 10000)
 #   update  <ホスト> <env.yaml>...   スクリプトと env.yaml の変更を反映して構成を再実行する(OS は入れなおさない)
 #   backup  <ホスト> [出力ファイル]  移行の書き出し(既定は build/backups/<ホスト>-<日時>.tar.zst)
 #   restore <ホスト> <ファイル>      移行の取り込み
@@ -49,8 +51,12 @@ status)
             echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で止まったところを見て、直してから just update)"
         elif [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
         else echo "構成: 未完了(サービスは $(systemctl is-active agent-host-provision.service))"; fi
-        echo "RDP: $(ss -tln | grep -q ":3389 " && echo "待ち受け中" || echo "止まっている")"
-        loginctl list-sessions --no-legend | awk '\''$3 == "agent" && $6 == "user" {print "agent のセッション: " $4 " " $7}'\''
+        echo "待ち受けているポート(22 と localhost 以外。RDP は利用者ごと): $(ss -tlnH | awk '\''{print $4}'\'' |
+            grep -v -E "^(127\.|\[::1\]|\[::ffff:127\.)" | sed "s/.*://" | grep -vx 22 | sort -un | tr "\n" " ")"
+        for u in $(getent group agent-host-users | cut -d: -f4 | tr "," " "); do
+            s="$(loginctl list-sessions --no-legend | awk -v u="$u" '\''$3 == u && $6 == "user" {print $1; exit}'\'')"
+            echo "$u のセッション: $([ -n "$s" ] && echo "あり($s)" || echo "なし")($(systemctl is-active "gnome-headless-session@$u.service" 2>/dev/null || true))"
+        done
         df -h / | awk '\''NR == 2 {print "ディスク: " $3 " / " $2 "(" $5 ")"}'\''
         free -h | awk '\''NR == 2 {print "メモリ: 使用 " $3 " / " $2}'\''
         echo "失敗した unit:"; systemctl --failed --no-legend --no-pager | sed "s/^/  /"
@@ -97,10 +103,13 @@ done
 . /etc/os-release
 echo "os: $(q "$PRETTY_NAME (kernel $(uname -r))")"
 echo "ssh_host_key: $(q "$(ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{print $2}')")"
-crt=/home/agent/.local/share/gnome-remote-desktop/tls.crt
-if [ -f "$crt" ]; then
-    echo "rdp_cert: $(q "$(openssl x509 -in "$crt" -noout -fingerprint -sha256 | cut -d= -f2)")"
-fi
+echo "rdp_certs:"
+for u in $(getent group agent-host-users | cut -d: -f4 | tr "," " "); do
+    crt="$(getent passwd "$u" | cut -d: -f6)/.local/share/gnome-remote-desktop/tls.crt"
+    if [ -f "$crt" ]; then
+        echo "  $u: $(q "$(openssl x509 -in "$crt" -noout -fingerprint -sha256 | cut -d= -f2)")"
+    fi
+done
 EOF
     } | ssh "${ssh_opts[@]}" "$target" 'sudo -S -p "" bash -s'
     unset PW
@@ -112,13 +121,22 @@ verify)
     unset PW
     ;;
 verify-rdp)
-    # host は <ホスト> か <ホスト>:<ポート>(試験用の VM はポートを転送している)
+    make_run_dir
+    pw_file=-
+    if [ "${1:-}" = --ask ]; then
+        [ $# -ge 2 ] || { echo "--ask のあとに利用者の名前を書く" >&2; exit 2; }
+        read -rsp "$2 の今の RDP のパスワード: " rdp_pw </dev/tty
+        echo
+        pw_file="$RUN_DIR/rdp-password"
+        (umask 077 && printf '%s\t%s\n' "$2" "$rdp_pw" >"$pw_file")
+        unset rdp_pw
+        shift 2
+    fi
     [ $# -ge 1 ] || { echo "env.yaml を指定する(RDP の認証情報を読む)" >&2; exit 2; }
-    port=3389
-    case "$host" in *:*) port="${host##*:}"; host="${host%:*}" ;; esac
     copy_envs "$@"
     scripts/local/in-ubuntu.sh "freerdp3-x11 python3-yaml" "xfreerdp3 python3" \
-        bash scripts/local/rdp-auth.sh "$host" "$port" "${ENV_FILES[@]}"
+        env AGENT_HOST_RDP_PORT_OFFSET="${AGENT_HOST_RDP_PORT_OFFSET:-0}" \
+        bash scripts/local/rdp-auth.sh "$host" "$pw_file" "${ENV_FILES[@]}"
     ;;
 logs)
     ssh -t "${ssh_opts[@]}" "$target" '
@@ -126,8 +144,10 @@ logs)
         if sudo test -f /var/log/agent-host-update.log; then
             echo "--- 最後の just update(/var/log/agent-host-update.log の最後)"; sudo tail -25 /var/log/agent-host-update.log
         fi
-        echo "--- first-login"; sudo tail -15 /home/agent/.local/state/agent-host/first-login.log
-        echo "--- セッションの見張り"; sudo journalctl -u agent-host-session-watchdog.service -o cat --no-pager | grep "^\[agent-host\]" | tail -5
+        for u in $(getent group agent-host-users | cut -d: -f4 | tr "," " "); do
+            echo "--- $u の first-login"; sudo tail -5 "$(getent passwd "$u" | cut -d: -f6)/.local/state/agent-host/first-login.log"
+            echo "--- $u のセッション"; sudo journalctl -u "gnome-headless-session@$u.service" -o cat --no-pager | tail -5
+        done
     '
     ;;
 update)
@@ -150,7 +170,7 @@ update)
             t=\$(mktemp -d); tar -xzf - -C \$t
             rm -rf /opt/agent-host.prev; mv /opt/agent-host /opt/agent-host.prev; mv \$t/agent-host /opt/agent-host
             chown -R root:root /opt/agent-host; chmod -R u=rwX,go=rX /opt/agent-host
-            chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys /opt/agent-host/sysadmin_authorized_keys
+            chmod 600 /opt/agent-host/env.sh /opt/agent-host/sysadmin_authorized_keys /opt/agent-host/users/*; chmod 700 /opt/agent-host/users
             DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | tee /var/log/agent-host-update.log |
                 grep -E \"^\[agent-host\]|注意|^(E|W):\"
         "'
