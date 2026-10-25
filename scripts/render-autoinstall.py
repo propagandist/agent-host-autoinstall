@@ -5,7 +5,8 @@
 env.yaml は複数渡せる。前から順に重ね、後のファイルの値が勝つ(辞書は中のキーごとに重ね、並びや値は置き換える)。
 例: 全台で共通の common.yaml に、ホストごとの hosts/agent-host-01.yaml を重ねる。
 知らないキー(書き間違い)はエラーにする。
-出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, ca/*.crt
+出力: <出力ディレクトリ>/autoinstall.yaml, env.sh, agent_authorized_keys, sysadmin_authorized_keys, ca/*.crt
+(stage.sh から呼ぶ。stage.sh は build-usb.sh・just check-env・just update が使う)
 """
 import ipaddress
 import os
@@ -38,11 +39,65 @@ KNOWN_KEYS = {
     "agents": None,
     "clouds": None,
     "notify": {"slack_webhook_url", "ipmsg_to", "ipmsg_broadcast"},
+    "ups": {"mode", "driver", "port", "server", "name", "username", "password"},
     "agent_ssh_authorized_keys": None,
     "dev_ports": None,
     "lan_cidrs": None,
     "sysadmin": {"password_hash", "ssh_authorized_keys"},
     "rdp": {"username", "password"},
+}
+
+
+# 値の型。str は文字列、list は文字列の並び、dict はキーと値。空(書かない、null)はどれでもよい(既定の値になる)。
+# YAML は引用符のない 1234 や false を数や真偽値として読むので、文字列の項目では引用符で囲ませる。
+# 並びの項目に文字列を書くと 1 文字ずつに分かれていたので、型で止める(Issue #8)
+TYPES = {
+    "hostname": str, "keyboard_layout": str, "git_user_name": str, "git_user_email": str,
+    "desktop_color": str, "gitea_url": str,
+    "ca_certs": list, "ntp_servers": list, "editors": list, "vscode_extensions": list, "zed_extensions": list,
+    "agents": list, "clouds": list, "agent_ssh_authorized_keys": list, "dev_ports": list, "lan_cidrs": list,
+    "network": dict, "proxy": dict, "notify": dict, "sysadmin": dict, "rdp": dict, "ups": dict,
+    "network.mode": str, "network.interface": str, "network.address": str, "network.gateway": str,
+    "network.dns": list, "network.search": list,
+    "proxy.url": str, "proxy.no_proxy": str,
+    "notify.slack_webhook_url": str, "notify.ipmsg_to": list, "notify.ipmsg_broadcast": list,
+    "sysadmin.password_hash": str, "sysadmin.ssh_authorized_keys": list,
+    "rdp.username": str, "rdp.password": str,
+    "ups.mode": str, "ups.driver": str, "ups.port": str, "ups.server": str, "ups.name": str,
+    "ups.username": str, "ups.password": str,
+}
+TYPE_NAMES = {str: "文字列(数字や true/false は引用符で囲む)", list: "並び(- で始まる行)", dict: "キーと値"}
+
+
+def check_types(env):
+    """TYPES のとおりの型かを確かめる。並びの要素は文字列(dev_ports だけは数も可)。"""
+    for path, want in TYPES.items():
+        value = env
+        for key in path.split("."):
+            value = value.get(key) if isinstance(value, dict) else None
+        if value is None:
+            continue
+        if not isinstance(value, want):
+            fail(f"env.yaml の {path} は{TYPE_NAMES[want]}にする")
+        if want is list:
+            for item in value:
+                ok = isinstance(item, str) or (path == "dev_ports" and isinstance(item, int) and not isinstance(item, bool))
+                if not ok:
+                    fail(f"env.yaml の {path} の {item!r} は文字列にする(引用符で囲む)")
+
+
+# just update で反映されるか(Issue #13)。KNOWN_KEYS を足したらここも直し、文書の表(manual-steps の「設定や
+# スクリプトを変えたとき」、手順書の「設定やバージョンを変える」)も合わせる。tests/test_render.py が漏れを確かめる
+#   update:  just update で反映する(注記は文書の表)
+#   relogin: just update のあと、agent のログイン中ならその場で、そうでなければ次のログインで反映する
+#   install: インストールのときだけ効く(変えるなら入れなおす)
+UPDATE_SCOPE = {
+    "hostname": "install", "keyboard_layout": "install", "network": "install",
+    "sysadmin": "update", "proxy": "update", "ca_certs": "update", "ntp_servers": "update",
+    "git_user_name": "update", "git_user_email": "update", "editors": "update", "vscode_extensions": "update",
+    "zed_extensions": "update", "gitea_url": "update", "agents": "update", "clouds": "update", "notify": "update",
+    "agent_ssh_authorized_keys": "update", "dev_ports": "update", "lan_cidrs": "update", "ups": "update",
+    "rdp": "relogin", "desktop_color": "relogin",
 }
 
 
@@ -74,7 +129,12 @@ def load_env(paths):
                     if k not in sub:
                         fail(f"{path} の {key}.{k} は知らないキー(書き間違いか、この版では使えない)")
         env = merge(env, part)
+    check_types(env)
     return env
+
+
+# SSH の公開鍵の 1 行(authorized_keys の形。オプションは付けない)
+SSH_KEY = re.compile(r"(ssh-[a-z0-9-]+|ecdsa-sha2-[a-z0-9-]+|sk-[a-z0-9@.-]+) [A-Za-z0-9+/]+=*( .*)?")
 
 
 def require(env, path):
@@ -163,9 +223,13 @@ def main():
         m = re.fullmatch(r"(\d+)(?::(\d+))?", p)
         if not m or not all(1024 <= int(x) <= 65535 for x in m.groups() if x):
             fail(f"dev_ports の {p} は 1024〜65535 のポートか範囲(3000:3999)にする")
+        if m.group(2) and int(m.group(1)) > int(m.group(2)):
+            fail(f"dev_ports の {p} は 始め:終わり の順にする(ufw が逆順を受け付けず、構成が止まる)")
     for k in agent_keys:
         if "CHANGE_ME" in str(k):
             fail("agent_ssh_authorized_keys に CHANGE_ME が残っている")
+        if not SSH_KEY.fullmatch(str(k).strip()):
+            fail(f"agent_ssh_authorized_keys の {str(k)[:30]}... が SSH の公開鍵(種類 base64 [コメント])に見えない")
     agents = env.get("agents") or []
     for a in agents:
         if a not in ("opencode", "copilot", "antigravity"):
@@ -204,12 +268,44 @@ def main():
     ipmsg_broadcast = [str(a) for a in (notify.get("ipmsg_broadcast") or [])]
     for a in ipmsg_broadcast:
         try:
-            ipaddress.ip_address(a)
+            ipaddress.IPv4Address(a)
         except ValueError:
-            fail(f"notify.ipmsg_broadcast の {a} が IP アドレスとして読めない")
+            fail(f"notify.ipmsg_broadcast の {a} が IPv4 のアドレスとして読めない(IP Messenger は IPv4 で探す)")
 
-    if not str(password_hash).startswith("$"):
-        fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... など)にする")
+    ups = env.get("ups") or {}
+    ups_mode = str(ups.get("mode") or "none")
+    ups_driver = str(ups.get("driver") or "usbhid-ups")
+    ups_port = str(ups.get("port") or "auto")
+    ups_server = str(ups.get("server") or "")
+    ups_name = str(ups.get("name") or "ups")
+    ups_user = str(ups.get("username") or "")
+    ups_password = str(ups.get("password") or "")
+    if ups_mode not in ("none", "usb", "netclient"):
+        fail("ups.mode は none・usb・netclient のどれかにする")
+    if not re.fullmatch(r"[a-z0-9_-]+", ups_driver):
+        fail("ups.driver は NUT のドライバーの名前(usbhid-ups など)にする")
+    if not re.fullmatch(r"[^\s\"]+", ups_port):
+        fail("ups.port は auto か、空白を含まないポート(/dev/ttyS0 など)にする")
+    if not re.fullmatch(r"[A-Za-z0-9_.-]+", ups_name):
+        fail("ups.name は英数字と _ . - だけにする")
+    if ups_mode == "netclient":
+        if not re.fullmatch(r"[A-Za-z0-9_.:-]+", ups_server):
+            fail("ups.mode が netclient のときは ups.server に NUT サーバーのアドレスを書く")
+        if not ups_user or not ups_password:
+            fail("ups.mode が netclient のときは ups.username と ups.password が要る")
+        for key, value in (("username", ups_user), ("password", ups_password)):
+            if re.search(r"[\s\"]", value):
+                fail(f"ups.{key} に空白と \" は使えない")
+            if "CHANGE_ME" in value:
+                fail(f"env.yaml の ups.{key} に CHANGE_ME が残っている")
+
+    if not re.fullmatch(r"\$(6|5|y|2[aby])\$\S+", str(password_hash)):
+        fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... か $y$... など。mkpasswd -m sha-512 で作る)にする")
+    for k in keys:
+        if not SSH_KEY.fullmatch(str(k).strip()):
+            fail(f"sysadmin.ssh_authorized_keys の {str(k)[:30]}... が SSH の公開鍵(種類 base64 [コメント])に見えない")
+    if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?", str(hostname)):
+        fail("hostname は英数字と - だけの 63 文字以内(先頭と末尾は英数字。ドメインは付けない)にする")
     if keyboard_layout not in ("us", "jp"):
         fail("keyboard_layout は us か jp にする")
     for c in cidrs:
@@ -232,8 +328,9 @@ def main():
         yaml.safe_dump(doc, f, allow_unicode=True, sort_keys=False)
 
     lines = [
-        "# build-usb.sh が env.yaml から生成した環境固有値(秘密情報を含む)",
+        "# render-autoinstall.py が env.yaml から生成した環境固有値(秘密情報を含む)",
         f"AH_HOSTNAME={shlex.quote(str(hostname))}",
+        f"AH_SYSADMIN_PASSWORD_HASH={shlex.quote(str(password_hash))}",
         f"AH_LAN_CIDRS={shlex.quote(' '.join(str(c) for c in cidrs))}",
         f"AH_RDP_USER={shlex.quote(str(rdp_user))}",
         f"AH_RDP_PASSWORD={shlex.quote(str(rdp_password))}",
@@ -253,11 +350,20 @@ def main():
         f"AH_SLACK_WEBHOOK_URL={shlex.quote(slack_url)}",
         f"AH_IPMSG_TO={shlex.quote(' '.join(ipmsg_to))}",
         f"AH_IPMSG_BROADCAST={shlex.quote(' '.join(ipmsg_broadcast))}",
+        f"AH_UPS_MODE={shlex.quote(ups_mode)}",
+        f"AH_UPS_DRIVER={shlex.quote(ups_driver)}",
+        f"AH_UPS_PORT={shlex.quote(ups_port)}",
+        f"AH_UPS_SERVER={shlex.quote(ups_server)}",
+        f"AH_UPS_NAME={shlex.quote(ups_name)}",
+        f"AH_UPS_USER={shlex.quote(ups_user)}",
+        f"AH_UPS_PASSWORD={shlex.quote(ups_password)}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")
 
-    # 公開鍵と CA 証明書は行をまたぐのでファイルで渡す
+    # 公開鍵と CA 証明書は行をまたぐのでファイルで渡す。sysadmin の鍵は just update でも置き換える(10-users.sh)
+    with open(os.path.join(out_dir, "sysadmin_authorized_keys"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("".join(str(k).strip() + "\n" for k in keys))
     with open(os.path.join(out_dir, "agent_authorized_keys"), "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(str(k).strip() + "\n" for k in agent_keys))
     ca_dir = os.path.join(out_dir, "ca")

@@ -2,9 +2,11 @@
 # 手元の PC から、動いているホストを扱う(just のレシピから使う)。
 #
 # 使い方: scripts/local/host.sh <操作> <ホスト> [引数]
-#   status  <ホスト>                 作った版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
+#   status  <ホスト>                 置いた版と成功した版・構成・RDP・セッション・ディスク・メモリ・失敗した unit を見る
 #   facts   <ホスト>                 台帳のための情報を YAML で出す(sudo のパスワードを聞かれる)
-#   logs    <ホスト>                 構成・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
+#   logs    <ホスト>                 構成・最後の just update・first-login・見張りの記録を見る(sudo のパスワードを聞かれる)
+#   verify  <ホスト>                 仕様どおりに構成されているかを確かめる(scripts/verify.sh。何も変えない)
+#   verify-rdp <ホスト>[:ポート] <env.yaml>...  env.yaml の rdp で RDP の認証が通るかを確かめる(FreeRDP)
 #   update  <ホスト> <env.yaml>...   スクリプトと env.yaml の変更を反映して構成を再実行する(OS は入れなおさない)
 #   backup  <ホスト> [出力ファイル]  移行の書き出し(既定は build/backups/<ホスト>-<日時>.tar.zst)
 #   restore <ホスト> <ファイル>      移行の取り込み
@@ -13,7 +15,7 @@ set -euo pipefail
 # shellcheck source=envs.sh
 . "$(dirname "$0")/envs.sh"
 
-usage() { sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2; }
+usage() { awk 'NR > 1 && /^#/ {sub(/^# ?/, ""); print; next} NR > 1 {exit}' "$0" >&2; exit 2; }
 [ $# -ge 2 ] || usage
 op="$1"
 host="$2"
@@ -38,9 +40,14 @@ status)
     ssh "${ssh_opts[@]}" "$target" '
         if [ -f /opt/agent-host/BUILD-INFO ]; then
             . /opt/agent-host/BUILD-INFO
-            echo "作った版: 道具 $tool${config:+、構成 $config}($built)"
-        else echo "作った版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
-        if [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
+            echo "置いた版: 道具 $tool${config:+、構成 $config}($built)"
+        else echo "置いた版: 記録なし(BUILD-INFO を置く前の版で作った)"; fi
+        if [ -f /var/lib/agent-host/BUILD-INFO.ok ]; then
+            ( . /var/lib/agent-host/BUILD-INFO.ok; echo "最後に適用に成功した版: 道具 $tool${config:+、構成 $config}($built)" )
+        fi
+        if [ -f /var/lib/agent-host/provision-incomplete ]; then
+            echo "構成: 前回の実行が最後まで終わっていない(失敗か中断。just logs で止まったところを見て、直してから just update)"
+        elif [ -f /var/lib/agent-host/provisioned ]; then echo "構成: 済み"
         else echo "構成: 未完了(サービスは $(systemctl is-active agent-host-provision.service))"; fi
         echo "RDP: $(ss -tln | grep -q ":3389 " && echo "待ち受け中" || echo "止まっている")"
         loginctl list-sessions --no-legend | awk '\''$3 == "agent" && $6 == "user" {print "agent のセッション: " $4 " " $7}'\''
@@ -98,9 +105,27 @@ EOF
     } | ssh "${ssh_opts[@]}" "$target" 'sudo -S -p "" bash -s'
     unset PW
     ;;
+verify)
+    # 手元の scripts/verify.sh を流す(ホストに置いた版が古くても、今の検査で確かめる)。固定の版はホストの post-install/ と比べる
+    ask_password
+    { printf '%s\n' "$PW"; cat "$(dirname "$0")/../verify.sh"; } | ssh "${ssh_opts[@]}" "$target" 'sudo -S -p "" bash -s'
+    unset PW
+    ;;
+verify-rdp)
+    # host は <ホスト> か <ホスト>:<ポート>(試験用の VM はポートを転送している)
+    [ $# -ge 1 ] || { echo "env.yaml を指定する(RDP の認証情報を読む)" >&2; exit 2; }
+    port=3389
+    case "$host" in *:*) port="${host##*:}"; host="${host%:*}" ;; esac
+    copy_envs "$@"
+    scripts/local/in-ubuntu.sh "freerdp3-x11 python3-yaml" "xfreerdp3 python3" \
+        bash scripts/local/rdp-auth.sh "$host" "$port" "${ENV_FILES[@]}"
+    ;;
 logs)
     ssh -t "${ssh_opts[@]}" "$target" '
-        sudo journalctl -u agent-host-provision.service -o cat --no-pager | grep -E "^\[agent-host\]|注意|^(E|W):" | tail -40
+        echo "--- 初回の構成"; sudo journalctl -u agent-host-provision.service -o cat --no-pager | grep -E "^\[agent-host\]|注意|^(E|W):" | tail -20
+        if sudo test -f /var/log/agent-host-update.log; then
+            echo "--- 最後の just update(/var/log/agent-host-update.log の最後)"; sudo tail -25 /var/log/agent-host-update.log
+        fi
         echo "--- first-login"; sudo tail -15 /home/agent/.local/state/agent-host/first-login.log
         echo "--- セッションの見張り"; sudo journalctl -u agent-host-session-watchdog.service -o cat --no-pager | grep "^\[agent-host\]" | tail -5
     '
@@ -109,12 +134,10 @@ update)
     [ $# -ge 1 ] || { echo "env.yaml を指定する" >&2; exit 2; }
     copy_envs "$@"
     write_build_info "$@"
-    tmp="build/.update-$host"
-    rm -rf "$tmp"
+    tmp="$RUN_DIR/stage"
     mkdir -p "$tmp"
-    trap 'rm -rf "$tmp" build/.env' EXIT
     scripts/local/in-ubuntu.sh python3-yaml python3 \
-        bash scripts/stage.sh --build-info build/.env/BUILD-INFO "${ENV_FILES[@]}" "$tmp" >/dev/null
+        bash scripts/stage.sh --build-info "$RUN_DIR/BUILD-INFO" "${ENV_FILES[@]}" "$tmp" >/dev/null
     # 別のホストの env.yaml を流さないよう、重ねた結果のホスト名を確かめる
     want="$(sed -n "s/^AH_HOSTNAME=//p" "$tmp/agent-host/env.sh" | tr -d "'")"
     have="$(ssh "${ssh_opts[@]}" "$target" hostname)"
@@ -127,10 +150,17 @@ update)
             t=\$(mktemp -d); tar -xzf - -C \$t
             rm -rf /opt/agent-host.prev; mv /opt/agent-host /opt/agent-host.prev; mv \$t/agent-host /opt/agent-host
             chown -R root:root /opt/agent-host; chmod -R u=rwX,go=rX /opt/agent-host
-            chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys
-            DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | grep -E \"^\[agent-host\]|注意|^(E|W):\"
+            chmod 600 /opt/agent-host/env.sh /opt/agent-host/agent_authorized_keys /opt/agent-host/sysadmin_authorized_keys
+            DEBIAN_FRONTEND=noninteractive /opt/agent-host/provision.sh 2>&1 | tee /var/log/agent-host-update.log |
+                grep -E \"^\[agent-host\]|注意|^(E|W):\"
         "'
     unset PW
+    # sysadmin の SSH の鍵は env.yaml の内容に置き換わる(10-users.sh)。今の鍵で入りなおせるかを確かめる
+    if ! ssh "${ssh_opts[@]}" "$target" true; then
+        echo "注意: 反映のあと、今の鍵で $target に入れない。env.yaml の sysadmin.ssh_authorized_keys に、" >&2
+        echo "      この PC の鍵が入っているかを確かめる(入れなければ、ホストの画面から ~sysadmin/.ssh/authorized_keys を直す)" >&2
+        exit 1
+    fi
     ;;
 backup)
     out="$(resolve_path "${1:-build/backups/$host-$(date +%Y%m%d-%H%M).tar.zst}")"

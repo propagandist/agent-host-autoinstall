@@ -77,9 +77,13 @@ def duplicate(kind, body):
             return True
     except (OSError, ValueError):
         pass
-    os.makedirs(os.path.dirname(STATE), exist_ok=True)
-    with open(STATE, "w", encoding="utf-8") as f:
-        json.dump({"key": key, "at": now}, f)
+    # 記録を書けなくても(実行するユーザーの HOME が無い・書けないなど)、送ることは続ける(Issue #5)
+    try:
+        os.makedirs(os.path.dirname(STATE), exist_ok=True)
+        with open(STATE, "w", encoding="utf-8") as f:
+            json.dump({"key": key, "at": now}, f)
+    except OSError as e:
+        print(f"agent-notify: 重複を抑える記録を書けない({e})。送ることは続ける", file=sys.stderr)
     return False
 
 
@@ -162,10 +166,18 @@ def send_ipmsg(targets, broadcasts, text):
             names.append(t)
     if names:
         import fcntl  # 同時に動いた通知と 2425 番を取り合わないように、順番に探す
-        os.makedirs(os.path.dirname(LOCK), exist_ok=True)
-        with open(LOCK, "w") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            os.makedirs(os.path.dirname(LOCK), exist_ok=True)
+            lock = open(LOCK, "w")
+        except OSError:
+            lock = None  # ロックのファイルを作れなければ、順番を待たずに探す(Issue #5)
+        try:
+            if lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
             found = ipmsg_discover(broadcasts)
+        finally:
+            if lock:
+                lock.close()
         for name in names:
             if name.lower() in found:
                 ips |= found[name.lower()]

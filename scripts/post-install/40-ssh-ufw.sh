@@ -29,10 +29,10 @@ log "SSH をパスワード認証なし・root ログインなしにし、$AGENT
 # agent に SFTP で入れる人の公開鍵(env.yaml の agent_ssh_authorized_keys)。空なら agent には入れない
 if [ -s "$AH_ROOT/agent_authorized_keys" ]; then
     write_agent_file 600 "$AGENT_HOME/.ssh/authorized_keys" <"$AH_ROOT/agent_authorized_keys"
-    chmod 700 "$AGENT_HOME/.ssh"
+    agent_run chmod 700 "$AGENT_HOME/.ssh"
     log "$AGENT_USER に SFTP 用の公開鍵を置いた"
 else
-    rm -f "$AGENT_HOME/.ssh/authorized_keys"
+    agent_run rm -f "$AGENT_HOME/.ssh/authorized_keys"
 fi
 
 # --- ufw ---

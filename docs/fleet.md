@@ -34,7 +34,7 @@ justfile                 just check / iso / update / status / facts など
 
 env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)。後のファイルの値が勝つ。辞書(`network`、`notify` など)はキーごとに重なり、並び(`editors`、`lan_cidrs` など)と値は置き換わる。知らないキー(書き間違い)はエラーになる。
 
-作ったホストの `/opt/agent-host/BUILD-INFO` には、道具の版、構成リポジトリの版(`AGENT_HOST_CONFIG_REV`)、使った env のファイル名、作った日時が残る。`just status` と `just facts` で見える。
+作ったホストの `/opt/agent-host/BUILD-INFO`(置いた版)と `/var/lib/agent-host/BUILD-INFO.ok`(構成が最後まで成功した版)には、道具の版、構成リポジトリの版(`AGENT_HOST_CONFIG_REV`)、使った env のファイル名、作った日時が残る。`just status` と `just facts` で見える。
 
 ## 3. 構成リポジトリを作る(最初に 1 回)
 
@@ -47,7 +47,7 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
    cd <構成リポジトリ>
    git init
    git submodule add https://github.com/<組織>/agent-host-autoinstall.git tool
-   git -C tool checkout v0.1.0
+   git -C tool checkout v0.2.0
    just setup
    ```
 3. 作業する人ごとに age の鍵を作る(秘密鍵は手元とパスワード管理に置き、リポジトリには入れない)
@@ -90,7 +90,8 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
 3. 反映する(OS は入れなおさない)
    ```
    just update agent-host-01                 # 名前で引けないときは: just update agent-host-01 192.0.2.10
-   just status agent-host-01                 # 作った版に、いまの構成の版が出る
+   just status agent-host-01                 # 置いた版と最後に適用に成功した版に、いまの構成の版が出る
+   just verify agent-host-01                 # 仕様どおりかを確かめる(✗ がないこと)
    ```
 4. `docs/hosts/<ホスト>.md` の変更の記録に、理由と手でしたことを書く
 
@@ -102,13 +103,15 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 2. submodule を新しいタグにし、すべてのホストの env.yaml を検査する
    ```
    git -C tool fetch --tags
-   git -C tool checkout v0.2.0
+   git -C tool checkout v0.3.0
    just check-all
    ```
    止まったら、CHANGELOG に従って `common.yaml` や `hosts/` を直す
-3. 1 台で試す。反映し、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う
+3. 1 台で試す。反映し、`just verify` と、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う
    ```
    just update agent-host-01
+   just verify agent-host-01
+   just verify-rdp agent-host-01
    ```
 4. 問題がなければ、残りのホストに反映する。台帳の「道具の版」を直す
 5. submodule の更新と台帳を、1 つのコミットにして push する
@@ -120,14 +123,17 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    just backup agent-host-01 <暗号化された場所>/agent-host-01-<日付>.tar.zst
    ```
 2. 同じ `hosts/<ホスト>.yaml` で `just iso` を作り、入れなおす(機種を替えるときは、台帳の機種・MAC も直す)
-3. 取り込み、再起動する
+3. 取り込み、再起動する。入れなおしたホストはホスト鍵が新しいので、取り込むまでは一時の known_hosts でつなぎ、
+   最初に出る指紋を新しいホストの画面の `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` と照らす(道具の手順書の「環境を入れ替える」)
    ```
+   export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
    just restore agent-host-01 <暗号化された場所>/agent-host-01-<日付>.tar.zst
+   unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate
    just ssh agent-host-01            # sudo systemctl reboot
    ```
-4. 受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
+4. `just verify` と受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
 
-ホスト鍵と RDP の証明書も移るので、手元の known_hosts と RDP の「今後確認しない」は、そのまま使える。
+ホスト鍵と RDP の証明書も移るので、取り込んだあとは、手元の known_hosts と RDP の「今後確認しない」をそのまま使える(取り込むまでは使えない。known_hosts の古い鍵は消さない)。
 
 ## 8. 作業する人が増える・減る
 
@@ -143,9 +149,10 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 1. `.sops.yaml` から公開鍵を外し、上と同じように `sops updatekeys` する
 2. その人が知っている秘密情報を替える(過去のコミットは、その人の鍵で復号できるため)
    - RDP のパスワード: `rdp.password` を替えて、すべてのホストに `just update`
-   - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(sudo のパスワードは、ホストで `sudo passwd sysadmin` でも替える)
-   - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替える
-   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`
+   - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(ホストのパスワードもこの値に置き換わる)
+   - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替え、`just update`
+   - UPS の監視用のパスワード(netclient のとき): NUT サーバーの側で替えて `ups.password` を替え、`just update`
+   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
 
 ## 9. 記録の決まり
 

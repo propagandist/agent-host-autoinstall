@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# RDP で入って使うときのデスクトップの使い勝手: 端末(Xfce Terminal)とクリップボードの履歴(Clipboard Indicator)。
+# RDP で入って使うときのデスクトップ: 日本語入力と言語パック、端末(Xfce Terminal)、クリップボードの履歴(Clipboard Indicator)、
+# Chrome のポリシー、壁紙の色と Dock(desktop-env.sh に渡し、ログイン中ならその場で入れる)、Files のブックマーク。
 # キー割り当てと拡張機能の有効化は、agent のセッションが要るので first-login で行う。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -41,7 +42,7 @@ chmod -R u=rwX,go=rX "$ext_dir"
 log "Clipboard Indicator(版 71)を入れた"
 
 # --- Chrome: 利用統計・パスワードの保存・宣伝を止め、初回の案内を出さない ---
-# パスワードを保存させないのは、agent に個人の秘密情報を置かない前提(SPEC.md §4)に合わせるため
+# パスワードを保存させないのは、agent に置く秘密を各サービスのログインだけにする前提(SPEC.md §4)に合わせるため
 install -d -m 755 /etc/opt/chrome/policies/managed
 cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
 {
@@ -52,9 +53,23 @@ cat >/etc/opt/chrome/policies/managed/agent-host.json <<'EOF'
 EOF
 : | write_agent_file 644 "$AGENT_HOME/.config/google-chrome/First Run"
 
-# --- first-login に渡す値(壁紙の色) ---
+# --- 壁紙の色と Dock(env.yaml の desktop_color と editors で変わる) ---
+# desktop-env.sh がログインのたびに読み、変わっていれば入れる。ログイン中なら、その場でも入れる(Issue #13)
 printf 'DESKTOP_COLOR=%s\n' "${AH_DESKTOP_COLOR:-#4a4a4a}" |
     write_agent_file 644 "$AGENT_HOME/.config/agent-host/desktop.env"
+write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=agent-host desktop settings
+Exec=$AH_ROOT/first-login/desktop-env.sh
+X-GNOME-Autostart-enabled=true
+NoDisplay=true
+EOF
+if [ -f "$AGENT_HOME/.config/agent-host/first-login.done" ]; then
+    rc=0
+    agent_session_run "$AH_ROOT/first-login/desktop-env.sh" >/dev/null || rc=$?
+    [ "$rc" = 0 ] || [ "$rc" = 2 ] || log "注意: 壁紙の色と Dock をその場では入れられなかった。次のログインで入る"
+fi
 
 # --- Files のサイドバーに ~/work ---
 # 新規インストールではまだファイルがない(xdg-user-dirs-gtk-update は 80 で止めている)ので、よく使う場所も一緒に書く
@@ -64,6 +79,7 @@ if [ ! -f "$bookmarks" ]; then
         write_agent_file 664 "$bookmarks"
 fi
 if ! grep -q "^file://$AGENT_HOME/work " "$bookmarks"; then
-    printf 'file://%s/work work\n' "$AGENT_HOME" >>"$bookmarks"
+    # shellcheck disable=SC2016  # agent の sh の中で展開する
+    agent_run sh -c 'printf "file://%s/work work\n" "$2" >>"$1"' sh "$bookmarks" "$AGENT_HOME"
 fi
 log "Chrome のポリシー、壁紙の色、~/work のブックマークを設定した"

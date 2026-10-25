@@ -4,6 +4,7 @@
 #
 # 使い方: scripts/local/in-ubuntu.sh "<apt のパッケージ>" "<要るコマンド>" <コマンド> [引数...]
 #   例: scripts/local/in-ubuntu.sh "xorriso python3-yaml" "xorriso python3" bash scripts/build-usb.sh ...
+#   <要るコマンド> を - にすると、手元に道具があっても Linux(手元が Linux ならそのまま、ほかは Docker)で動かす
 set -euo pipefail
 
 [ $# -ge 3 ] || { echo "使い方: $0 \"<パッケージ>\" \"<要るコマンド>\" <コマンド> [引数...]" >&2; exit 2; }
@@ -12,9 +13,13 @@ need="$2"
 shift 2
 
 native=yes
-for cmd in $need; do
-    "$cmd" --version >/dev/null 2>&1 || native=no
-done
+if [ "$need" = - ]; then
+    [ "$(uname -s)" = Linux ] || native=no
+else
+    for cmd in $need; do
+        "$cmd" --version >/dev/null 2>&1 || native=no
+    done
+fi
 if [ "$native" = yes ]; then
     exec "$@"
 fi

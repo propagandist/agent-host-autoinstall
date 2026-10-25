@@ -69,7 +69,8 @@ if dpkg-query -W -f='${Status}' snapd 2>/dev/null | grep -q 'install ok installe
     # 初回起動の直後は snap の初期化(seed)が終わっていないことがあるので待つ
     snap wait system seed.loaded || true
     apt-get purge -y snapd firefox
-    rm -rf /var/cache/snapd /root/snap "$AGENT_HOME/snap"
+    rm -rf /var/cache/snapd /root/snap
+    agent_run rm -rf "$AGENT_HOME/snap"
 fi
 cat >/etc/apt/preferences.d/agent-host-no-snapd.pref <<'EOF'
 # agent-host-autoinstall が置いた設定: snapd を入れない(36-minimize.sh)
@@ -128,11 +129,10 @@ if command -v powerprofilesctl >/dev/null; then
     powerprofilesctl set performance || log "注意: 電源のプロファイルを performance にできなかった"
 fi
 
-# 15. Intel の内蔵 GPU があれば、RDP の画面の符号化を任せる(VA-API。なければ使われないだけ)
-apt-get install -y intel-media-va-driver
-
-# 16. 正しく終了しなかったあとの GRUB の待ちを 30 秒から 5 秒に(停電からの復帰を早くする)
-printf '# agent-host-autoinstall が置いた設定\nGRUB_RECORDFAIL_TIMEOUT=5\n' >/etc/default/grub.d/60-agent-host.cfg
+# 15. 正しく終了しなかったあとの GRUB の待ちを 30 秒から 5 秒に(停電からの復帰を早くする)。
+#     起動画面(splash)は出さない(モニターをつながないので見る人がいない。起動が少し速くなる)
+printf '# agent-host-autoinstall が置いた設定\nGRUB_RECORDFAIL_TIMEOUT=5\nGRUB_CMDLINE_LINUX_DEFAULT="quiet"\n' \
+    >/etc/default/grub.d/60-agent-host.cfg
 update-grub >/dev/null 2>&1
 
-log "snap・kdump の削除、zram、電源のプロファイル、VA-API、GRUB の待ちを設定した"
+log "snap・kdump の削除、zram、電源のプロファイル、GRUB の待ちと起動画面を設定した"

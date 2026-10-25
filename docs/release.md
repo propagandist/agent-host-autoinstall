@@ -13,6 +13,8 @@ GitFlow の release ブランチで版を決め、確かめてから main に入
 | マイナー | 機能や env.yaml の項目の追加(既存の env.yaml はそのまま使える) |
 | メジャー | env.yaml の互換性がなくなる変更(既存の env.yaml を直さないと ISO を作れない) |
 
+0.x のあいだは、env.yaml の互換性がなくなる変更もマイナーを上げる(例: 0.2.0 → 0.3.0)。互換性の約束は 1.0.0 からで、そこからは上の表のとおりメジャーを上げる。どの版でも、互換性がなくなる変更は CHANGELOG の「env.yaml の変更」に、各ホストの env.yaml で直すことを書く。
+
 リリースは VM での受け入れテストが通ったら出す(最初は v0.1.0)。実機での確認は必須にせず、実機で問題が出たら hotfix で直す(下の「実機で問題が出たとき」)。しばらく運用して問題がないと判断するまでは 0.x とし、GitHub では pre-release にする。
 
 ## 成果物
@@ -29,6 +31,14 @@ git-flow のタグに `v` を付ける(手元の設定で、リポジトリに�
 git config gitflow.prefix.versiontag v
 ```
 
+`just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。Ubuntu の ISO は `just fetch-iso` で build/ に取得しておく。
+
+- `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 と 3389 は、手元の PC の 127.0.0.1:2222 と 127.0.0.1:13389 に転送する)
+- 試験用の鍵を作り(`ssh-keygen -t ed25519 -f build/test/id_ed25519 -N ""`)、公開鍵を `sysadmin.ssh_authorized_keys` に入れる
+- sudo のパスワードは、実行したときに聞かれる(環境変数 `AGENT_HOST_SUDO_PASSWORD` でも渡せる)
+- `editors`・`agents`・`clouds` などは、確かめたいものをすべて選んでおく
+- VM の名前・CPU・メモリなどは環境変数で変えられる(`scripts/local/vm-test.sh` の先頭)。Windows で Hyper-V(Docker Desktop)と共存させると、CPU 2 つ以上でゲストが止まった(docs/notes.md)ので、既定は CPU 1
+
 ## 手順
 
 例は v0.1.0。
@@ -41,15 +51,19 @@ git config gitflow.prefix.versiontag v
    ```
 3. 版の内容を書く(このブランチでは版の記録と文書の手直しだけを行い、機能は足さない)
    - `CHANGELOG.md` の `## [未リリース]` を `## [0.1.0] - <日付> — <位置づけ>` にし(位置づけは日本語 4〜27 字。例: 最初の版。Release の名前「v0.1.0 — 最初の版」になる)、上に空の `## [未リリース]` を足す。「確認した環境」に、VM と実機で確かめた範囲を書く
-   - 「env.yaml の変更」の欄に、構成リポジトリの各ホストの env.yaml で直すこと(項目の追加・名前の変更・使えなくなった値)を書く。なければ「なし」。互換性がなくなる変更ならメジャーを上げる
+   - 「env.yaml の変更」の欄に、構成リポジトリの各ホストの env.yaml で直すこと(項目の追加・名前の変更・使えなくなった値)を書く。なければ「なし」。互換性がなくなる変更ならメジャーを上げる(0.x のあいだはマイナー)
    - 手順書(docs/setup-guide.tex)の付録「固定しているバージョン」の日付と値を、スクリプトの先頭の値に合わせる
    - docs/notes.md の「検証した環境」と「確認できていないこと」を直す
    - コミットする
 4. リリースの前の確認
    ```sh
-   just release-check    # コミット済みか、CHANGELOG の節、lint、PDF の作成
+   just release-check    # コミット済みか、CHANGELOG の節、lint、just test、PDF の作成
    ```
-5. release ブランチから作った ISO で、VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
+5. release ブランチのスクリプトで VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
+   ```sh
+   just vm-test          # 入れなおし → verify・verify-rdp → 電源を切って戻るか → セッションが落ちて戻るか
+   ```
+   通ったら、残りの人が確かめるもの(RDP の画面と日本語入力、エージェントが動くこと、切断しても続くこと)を RDP で行う
 6. 仕上げる(main へのマージ、タグ、develop への戻し)
    ```sh
    git flow release finish -m "v0.1.0" 0.1.0
@@ -72,12 +86,12 @@ git config gitflow.prefix.versiontag v
    git checkout main && git pull
    git flow hotfix start 0.1.1
    ```
-2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付>` を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/notes.md にも、何が起きてどう直したかを書く
+2. 直してコミットする。`CHANGELOG.md` に `## [0.1.1] - <日付> — <位置づけ>`(手順 3 と同じ形。例: 実機の RDP を直す版)を足し、直したこと、確認した環境(実機か VM か)、「env.yaml の変更」(なければ「なし」)を書く。docs/notes.md にも、何が起きてどう直したかを書く
 3. 確かめる
    ```sh
    just release-check    # hotfix ブランチでも使える
    ```
-   VM で確かめられることは VM で、実機でしか起きない問題は、その実機に `just update` して直ったことを確かめる
+   VM で確かめられることは VM で(`just vm-test`)、実機でしか起きない問題は、その実機に `just update` して直ったことを確かめる(`just verify <ホスト>`)
 4. 仕上げる(main と develop へのマージ、タグ)。タグの push で Actions が Release と PDF を作る
    ```sh
    git flow hotfix finish -m "v0.1.1" 0.1.1

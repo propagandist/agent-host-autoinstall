@@ -38,8 +38,16 @@ tar --zstd -xpf "$work/backup.tar.zst" -C / --exclude=agent-host-manifest.txt
 chown -R "$AGENT_USER:$AGENT_USER" "$AGENT_HOME"
 chmod 700 "$AGENT_HOME"
 chmod 600 /etc/ssh/ssh_host_*_key 2>/dev/null || true
+# 取り込んだキーリングには、書き出し元の RDP の認証情報が入っている。このホストの env.yaml のものを渡しなおし、
+# 再起動のあとのログインで入れなおす(Issue #3)
+load_env
+queue_rdp_credentials --force || true
 systemctl restart ssh || true
 
 echo "[agent-host] 取り込んだ場所:" >&2
 sed -n 's/^path=/  \//p' "$manifest" >&2
+if grep -q '^excluded=' "$manifest"; then
+    echo "[agent-host] 書き出しのときに除いたもの(作りなおす。npm install、uv sync など):" >&2
+    sed -n 's/^excluded=/  \//p' "$manifest" >&2
+fi
 echo "[agent-host] 取り込みが終わった。sudo systemctl reboot で再起動すると、RDP とログインの状態が反映される" >&2

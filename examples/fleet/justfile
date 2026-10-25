@@ -32,9 +32,17 @@ iso host:
 update host target=host:
     scripts/with-env.sh {{host}} just -f {{tool}} update {{target}}
 
-# ホストの状態と作った版を見る
+# ホストの状態と、置いた版・最後に適用に成功した版を見る
 status target:
     just -f {{tool}} status {{target}}
+
+# 仕様どおりに構成されているかを確かめる(読むだけ。✗ があれば失敗する)
+verify target:
+    just -f {{tool}} verify {{target}}
+
+# ホストの env.yaml の rdp で RDP の認証が通るかを確かめる(画面は開かない)
+verify-rdp host target=host:
+    scripts/with-env.sh {{host}} just -f {{tool}} verify-rdp {{target}}
 
 # 台帳のための情報を facts/<ホスト>.yaml に書く(コミットする。秘密情報は入らない)
 facts host target=host:

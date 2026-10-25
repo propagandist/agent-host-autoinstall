@@ -43,7 +43,6 @@ if [ ! -f "$mimeapps" ]; then
 fi
 for mime in text/html application/xhtml+xml \
     x-scheme-handler/http x-scheme-handler/https x-scheme-handler/about x-scheme-handler/unknown; do
-    ini_set "$mimeapps" "Default Applications" "$mime" google-chrome.desktop
+    ini_set --as-agent "$mimeapps" "Default Applications" "$mime" google-chrome.desktop
 done
-chown "$AGENT_USER:$AGENT_USER" "$mimeapps"
 log "agent の既定のブラウザを Chrome にした"
