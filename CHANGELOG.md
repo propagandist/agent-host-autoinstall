@@ -10,6 +10,17 @@
 
 ## [未リリース]
 
+## [0.3.1] - 2026-10-25 — 構成リポジトリのひな形を直す版
+
+### env.yaml の変更
+- なし。v0.3.0 のひな形で構成リポジトリを作っていたら、その `.sops.yaml` の `encrypted_regex` に `initial_password` を足し、`common.yaml` と `hosts/*.yaml` を復号してから暗号化しなおす(`sops --decrypt --in-place` のあと `sops --encrypt --in-place`)。仮のパスワードは平文で履歴に入っているので、まだ RDP のパスワードを変えていない人には変えてもらう
+
+### 修正
+- 構成リポジトリのひな形(examples/fleet/.sops.yaml)が `users[].rdp.initial_password` を暗号化の対象にしておらず、RDP の仮のパスワードが平文で構成リポジトリに入った。対象に足し、tests/test_render.py で、ひな形の秘密の値のキーがすべて対象に入っていることを確かめる(#27)
+
+### 確認した環境
+- `just test`(Docker の中)。ホストに置くものは変えていないので、VM での入れなおしは行っていない
+
 ## [0.3.0] - 2026-10-25 — 利用者ごとにセッションを分ける版
 
 ### env.yaml の変更

@@ -9,7 +9,7 @@
 - ISO は ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った。USB からの起動から構成の完了まで約 47〜67 分、再起動から RDP の待ち受けまで約 80 秒
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
-- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの 100 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
+- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの項目。v0.3.0 で 190 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
 - v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
@@ -354,6 +354,7 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 - `ss -tln` の一覧に、待ち受けている 3389 が出ないことがあった(`/dev/tcp` でつなぐと開いている。原因は調べていない)。vm-test と verify は、実際につないで確かめる形にした
 - v0.3.0 の release ブランチで入れなおしから通すと、初回の構成は終わったのに、利用者のセッションが立たず RDP も待ち受けなかった。88-start-sessions.sh は GDM が動いていなければセッションを有効にするだけだったが、初回の構成は起動の途中(GDM の前)で動き、起動で立てるものはその前に決まっているので、有効にしてもその起動では立たない(次の再起動までつながらない)。上の確認は `just update` と `AGENT_HOST_VM_REUSE=1` で、GDM が動いている道しか通っていなかった。同じ VM でセッションを `systemctl start --no-block` で立てると、2 人とも RDP が待ち受けた。GDM の起動が控えているとき(`systemctl list-jobs gdm.service`)も立てる指示を積むようにした
 - v0.3.0 の release ブランチの VM(`keyboard_layout: jp`、入れなおしたもの)で、#15 の残りを確かめた。(1)alice が RDP のパスワードを変えたあと書き出し、alice の認証情報を仮のパスワードに戻して(新しいホストに入れた直後と同じ状態)、取り込んで再起動した。認証情報のファイルは書き出す前と同じ中身に戻り、仮のパスワードでは通らなかった(`just verify-rdp` は未検証)。(2)env.yaml の `users` から alice を外して `just update` すると、alice の鍵では SFTP もシェルも `Permission denied (publickey)` になった(sshd は「AllowUsers にない」。アカウントは期限切れ、セッションは止まり、3389 は閉じ、ufw の規則も消えた。ホームは残る)。外す前は、同じ鍵で SFTP に入れた(シェルは sftp だけで断られる)
+- 空パスワードのログインキーリングは、ヘッドレスのセッションでも効いた(2026-10-25、v0.3.0 を入れた VM の bob)。誰も開いていないあいだは `Locked=true` だが、`org.freedesktop.Secret.Service.Unlock` はプロンプトなし(返りが `/`)で通り、`Locked=false` になった。キーリングの中に Chrome の項目(Chrome Safe Storage など)が、パスワードを聞かれずに保存されていた
 - `grdctl --headless status` は View-only を出さない。操作できることは RDP で確かめた
 - 画面で: 2 人が同時に mstsc でつながり、それぞれロックされていないデスクトップが出た。bob の端末から `ls /home/alice` は Permission denied。alice が RDP のパスワードを変え、デーモンを再起動したあと新しい値で入れた
 
@@ -406,6 +407,10 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - #24: 80-agent-session.sh の `rm -f "$agent_env"` を `agent_run rm -f` にした。#1 のときに見落とした。パスを変数で受けていたので、ホームのパスを探す grep に当たらなかった
 - VM での書き出しから取り込みまで(同じ VM に戻す形)は、2026-10-25 に v0.3.0 の release ブランチで確かめた(上の「実装のあとの確認」)。別の VM へ入れなおしての通しは未確認(just vm-test は取り込みを試さない)
 
+### 構成リポジトリのひな形の暗号化の漏れ(2026-10-25、#27)
+
+- `examples/fleet/.sops.yaml` の `encrypted_regex` が `initial_password`(v0.3.0 で `rdp.password` から名前を変えた)に一致せず、ひな形どおりに暗号化しても RDP の仮のパスワードが平文で残った。#15 で名前を変えたときの取りこぼし。正規表現に足し、ひな形の秘密の値のキーが一致することを tests/test_render.py で確かめる。確かめたのは正規表現とキーの突き合わせまでで、sops は実行していない
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -418,7 +423,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
-- 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator が効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
