@@ -117,6 +117,7 @@ just rdp <ホスト>      # build/<ホスト>.rdp を作る(Windows のリモー
 - 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
 - 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
+- PDF は Atril で開く(Files でダブルクリック)
 - Caps Lock はホストでは何もしない(RDP で手元と状態がずれるため)。大文字は Shift で打つ
 
 以降の 6〜13 は、RDP で agent のデスクトップに入って行う。

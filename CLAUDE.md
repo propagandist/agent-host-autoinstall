@@ -48,7 +48,7 @@ scripts/
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、agent の既定のブラウザにする
-    76-desktop.sh           # Xfce Terminal、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
+    76-desktop.sh           # Xfce Terminal、Atril(PDF)、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
     80-agent-session.sh     # キーリング、RDP 認証情報の受け渡し、first-login の自動起動
     84-notify.sh            # 通知(Slack、IP Messenger)とディスクの残りの監視
     85-ups.sh               # env.yaml の ups で選んだ UPS を NUT で見る(バッテリーが少ないと終了、出力を止めて復電で起動、通知)

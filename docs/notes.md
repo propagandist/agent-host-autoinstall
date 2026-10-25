@@ -310,6 +310,12 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - just はアーカイブ(universe)に 1.45.0 があるが、agent が `mise use -g just` で入れられる(1.59.0)ので入れていない
 - 5 本の PDF のイメージで、VM(ルート 37GB)の空きが約 15GB から約 7.6GB に減った
 
+### PDF ビューアー(2026-10-25 追加、#19)
+
+- PDF の既定のアプリを決めていなかったので、Atril(26.04 の universe の 1.28.2。GTK3、desktop ファイルは `atril.desktop`)を入れ、agent の mimeapps.list の `application/pdf` にした。Recommends は dbus のセッションと gvfs だけで、Caja は Suggests(ubuntu:26.04 のコンテナで `apt-cache show` を見た)
+- 選ばなかったもの: zathura(メニューがなく vim 風のキー操作が前提)、MuPDF(X11 なので開くたびに Xwayland が起動する)、qpdfview(このホストにない Qt を一式入れることになる)
+- 未確認: ubuntu-desktop-minimal で Papers(main に 50.2 がある)や Evince が入るか、Atril のメモリの量、日本語の PDF の表示(VM で確かめる)
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
