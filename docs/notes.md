@@ -343,6 +343,16 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 
 - ほかに分かったこと: `useradd -m` のホームは 750 だった(700 にする)。ヘッドレスのセッションの PAM のサービスは `gdm-autologin`、`Remote=yes`
 
+### 利用者ごとのヘッドレスのセッション: 実装のあとの確認(2026-10-25、VirtualBox で確認、#15)
+
+2 人(alice 3389、bob 3390)の試験用の env.yaml で `just vm-test` を流した。
+
+- 入れなおしの初回の構成で、不具合が 2 つ見つかった(直した): まだいない利用者を `getent passwd` で引くと終了コード 2 で、set -e で構成が止まった。認証情報がないと `grdctl --headless status --show-credentials` は `Username: (null)` と出し、仮のパスワードが入らなかった。VM に直したものを当てて構成をやりなおしたため、vm-test の待ち時間(120 分)を過ぎ、入れなおしからの通しは ✗ になった。入れなおしから人手なしで通ることは、リリースのときの vm-test で確かめる
+- `just update` で直したものを反映し、`AGENT_HOST_VM_REUSE=1` の vm-test で、verify(193 項目)、verify-rdp(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけが戻り、2 人目の gnome-shell が続くことが通った
+- `ss -tln` の一覧に、待ち受けている 3389 が出ないことがあった(`/dev/tcp` でつなぐと開いている。原因は調べていない)。vm-test と verify は、実際につないで確かめる形にした
+- `grdctl --headless status` は View-only を出さない。操作できることは RDP で確かめた
+- 画面で: 2 人が同時に mstsc でつながり、それぞれロックされていないデスクトップが出た。bob の端末から `ls /home/alice` は Permission denied。alice が RDP のパスワードを変え、デーモンを再起動したあと新しい値で入れた
+
 ### 利用者ごとのヘッドレスのセッション: 方式の比較(2026-10-25、#15)
 
 | 方式 | 選ばなかった理由 / 選んだ理由 |
