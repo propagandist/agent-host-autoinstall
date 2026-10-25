@@ -49,7 +49,7 @@
 - 80-agent-session.sh の古い設定(50-proxy-ca.conf)の削除が root のままで、途中のリンクでホームの外の同じ名前のファイルを消せた。利用者の権限で消す。tests/test_agent_home.py に、末端がディレクトリへのリンクのときの write_agent_file の試験を足した(#24)
 
 ### 確認した環境
-- VirtualBox 7.2 の VM(UEFI、メモリ 4GB、CPU 1)、利用者 2 人の env。release ブランチの `just vm-test` で新しく入れなおし、人手なしで 2 人の RDP が待ち受けること、`just verify`(193 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くことを確かめた
+- VirtualBox 7.2 の VM(UEFI、メモリ 4GB、CPU 1)、利用者 2 人の env。release ブランチの `just vm-test` で新しく入れなおし(`keyboard_layout` は us と jp の両方で通した)、人手なしで 2 人の RDP が待ち受けること、`just verify`(jp で 195 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くことを確かめた
 - 動いている VM に `just update` で反映する道も確かめた。RDP で 2 人が同時につなげること、互いのホームが読めないこと、本人が RDP のパスワードを変えられることを画面で確かめた
 - 利用者 2 人で、片方がメモリを使い切ったとき、systemd-oomd がその人の単位だけを止め、もう 1 人のセッション・RDP・Orca が続くことを確かめた(docs/notes.md)
 - 移行の書き出しと取り込みは `just test`(Docker の中)で確かめた。VM での書き出しから取り込みまでの通しは確かめていない
