@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # 利用者ごとのヘッドレスのセッションを立てる。キーリング(80-agent-session.sh)と RDP(20-sessions.sh)のあとに動く。
 # 立てる前に、GNOME の設定(first-login.sh)を利用者のバスで一度だけ入れる。
-# 初回の構成のあいだは GDM がまだ動いていない(この構成のあとに起動する)ので、有効にするだけで、起動のときに立つ。
+# 初回の構成は起動の途中(GDM の前)で動く。起動で立てるものはその前に決まっているので、有効にするだけでは
+# この起動では立たない(入れなおしの VM で確認)。GDM の起動が控えていれば、立てる指示を積んでおく
+# (ユニットは After=gdm.service なので GDM のあとに立つ。--no-block なので構成は待たない)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
@@ -19,7 +21,8 @@ start_session() {
     agent_bus_run gsettings set org.gnome.desktop.screensaver lock-enabled false
     agent_bus_run gsettings set org.gnome.desktop.lockdown disable-lock-screen true
     systemctl enable "gnome-headless-session@$AGENT_USER.service" >/dev/null 2>&1
-    if systemctl is-active --quiet gdm.service && ! systemctl is-active --quiet "gnome-headless-session@$AGENT_USER.service"; then
+    if { systemctl is-active --quiet gdm.service || [ -n "$(systemctl list-jobs --no-legend gdm.service 2>/dev/null)" ]; } &&
+        ! systemctl is-active --quiet "gnome-headless-session@$AGENT_USER.service"; then
         systemctl start --no-block "gnome-headless-session@$AGENT_USER.service"
         log "$AGENT_USER のセッションを立てた"
     fi

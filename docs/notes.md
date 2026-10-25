@@ -10,6 +10,7 @@
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
 - v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの 100 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
+- v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
@@ -76,6 +77,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 日本語入力: locale ja_JP.UTF-8 と keyboard jp の指定で、インストーラーが ibus-mozc・language-pack-ja・Noto CJK を入れ、agent の入力ソースは `[('xkb', 'jp'), ('ibus', 'mozc-jp')]` になる(VirtualBox で確認済み)。RDP 越しに Ctrl+Space で切り替えて日本語を打てる(VirtualBox + 101 キーボード + mstsc で確認済み)
 - キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
 - インストーラーが入れる `mozc-jp` は、切り替えた直後が直接入力で、ひらがなにするには半角/全角キーが要る。101 キーボードでは切り替えはできても日本語を打てなかった。`mozc-on`(切り替えた時点でひらがな)にして打てた(確認済み)
+- 入力ソースに Mozc が 2 つ並んでいた(`[('xkb', 'us'), ('ibus', 'mozc-on'), ('ibus', 'mozc-jp')]`。v0.3.0 の release ブランチの VM で、Ctrl+Space の切り替えに Mozc が 2 つ出た)。Ubuntu の gnome-settings-daemon(50.0-1ubuntu1)のパッチ keyboard-Use-ibus-sources-from-locale は、gsd-keyboard が利用者ごとに初めて動くとき(`~/.local/share/gnome-settings-daemon/input-sources-converted` がないとき)、ロケールの入力メソッド(ja_JP なら `mozc-jp`)を、入っているものを見ずに末尾に足す。first-login.sh がセッションの前にこの目印を置き、desktop-env.sh がすでに足された `mozc-jp` を外すようにした(bob で確認。新しく入れたときの確認は release の vm-test)。0.2 までの agent でも同じことが起きていたはず(未確認)
 - 動いている VM の配列を `localectl set-x11-keymap` で変えようとしたら、sudo でも "Access denied" になった。`/etc/default/keyboard` を直接書き換えて代えた(原因は未調査)
 - Google Chrome は 75-chrome.sh が公式 apt リポジトリから入れ、agent の `~/.config/mimeapps.list` で既定のブラウザにする(VirtualBox で確認済み。156.0.8078.47)
   - Google のリポジトリには最新版しかないので固定しない。unattended-upgrades の許可元に `Google LLC:stable` を足して自動更新する(dry-run で許可元を確認済み)
@@ -350,6 +352,8 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 - 入れなおしの初回の構成で、不具合が 2 つ見つかった(直した): まだいない利用者を `getent passwd` で引くと終了コード 2 で、set -e で構成が止まった。認証情報がないと `grdctl --headless status --show-credentials` は `Username: (null)` と出し、仮のパスワードが入らなかった。VM に直したものを当てて構成をやりなおしたため、vm-test の待ち時間(120 分)を過ぎ、入れなおしからの通しは ✗ になった。入れなおしから人手なしで通ることは、リリースのときの vm-test で確かめる
 - `just update` で直したものを反映し、`AGENT_HOST_VM_REUSE=1` の vm-test で、verify(193 項目)、verify-rdp(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけが戻り、2 人目の gnome-shell が続くことが通った
 - `ss -tln` の一覧に、待ち受けている 3389 が出ないことがあった(`/dev/tcp` でつなぐと開いている。原因は調べていない)。vm-test と verify は、実際につないで確かめる形にした
+- v0.3.0 の release ブランチで入れなおしから通すと、初回の構成は終わったのに、利用者のセッションが立たず RDP も待ち受けなかった。88-start-sessions.sh は GDM が動いていなければセッションを有効にするだけだったが、初回の構成は起動の途中(GDM の前)で動き、起動で立てるものはその前に決まっているので、有効にしてもその起動では立たない(次の再起動までつながらない)。上の確認は `just update` と `AGENT_HOST_VM_REUSE=1` で、GDM が動いている道しか通っていなかった。同じ VM でセッションを `systemctl start --no-block` で立てると、2 人とも RDP が待ち受けた。GDM の起動が控えているとき(`systemctl list-jobs gdm.service`)も立てる指示を積むようにした
+- v0.3.0 の release ブランチの VM(`keyboard_layout: jp`、入れなおしたもの)で、#15 の残りを確かめた。(1)alice が RDP のパスワードを変えたあと書き出し、alice の認証情報を仮のパスワードに戻して(新しいホストに入れた直後と同じ状態)、取り込んで再起動した。認証情報のファイルは書き出す前と同じ中身に戻り、仮のパスワードでは通らなかった(`just verify-rdp` は未検証)。(2)env.yaml の `users` から alice を外して `just update` すると、alice の鍵では SFTP もシェルも `Permission denied (publickey)` になった(sshd は「AllowUsers にない」。アカウントは期限切れ、セッションは止まり、3389 は閉じ、ufw の規則も消えた。ホームは残る)。外す前は、同じ鍵で SFTP に入れた(シェルは sftp だけで断られる)
 - `grdctl --headless status` は View-only を出さない。操作できることは RDP で確かめた
 - 画面で: 2 人が同時に mstsc でつながり、それぞれロックされていないデスクトップが出た。bob の端末から `ls /home/alice` は Permission denied。alice が RDP のパスワードを変え、デーモンを再起動したあと新しい値で入れた
 
@@ -400,7 +404,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 独立のレビュー(別のエージェント)で、失敗のしかたの回帰(~/work に読めないディレクトリがあると何も出さずに止まる、1 人の失敗で後の人の分が入らない、umask 077)と、試験の取りこぼし(711 の先の 600 のファイル)を指摘され、直した。tar を root に戻す変異は、先に除く仕組みがあるため試験では捕まえられない(二重の守り)
 - tests/test_backup.py: 途中のリンクの先の root のファイルが書庫に入らない、元からある相対パスのリンクをたどらない、取り込んだものが利用者の持ち物になる、v0.2.0 の形も取り込める。直す前のコードでは前の 3 つが失敗することを確かめた
 - #24: 80-agent-session.sh の `rm -f "$agent_env"` を `agent_run rm -f` にした。#1 のときに見落とした。パスを変数で受けていたので、ホームのパスを探す grep に当たらなかった
-- 未確認: VM での書き出しから取り込みまでの通し(just vm-test は取り込みを試さない)
+- VM での書き出しから取り込みまで(同じ VM に戻す形)は、2026-10-25 に v0.3.0 の release ブランチで確かめた(上の「実装のあとの確認」)。別の VM へ入れなおしての通しは未確認(just vm-test は取り込みを試さない)
 
 ## 確認できていないこと
 
@@ -416,6 +420,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
+- 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ

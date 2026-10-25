@@ -31,6 +31,11 @@ gsettings set org.gnome.mutter check-alive-timeout 0
 # shellcheck source=/dev/null
 layout="$(. /etc/default/keyboard && echo "${XKBLAYOUT%%,*}")"
 gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout'), ('ibus', 'mozc-on')]"
+# Ubuntu の gsd-keyboard は、利用者ごとに初めて動くとき(目印の input-sources-converted がないとき)、ロケールの
+# 入力メソッド(ja_JP なら mozc-jp)を入力ソースの末尾に足す(Ubuntu のパッチ keyboard-Use-ibus-sources-from-locale)。
+# mozc-on と並んで Mozc が 2 つになったので(VirtualBox で確認)、セッションが立つ前に目印を置いて足させない
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-settings-daemon"
+touch "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-settings-daemon/input-sources-converted"
 # 101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすいので、Ctrl+Space でも切り替えられるようにする
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source "['<Super>space', '<Control>space']"
 gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward "['<Shift><Super>space', '<Shift><Control>space']"
