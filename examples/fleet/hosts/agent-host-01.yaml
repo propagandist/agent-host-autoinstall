@@ -11,8 +11,16 @@ network:
   dns:
     - 192.0.2.53
 
-git_user_name: agent-host-01
-git_user_email: agent-host-01@example.invalid
+# このホストを使う人(並びは置き換わるので、ホストごとに全員を書く)。port は人に固定する
+users:
+  - name: alice
+    port: 3389
+    rdp:
+      username: alice
+      initial_password: "CHANGE_ME"   # 初回だけの仮の値。本人が最初の RDP で変える
+    git_user_name: alice
+    git_user_email: alice@example.invalid
+    ssh_authorized_keys: []
 
 # 台ごとに変えると、RDP でどのホストに入っているか見分けやすい
 desktop_color: "#1f3a5f"

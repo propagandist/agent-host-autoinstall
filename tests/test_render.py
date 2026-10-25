@@ -26,11 +26,21 @@ BASE = {
         "ssh_authorized_keys": ["ssh-ed25519 AAAAtest sysadmin@test"],
     },
     "network": {"mode": "dhcp"},
-    "git_user_name": "agent-host-test",
-    "git_user_email": "agent-host-test@example.invalid",
     "lan_cidrs": ["192.0.2.0/24"],
-    "rdp": {"username": "rdp", "password": "rdp-password"},
+    "users": [{
+        "name": "alice", "port": 3389,
+        "rdp": {"username": "rdp", "initial_password": "rdp-password"},
+        "git_user_name": "alice", "git_user_email": "alice@example.invalid",
+    }],
 }
+
+
+def user(name, port, **kw):
+    """users の 1 人(通る最小の値)。"""
+    u = {"name": name, "port": port, "rdp": {"username": name, "initial_password": f"{name}-password"},
+         "git_user_name": name, "git_user_email": f"{name}@example.invalid"}
+    u.update(kw)
+    return u
 
 
 def read_env_sh(path):
@@ -86,7 +96,15 @@ class TestValid(Case):
         env = read_env_sh(os.path.join(out, "env.sh"))
         self.assertEqual(env["AH_HOSTNAME"], "agent-host-test")
         self.assertEqual(env["AH_LAN_CIDRS"], "192.0.2.0/24")
-        self.assertEqual(env["AH_RDP_PASSWORD"], "rdp-password")
+        self.assertEqual(env["AH_USERS"], "alice")
+        self.assertNotIn("AH_RDP_INITIAL_PASSWORD", env)  # 利用者ごとの値は users/ に分ける
+        alice = read_env_sh(os.path.join(out, "users", "alice.env"))
+        self.assertEqual(alice["AH_USER_PORT"], "3389")
+        self.assertEqual(alice["AH_RDP_USER"], "rdp")
+        self.assertEqual(alice["AH_RDP_INITIAL_PASSWORD"], "rdp-password")
+        self.assertEqual(alice["AH_GIT_USER_EMAIL"], "alice@example.invalid")
+        with open(os.path.join(out, "users", "alice.authorized_keys"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "")
         self.assertEqual(env["AH_NO_PROXY"], "localhost,127.0.0.1,::1")
         self.assertEqual(env["AH_EDITORS"], "")
         with open(os.path.join(out, "autoinstall.yaml"), encoding="utf-8") as f:
@@ -141,7 +159,7 @@ class TestValid(Case):
             notify={"slack_webhook_url": "https://hooks.slack.com/services/x",
                     "ipmsg_to": ["someone", "192.0.2.20"], "ipmsg_broadcast": ["192.0.2.255"]},
             ca_certs=["-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"],
-            agent_ssh_authorized_keys=["ssh-ed25519 AAAAagent agent@test"],
+            users=[user("alice", 3389, ssh_authorized_keys=["ssh-ed25519 AAAAalice alice@test"]), user("bob", 3390)],
         )))
         env = read_env_sh(os.path.join(out, "env.sh"))
         self.assertEqual(env["AH_EDITORS"], "vscode zed neovim")
@@ -153,16 +171,20 @@ class TestValid(Case):
         self.assertEqual(env["AH_UPS_MODE"], "none")  # 書かなければ使わない
         with open(os.path.join(out, "autoinstall.yaml"), encoding="utf-8") as f:
             self.assertEqual(yaml.safe_load(f)["autoinstall"]["proxy"], "http://proxy.example.internal:8080")
-        with open(os.path.join(out, "agent_authorized_keys"), encoding="utf-8") as f:
-            self.assertEqual(f.read(), "ssh-ed25519 AAAAagent agent@test\n")
+        self.assertEqual(env["AH_USERS"], "alice bob")
+        with open(os.path.join(out, "users", "alice.authorized_keys"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), "ssh-ed25519 AAAAalice alice@test\n")
+        self.assertEqual(read_env_sh(os.path.join(out, "users", "bob.env"))["AH_USER_PORT"], "3390")
         with open(os.path.join(out, "ca", "agent-host-01.crt"), encoding="utf-8") as f:
             self.assertTrue(f.read().startswith("-----BEGIN CERTIFICATE-----"))
 
     def test_shell_quoting(self):
         # 単一引用符や $ を含む値でも、env.sh を読み込んだ値がそのまま戻ること
         pw = "it's $HOME `x` \"y\""
-        out = self.ok(self.write(self.with_(rdp={"username": "rdp", "password": pw})))
-        r = subprocess.run(["bash", "-c", f'. "{out}/env.sh"; printf %s "$AH_RDP_PASSWORD"'],
+        u = user("alice", 3389)
+        u["rdp"]["initial_password"] = pw
+        out = self.ok(self.write(self.with_(users=[u])))
+        r = subprocess.run(["bash", "-c", f'. "{out}/users/alice.env"; printf %s "$AH_RDP_INITIAL_PASSWORD"'],
                            capture_output=True, text=True)
         self.assertEqual(r.stdout, pw)
 
@@ -224,13 +246,17 @@ class TestUps(Case):
 class TestOverlay(Case):
     def test_later_wins_and_dicts_merge(self):
         common = self.write(self.with_(hostname="common", editors=["vscode", "zed"]))
+        common_notify = self.write({"notify": {"slack_webhook_url": "https://hooks.slack.com/services/x"}})
         host = self.write({"hostname": "agent-host-02", "editors": ["neovim"],
-                           "rdp": {"password": "host-password"}})
-        env = read_env_sh(os.path.join(self.ok(common, host), "env.sh"))
+                           "notify": {"ipmsg_to": ["someone"]}, "users": [user("bob", 3390)]})
+        out = self.ok(common, common_notify, host)
+        env = read_env_sh(os.path.join(out, "env.sh"))
         self.assertEqual(env["AH_HOSTNAME"], "agent-host-02")
         self.assertEqual(env["AH_EDITORS"], "neovim")         # 並びは置き換える
-        self.assertEqual(env["AH_RDP_USER"], "rdp")            # 辞書はキーごとに重ねる
-        self.assertEqual(env["AH_RDP_PASSWORD"], "host-password")
+        self.assertEqual(env["AH_USERS"], "bob")              # users も並びごと置き換える
+        self.assertFalse(os.path.exists(os.path.join(out, "users", "alice.env")))
+        self.assertEqual(env["AH_SLACK_WEBHOOK_URL"], "https://hooks.slack.com/services/x")  # 辞書はキーごとに重ねる
+        self.assertEqual(env["AH_IPMSG_TO"], "someone")
 
     def test_empty_file(self):
         self.ok(self.write(BASE), self.write(None, text=""))
@@ -241,7 +267,25 @@ class TestRejected(Case):
         self.ng(self.with_(hostnmae="x"), "hostnmae は知らないキー")
 
     def test_unknown_subkey(self):
-        self.ng(self.with_(rdp={"username": "rdp", "password": "p", "port": 1}), "rdp.port は知らないキー")
+        self.ng(self.with_(notify={"slack": "x"}), "notify.slack は知らないキー")
+        self.ng(self.with_(users=[user("alice", 3389, shell="/bin/zsh")]), "1 人目の shell は知らないキー")
+        u = user("alice", 3389)
+        u["rdp"]["domain"] = "x"
+        self.ng(self.with_(users=[u]), "1 人目の rdp.domain は知らないキー")
+
+    def test_old_keys(self):
+        # 0.3.0 で users に移ったキーは、書き換え方を出して止める
+        for key, value, message in (
+            ("rdp", {"username": "rdp", "password": "p"}, "users[].rdp"),
+            ("git_user_name", "x", "users[].git_user_name"),
+            ("git_user_email", "x@example.invalid", "users[].git_user_email"),
+            ("agent_ssh_authorized_keys", [], "users[].ssh_authorized_keys"),
+        ):
+            with self.subTest(key=key):
+                self.ng(self.with_(**{key: value}), f"{key} は 0.3.0 で {message}")
+        u = user("alice", 3389)
+        u["rdp"] = {"username": "rdp", "password": "p"}
+        self.ng(self.with_(users=[u]), "rdp.password は rdp.initial_password にする")
 
     def test_unknown_key_in_later_file(self):
         r, _ = self.render(self.write(BASE), self.write({"clods": ["aws"]}))
@@ -257,7 +301,7 @@ class TestRejected(Case):
         self.assertIn("キーと値の形", r.stderr)
 
     def test_required(self):
-        for key in ("hostname", "keyboard_layout", "lan_cidrs", "git_user_name", "git_user_email", "network"):
+        for key in ("hostname", "keyboard_layout", "lan_cidrs", "network"):
             with self.subTest(key=key):
                 d = self.with_()
                 del d[key]
@@ -268,10 +312,18 @@ class TestRejected(Case):
                 del d["sysadmin"][key]
                 self.ng(d, f"sysadmin.{key} がない")
         self.ng(self.with_(lan_cidrs=[]), "lan_cidrs が空")
+        self.ng(self.with_(users=[]), "users がない")
+        d = self.with_()
+        del d["users"]
+        self.ng(d, "users がない")
 
     def test_change_me(self):
         self.ng(self.with_(hostname="CHANGE_ME"), "hostname に CHANGE_ME")
-        self.ng(self.with_(agent_ssh_authorized_keys=["ssh-ed25519 CHANGE_ME"]), "agent_ssh_authorized_keys")
+        self.ng(self.with_(users=[user("alice", 3389, ssh_authorized_keys=["ssh-ed25519 CHANGE_ME"])]),
+                "alice の ssh_authorized_keys に CHANGE_ME")
+        u = user("alice", 3389)
+        u["rdp"]["initial_password"] = "CHANGE_ME"
+        self.ng(self.with_(users=[u]), "alice の rdp.initial_password に CHANGE_ME")
 
     def test_values(self):
         cases = [
@@ -310,18 +362,21 @@ class TestRejected(Case):
             (dict(sysadmin={"password_hash": "$6$salt$hash", "ssh_authorized_keys": "ssh-ed25519 AAAAtest a@b"}),
              "sysadmin.ssh_authorized_keys は並び"),
             (dict(ntp_servers="ntp.example.internal"), "ntp_servers は並び"),
-            (dict(agent_ssh_authorized_keys="ssh-ed25519 AAAAtest a@b"), "agent_ssh_authorized_keys は並び"),
+            (dict(users=[user("alice", 3389, ssh_authorized_keys="ssh-ed25519 AAAAtest a@b")]),
+             "1 人目の ssh_authorized_keys は並び"),
             (dict(lan_cidrs="192.0.2.0/24"), "lan_cidrs は並び"),
             (dict(network=["dhcp"]), "network はキーと値"),
-            (dict(rdp={"username": "rdp", "password": False}), "rdp.password は文字列"),
-            (dict(rdp={"username": "rdp", "password": 1234}), "rdp.password は文字列"),
+            (dict(users=[user("alice", "3389")]), "1 人目の port は数"),
+            (dict(users=[user("alice", True)]), "1 人目の port は数"),
+            (dict(users=["alice"]), "users の 'alice' はキーと値"),
+            (dict(users={"name": "alice"}), "users は並び"),
             (dict(lan_cidrs=[1]), "lan_cidrs の 1 は文字列"),
             (dict(hostname="bad host/name"), "hostname は英数字と -"),
             (dict(hostname="agent-host.example.internal"), "hostname は英数字と -"),
             (dict(sysadmin={"password_hash": "$", "ssh_authorized_keys": ["ssh-ed25519 AAAAtest a@b"]}), "crypt 形式"),
             (dict(sysadmin={"password_hash": "$1$md5$x", "ssh_authorized_keys": ["ssh-ed25519 AAAAtest a@b"]}), "crypt 形式"),
             (dict(sysadmin={"password_hash": "$6$salt$hash", "ssh_authorized_keys": ["not a key"]}), "SSH の公開鍵"),
-            (dict(agent_ssh_authorized_keys=["ssh-ed25519"]), "SSH の公開鍵"),
+            (dict(users=[user("alice", 3389, ssh_authorized_keys=["ssh-ed25519"])]), "SSH の公開鍵"),
             (dict(dev_ports=["4000:3000"]), "始め:終わり の順"),
             (dict(notify={"ipmsg_broadcast": ["::1"]}), "IPv4"),
         ]
@@ -332,6 +387,34 @@ class TestRejected(Case):
         self.ok(self.write(self.with_(dev_ports=[3000, "8000:8099"],
                                       sysadmin={"password_hash": "$y$j9T$salt$hash",
                                                 "ssh_authorized_keys": ["ecdsa-sha2-nistp256 AAAAE2Vj= a@b"]})))
+
+    def test_users(self):
+        def u(**kw):
+            d = user("alice", 3389)
+            d.update(kw)
+            return d
+        cases = [
+            ([u(name="Alice")], "name は英小文字で始まり"),
+            ([u(name="1alice")], "name は英小文字で始まり"),
+            ([u(name="a" * 33)], "name は英小文字で始まり"),
+            ([u(name="sysadmin")], "sysadmin はシステムが使う名前"),
+            ([u(name="root")], "root はシステムが使う名前"),
+            ([u(), user("alice", 3390)], "name の alice が重なっている"),
+            ([{k: v for k, v in u().items() if k != "port"}], "alice に port がない"),
+            ([u(port=80)], "port の 80 は 1024〜65535"),
+            ([u(), user("bob", 3389)], "port の 3389 が重なっている"),
+            ([u(git_user_email="")], "alice に git_user_email がない"),
+            ([{**u(), "rdp": {"username": "alice"}}], "alice に rdp.initial_password がない"),
+        ]
+        for users, message in cases:
+            with self.subTest(users=users):
+                self.ng(self.with_(users=users), message)
+        self.ng(self.with_(users=[user("alice", 3005)], dev_ports=["3000:3999"]), "dev_ports と重なっている")
+        self.ng(self.with_(users=[user("alice", 5173)], dev_ports=[5173]), "dev_ports と重なっている")
+        # 通るもの: - を含む名前、並べ替え(ポートは名前に付いたまま)
+        out = self.ok(self.write(self.with_(users=[user("bob-2", 3390), user("alice", 3389)])))
+        self.assertEqual(read_env_sh(os.path.join(out, "env.sh"))["AH_USERS"], "bob-2 alice")
+        self.assertEqual(read_env_sh(os.path.join(out, "users", "alice.env"))["AH_USER_PORT"], "3389")
 
     def test_extensions_need_editor(self):
         self.ng(self.with_(vscode_extensions=["ms-python.python"]), "editors に vscode")
@@ -352,7 +435,8 @@ class TestStage(Case):
         self.assertEqual(r.returncode, 0, r.stderr)
         stage = os.path.join(out, "agent-host")
         self.assertTrue(os.path.isfile(os.path.join(out, "autoinstall.yaml")))
-        for name in ("provision.sh", "setup-provision.sh", "verify.sh", "env.sh", "agent_authorized_keys", "sysadmin_authorized_keys", "BUILD-INFO",
+        for name in ("provision.sh", "setup-provision.sh", "verify.sh", "env.sh", "users/alice.env",
+                     "users/alice.authorized_keys", "sysadmin_authorized_keys", "BUILD-INFO",
                      "lib/common.sh", "systemd/agent-host-provision.service", "notify/agent-notify",
                      "migrate/agent-host-backup", "migrate/agent-host-restore"):
             with self.subTest(name=name):
@@ -360,7 +444,9 @@ class TestStage(Case):
         self.assertFalse(os.path.exists(os.path.join(stage, "render")))
         mode = lambda p: os.stat(os.path.join(stage, p)).st_mode & 0o777  # noqa: E731
         self.assertEqual(mode("env.sh"), 0o600)
-        self.assertEqual(mode("agent_authorized_keys"), 0o600)
+        self.assertEqual(mode("users"), 0o700)
+        self.assertEqual(mode("users/alice.env"), 0o600)
+        self.assertEqual(mode("users/alice.authorized_keys"), 0o600)
         self.assertEqual(mode("sysadmin_authorized_keys"), 0o600)
         self.assertEqual(mode("BUILD-INFO"), 0o644)
         self.assertEqual(mode("provision.sh"), 0o755)
