@@ -27,7 +27,8 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    - `editors` は入れたいエディター(vscode / neovim / zed)。VS Code は拡張機能も入り(足すなら `vscode_extensions`)、表示が日本語になる。Zed の拡張機能(足すなら `zed_extensions`)は Zed を初めて起動したときに入る
    - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
    - `gitea_url` はGitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
-   - `agent_ssh_authorized_keys` は SFTP で agent に入る人の公開鍵。`dev_ports` は手元の PC から開発サーバーを見るときのポート
+   - `users` は利用者(1 人以上)。1 人ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを持つ。`port` は人に固定し(例 3389、3390)、`rdp.initial_password` は初回だけの仮のパスワード(本人が最初の RDP で変える。下の 4)。`ssh_authorized_keys` は SFTP でその人のホームに入る公開鍵
+   - `dev_ports` は手元の PC から開発サーバーを見るときのポート(利用者全員で共有する。`users` の `port` と重ねない)
    - `ups` は UPS を使うときだけ(下の「UPS」)
    - `sysadmin.password_hash` は `mkpasswd -m sha-512`(または `openssl passwd -6`)で作る
 2. 検査して ISO を作る
@@ -38,7 +39,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    ```
 3. `build/agent-host.iso` を USB メモリに書き込む(Rufus なら「DD イメージ」モード)
 
-できた ISO と USB メモリには、パスワードハッシュ、RDP のパスワード、Slack の Webhook の URL、UPS のパスワード(netclient のとき)が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
+できた ISO と USB メモリには、パスワードハッシュ、RDP の仮のパスワード、Slack の Webhook の URL、UPS のパスワード(netclient のとき)が入る。使い終わったら消す。env.yaml は安全な場所に保管しておく(入れなおしや移行で使う)。
 
 env.yaml は複数のファイルに分けて重ねられる(`just check-env common.yaml host.yaml`、`just iso build/x.iso common.yaml host.yaml`。後のファイルの値が勝つ)。ホストが 2 台以上になったら、env.yaml を別の非公開リポジトリで管理する([fleet.md](fleet.md))。
 
@@ -50,7 +51,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 - UEFI で起動する。USB から起動できるようにする
 - NVIDIA の GPU で Secure Boot が有効なら、そのままにしておく(インストールの中で入る NVIDIA のドライバーが、署名済みのモジュールで動くかは未確認。動かなければ just verify の「GPU」が ✗ になる)
 - UPS を使うとき(env.yaml の `ups`)は、下の「UPS」も行う
-- HDMI ダミープラグを挿す。デスクトップ共有は実際の画面をそのまま映すので、RDP の解像度はプラグの解像度になる(手元からは変えられない)。1920×1080 のプラグを選ぶ(4K だと文字がとても小さい)
+- モニターと HDMI ダミープラグは要らない。利用者ごとのセッションはヘッドレス(物理の画面を使わない)で、RDP の解像度はつなぐ側の画面に合わせる(未確認。VirtualBox ではつなぐ側の大きさになった)
 
 ### UPS(env.yaml の ups を書いた場合)
 
@@ -70,57 +71,62 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 
 1. USB から起動する。確認画面は出ずにインストールが進む
 2. 再起動後、初回起動時の構成(agent-host-provision.service)がネットワークから Node.js・Orca・Claude Code などを取得する。終わるまで GDM は起動しない
-3. 構成が終わると agent で自動ログインし、first-login がデスクトップ共有を有効にする
+3. 構成が終わると GDM が起動し、利用者ごとのヘッドレスのセッション(`gnome-headless-session@<名前>`)が立つ。RDP は起動から 1 分ほどで、それぞれの `port` で待ち受ける
 
 結果を確かめる。
 
 ```
-just status <ホスト>   # 構成・RDP・セッション・ディスク・メモリ・失敗した unit
-just logs <ホスト>     # 構成・最後の just update・first-login・セッションの見張りの記録
-just verify <ホスト>   # 仕様どおりかを 100 項目あまりで確かめる(✗ の行を直す。何も変えない)
-just verify-rdp <ホスト>   # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
+just status <ホスト>   # 構成・待ち受けているポート・利用者ごとのセッション・ディスク・メモリ・失敗した unit
+just logs <ホスト>     # 構成・最後の just update・利用者ごとの first-login とセッションの記録
+just verify <ホスト>   # 仕様どおりかを確かめる(全体と利用者ごと。✗ の行を直す。何も変えない)
+just verify-rdp <ホスト>   # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
 ```
 
 構成が失敗したときは、原因を直してから `just update <ホスト>`(構成を再実行する)。
 
-## 3. agent のログインキーリング(自動で効かなかったときだけ)
+## 3. 利用者を足す・外す
 
-80-agent-session.sh は空パスワードのキーリングを最初から置く。first-login の記録に `set-credentials` の失敗が出ていたら、これが効いていない。そのときは手でパスワードを空にする。
+env.yaml の `users` を直して `just update <ホスト>`。
 
-1. 物理画面(または一時的に別の手段)で agent のデスクトップを開く
-2. 「パスワードと鍵」(seahorse。無ければ `sudo apt install seahorse`)を起動する
-3. 「ログイン」キーリングを右クリック → パスワードの変更 → 新しいパスワードを空にする(平文で保存する警告には「続ける」)
-4. ターミナルで `/opt/agent-host/first-login/first-login.sh` を実行する
+- 足す: ユーザーを作り、構成をその人の分も行い、セッションを立てる。`port` はほかの人と重ねない
+- 外す: ユーザーとホーム(ログインと作業)は残したまま、ログインを止める。期限切れにし(鍵の SSH も拒まれる)、SSH の `AllowUsers` から外し、セッション・linger・rootless Docker・ufw のその人のポートを止める。`users` に戻せば、同じホームで使える
+- 並べ替えても、残った人の `port`(と接続ファイル)は変わらない
 
-## 4. デスクトップ共有(first-login が失敗したときだけ)
+## 4. RDP のパスワードを変える(本人が最初の RDP で)
 
-first-login が成功していれば不要。失敗していたら、agent のデスクトップで次を行う。
+env.yaml の `rdp.initial_password` は初回だけの仮の値で、ISO と構成リポジトリの管理者にも見える。最初に RDP で入ったら、本人が自分の端末で変える。
 
-- 設定 → システム → リモートデスクトップ → 「デスクトップ共有」をオン、「リモート操作」をオン
-- 認証情報(ユーザー名・パスワード)を env.yaml の `rdp` の値にする
-- 「リモートログイン」は**オンにしない**(デスクトップ共有が 3390 番に移る)
+```
+grdctl --headless rdp set-credentials <rdp.username> <新しいパスワード>
+```
+
+- ユーザー名は env.yaml の `rdp.username` と同じにする。次の接続から新しいパスワードになる(今の接続は切れない)
+- `just update` は、RDP の認証情報がまだないときだけ仮の値を入れるので、変えたパスワードは上書きされない。移行(下の「移行」)でも、ホームごと移る
+- 変えたあとの `just verify-rdp` は、その人を「未検証」と出す(失敗ではない)。今のパスワードで確かめるなら `just verify-rdp <ホスト> --ask <名前> <env.yaml>`
+- 忘れたとき: 管理者が `sudo rm <その人のホーム>/.local/share/gnome-remote-desktop/credentials.ini` で消してから `just update <ホスト>` を実行すると、仮の値に戻る(TPM のある機械では認証情報が TPM に入り、このファイルがないことがある。未確認)
 
 ## 5. RDP でつなぐ
 
 ```
-just rdp <ホスト>      # build/<ホスト>.rdp を作る(Windows のリモート デスクトップ接続用)
+just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用。ポートはその人の port)
 ```
 
-ユーザーとパスワードは env.yaml の `rdp` の値。RDP のクライアントは何でもよい(Windows の mstsc、Linux の Remmina・FreeRDP、macOS の Windows App など)。`just rdp` の接続ファイルは mstsc 向けで、次の設定になっている(ほかのクライアントでも同じにするとよい)。
+接続先は `<ホスト>:<その人の port>`。ユーザーは env.yaml の `rdp.username`、パスワードは最初は `rdp.initial_password`(上の 4 で変える)。RDP のクライアントは何でもよい(Windows の mstsc、Linux の Remmina・FreeRDP、macOS の Windows App など)。`just rdp` の接続ファイルは mstsc 向けで、次の設定になっている(ほかのクライアントでも同じにするとよい)。
 
 - Windows キーを常にホストへ送る(Super+Space などが使える)。クリップボードを共有する。色は 24 ビット(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)
 - 初回の証明書の警告で、mstsc なら「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
-- **このホストは 1 人で使う。Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない(規約に反するおそれがある)。複数の人で使うときは、人数分のホストを用意する(2 台目からは構成リポジトリでまとめて管理できる。docs/fleet.md)。デスクトップ共有は画面の前のセッションをそのまま映すので、入るのは本人だけ**
+- **Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない(規約に反するおそれがある)。1 台を複数の人で使うときは、人ごとに `users` を分け、それぞれが自分のホームで自分のアカウントにログインする。ほかの人の RDP の接続先(port)には入らない。sysadmin(root)は全員のホームを読める**
+- 1 台で動かせる人数の目安: 何もしていないセッションで 1 人あたり 0.5〜1GB(エージェントとビルドの分は別。VirtualBox で測った)
 
 使い勝手:
 
-- 日本語入力は Ctrl+Space、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+- 日本語入力は Ctrl+Space(半角/全角キーは RDP では押しっぱなしで届き、使えない。#21)、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
 - 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
 - PDF は Atril で開く(Files でダブルクリック)
 - Caps Lock はホストでは何もしない(RDP で手元と状態がずれるため)。大文字は Shift で打つ
 
-以降の 6〜13 は、RDP で agent のデスクトップに入って行う。
+以降の 6〜13 は、利用者がそれぞれ RDP で自分のデスクトップに入って行う。
 
 ## 6. Claude Code のログイン
 
@@ -184,7 +190,7 @@ gcloud config set project <プロジェクト ID>
 az login                                # サブスクリプションを選ぶ
 ```
 
-認証情報は agent のホーム(`~/.aws`、`~/.config/gcloud`、`~/.azure`)に残り、エージェントは確認なしでコマンドを動かせる。長く使えるアクセスキー(`aws configure` で入れるものやサービスアカウントの鍵)は置かず、上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
+認証情報はその利用者のホーム(`~/.aws`、`~/.config/gcloud`、`~/.azure`)に残り、エージェントは確認なしでコマンドを動かせる。長く使えるアクセスキー(`aws configure` で入れるものやサービスアカウントの鍵)は置かず、上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
 
 ## 12. 通知の確認(env.yaml の notify を書いた場合)
 
@@ -206,7 +212,7 @@ Claude Code に Pro / Max / Team / Enterprise のアカウントでログイン�
 
 ### Orca Mobile
 
-Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる(Orca の公式のアプリ)。**スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。** 画面のロックをかけたスマホだけをペアリングし、無くしたら Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)からその端末を外す。
+Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる(Orca の公式のアプリ)。**スマホから利用者のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。** 画面のロックをかけたスマホだけをペアリングし、無くしたら Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)からその端末を外す。
 
 つなぎ方は 2 つある(Orca の画面で選ぶ)。
 
@@ -218,19 +224,19 @@ Orca のワークツリーやターミナルの出力をスマホで見て、コ
 1. RDP で入り、Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
 2. スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 
-Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリングの操作で LAN にも開く。一度つないだ端末があれば、次の起動からは最初から LAN にも開く(v1.4.237 のソース。このホストでは未確認)。
+Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリングの操作で LAN にも開く。一度つないだ端末があれば、次の起動からは最初から LAN にも開く(v1.4.237 のソース。このホストでは未確認)。1 台を複数の人で使うと、2 人目以降の Orca は 6768 が使われているので別のポートに移る見込み(Orca の CLI の serve の説明から。未確認)。LAN でつなぐなら、その人の Orca の画面に出るポートも `dev_ports` に足す。
 
 ## 14. ファイルのやり取り(SFTP)
 
-env.yaml の `agent_ssh_authorized_keys` に公開鍵を書いた人は、SFTP で agent に入れる(シェルには入れない)。作業の置き場所は `/home/agent/work`。
+env.yaml の `users` の `ssh_authorized_keys` に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。作業の置き場所は `/home/<名前>/work`。
 
 Windows では [WinSCP](https://winscp.net/) を使う。
 
-1. 「新しいサイト」で、転送プロトコル `SFTP`、ホスト名 `<ホスト>`、ポート 22、ユーザー名 `agent`
+1. 「新しいサイト」で、転送プロトコル `SFTP`、ホスト名 `<ホスト>`、ポート 22、ユーザー名 `<利用者の name>`
 2. 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は PuTTY の形式(`.ppk`)への変換を勧められるので、変換して保存する
 3. 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、ホストで `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` の結果と同じか確かめてから受け入れる
 
-macOS や Linux からは、FileZilla か、端末の `sftp agent@<ホスト>` を使う。FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
+macOS や Linux からは、FileZilla か、端末の `sftp <名前>@<ホスト>` を使う。FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
 
 小さなファイルは、RDP のクリップボードでのコピー&貼り付けでも渡せる(未確認)。
 
@@ -246,28 +252,29 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 |---|---|---|
 | `hostname`・`network`・`keyboard_layout` | **反映しない(入れなおす)** | インストールのときだけ効く。`hostname` を変えた env.yaml では、ホスト名の照合で止まる。ネットワークを変えると SSH が切れて戻せない恐れがあるので、反映しない |
 | `sysadmin` | 反映する | 鍵とパスワードを env.yaml の内容に置き換える(下の注意) |
-| `rdp`・`desktop_color` | 反映する(セッション) | agent がログイン中ならその場で、そうでなければ次のログインで。Dock も、入っているエディターが変わると入れなおす |
+| `users` | 反映する | 足した人は作ってセッションを立て、外した人はログインとセッションを止める(上の 3)。`rdp.initial_password` は、その人に RDP の認証情報がまだないときだけ入る(変えたパスワードは上書きしない) |
+| `desktop_color` | 反映する(セッション) | セッションが動いていればその場で、そうでなければ次にセッションが立つときに。Dock も、入っているエディターが変わると入れなおす |
 | `editors`・`agents`・`clouds`・`vscode_extensions`・`zed_extensions` | 足すだけ | 外しても消さない(消すときは手で)。Zed の拡張機能は次に Zed を起動したときに入る |
 | `lan_cidrs`・`dev_ports` | 足すだけ | ufw の許可は外しても消えない(下の注意) |
-| `proxy`・`ca_certs`・`ntp_servers`・`git_user_*`・`gitea_url`・`notify`・`agent_ssh_authorized_keys`・`ups` | 反映する | agent の環境変数(プロキシ、Gitea の URL、クラウドの CLI の設定など)は、ログイン中なら次のログインで効く |
+| `proxy`・`ca_certs`・`ntp_servers`・`gitea_url`・`notify`・`ups` | 反映する | 利用者の環境変数(プロキシ、Gitea の URL、クラウドの CLI の設定など)は、セッションが動いていれば次にセッションが立つときに効く |
 
 この表は `scripts/render-autoinstall.py` の `UPDATE_SCOPE` と合わせている(`just test` が項目の漏れを確かめる)。
 
 - env.yaml のホスト名と、つないだホストの名前が違うと止まる(別のホストの設定を流さないため)
 - 元の一式はホストの `/opt/agent-host.prev` に残る
 - sysadmin の SSH の鍵とパスワードは、env.yaml の `sysadmin` に置き換わる(ホストで手で足した鍵や `passwd` で替えたパスワードは戻る)。鍵を替えるときは、今つないでいる鍵を外さない順で行う。反映のあと、入りなおせるかを確かめ、入れなければ止まって知らせる
-- RDP の認証情報(env.yaml の `rdp`)を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる(古いものは使えなくなる)
+- RDP のパスワードは本人が変える(上の 4)。env.yaml の `rdp.initial_password` を替えても、すでに認証情報がある人には効かない
 - NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る。`just ssh <ホスト>` → `sudo ubuntu-drivers install` → 再起動
 - 反映したら `just verify <ホスト>` で、固定の版と設定が仕様どおりかを確かめる
 - どの版の道具(と構成)を置いたかは `/opt/agent-host/BUILD-INFO` に残り、`just status <ホスト>` の「置いた版」に出る。構成が最後まで成功した版は `/var/lib/agent-host/BUILD-INFO.ok` に残り、「最後に適用に成功した版」に出る。just update が途中で失敗すると「構成: 前回の実行が最後まで終わっていない」と出るので、`just logs` の「最後の just update」(ホストの `/var/log/agent-host-update.log`)で止まったスクリプトを見て、直してから just update する。台帳のための情報(機種、シリアル、MAC、鍵の指紋)は `just facts <ホスト>`
-- ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
-- agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
-- 壁紙の色と Dock は、ログインのたびに動く自動起動(`first-login/desktop-env.sh`)が、env.yaml かエディターが変わったときだけ入れなおす。自分で変えた Dock は、それまで残る
+- ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(利用者の RDP のポートは、外した人の分を just update が消す)(`just ssh <ホスト>` → `sudo ufw status numbered` → `sudo ufw delete <番号>`)
+- セッションが動いている利用者には、環境変数の変更は次にセッションが立つとき(再起動など)に反映される
+- 壁紙の色と Dock は、セッションが立つたびに動く自動起動(`first-login/desktop-env.sh`)が、env.yaml かエディターが変わったときだけ入れなおす。自分で変えた Dock は、それまで残る
 - Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
 
 ## 16. 環境を入れ替える(OS の入れなおし、機種の交換)
 
-ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。
+利用者(env.yaml の `users`)全員の分を移す。取り込むのは、新しいホストの `users` にいる名前の分だけ(同じ名前で合わせる)。ホストの身元(SSH のホスト鍵、利用者ごとの RDP の証明書と、本人が変えた RDP のパスワード)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。
 
 1. Orca とエージェントの作業を止める(書き出しの途中で書き換わらないように)
 2. 書き出す。sudo のパスワードを 1 回聞かれる。ホストには保存されない
@@ -338,16 +345,16 @@ MSYS_NO_PATHCONV=1 docker run --rm -v "$(pwd -W):/repo" -w /repo ubuntu:26.04 ba
 ```
 ssh sysadmin@<ホスト>
 test -f /var/lib/agent-host/provisioned && echo 構成済み
-ss -tln | grep 3389                                      # RDP の待ち受け
+ss -tln                                                  # RDP の待ち受け(利用者ごとの port)
 sudo journalctl -u agent-host-provision.service           # 初回の構成の記録
 sudo tail -40 /var/log/agent-host-update.log               # 最後の just update の記録
-sudo cat /home/agent/.local/state/agent-host/first-login.log
+sudo cat /home/<名前>/.local/state/agent-host/first-login.log
 sudo /opt/agent-host/verify.sh                             # 仕様どおりかを確かめる(just verify と同じ)
 ```
 
 ### 設定やスクリプトを変えたとき
 
-`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>`(env.yaml は複数並べられる)で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh・agent_authorized_keys・sysadmin_authorized_keys は 600、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
+`scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>`(env.yaml は複数並べられる)で `<作業ディレクトリ>/agent-host/` を作り、ホストの `/opt/agent-host` と入れ替えてから(env.sh・sysadmin_authorized_keys・users/ の中は 600、users/ は 700、所有者は root)、`sudo /opt/agent-host/provision.sh` を実行する。
 
 ### 移行の書き出しと取り込み
 
@@ -362,4 +369,4 @@ unset PW
 
 ### RDP の接続ファイル
 
-`docs/agent-host.rdp.example` をコピーし、`full address` をホスト名に直す(改行は CRLF のまま)。
+`docs/agent-host.rdp.example` をコピーし、`full address` を `<ホスト>:<その人の port>` に直す(改行は CRLF のまま)。

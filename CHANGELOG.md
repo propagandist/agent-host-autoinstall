@@ -10,6 +10,29 @@
 
 ## [未リリース]
 
+### env.yaml の変更
+- **利用者を `users` の並びにした(互換性がなくなる変更。#15)。** `rdp`・`git_user_name`・`git_user_email`・`agent_ssh_authorized_keys` は使えなくなり、書くと書き換え先を出して止まる。0.2 のホストは次のように書き換えると、今の `agent` のホーム・ログイン・RDP の証明書をそのまま使える
+  ```yaml
+  users:
+    - name: agent
+      port: 3389
+      rdp: {username: <rdp.username>, initial_password: <rdp.password>}
+      git_user_name: <git_user_name>
+      git_user_email: <git_user_email>
+      ssh_authorized_keys: <agent_ssh_authorized_keys>
+  ```
+- `users[].port` は必須で、`dev_ports` と重ねられない。`dev_ports` に `"3000:3999"` などの 3389 を含む範囲を書いていたら狭める(例 `"3000:3099"`)
+- `rdp.password` は `users[].rdp.initial_password`(初回だけの仮の値)になった。本人が最初の RDP で `grdctl --headless rdp set-credentials` で変える。just update は認証情報がまだないときだけ入れる
+- 0.2 のホストに just update すると、途中で GDM を再起動して seat0 のセッション(自動ログイン)を終わらせ、ヘッドレスのセッションに移る。端末やエージェントは終わるので、作業していないときに行う
+
+### 変更
+- 利用者ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを分けた(#15)。1 台を複数の人で使っても、Claude Code・Codex などのログイン(サブスクリプション)が人ごとに分かれる。1 人の台も同じ作り
+  - seat0 の自動ログイン、デスクトップ共有、セッションの見張り(20-autologin.sh、watchdog)をやめ、`gnome-headless-session@<名前>` と gnome-remote-desktop の headless にした(20-sessions.sh、88-start-sessions.sh)。ユニットのままでは立たず、落ちても戻らないので、drop-in で `DynamicUser=no`・`User=gdm`・`Restart=always` にした(VirtualBox で確かめた。notes.md「段 0」)
+  - 画面ロックはセッションを立てる前に止める(立てた直後にロックされ、パスワードのない利用者は外せなかった)。HDMI のダミープラグは要らない
+  - env.yaml から外した利用者は、ユーザーとホームを残したまま、期限切れ・`AllowUsers` から外す・セッション・linger・rootless Docker・ufw のポートを止める
+  - `just verify-rdp` は利用者ごとに確かめ、仮のパスワードで通らなければ「未検証」と出す。`--ask <利用者>` で今のパスワードを確かめる。`just rdp <ホスト> <ポート>`
+  - `just verify`・`status`・`facts`・`logs`、移行(全員のホームを書き出し、名前で合わせて取り込む)、通知(`[ホスト名/利用者名]`)、`just vm-test`(2 人の env で、片方のセッションを落としてもう片方が続くこと)を利用者ごとにした
+
 ### 追加
 - `python` コマンド(python-is-python3)を入れた。`python tools/x.py` のように Windows や setup-python を前提に書かれた手順が `python: not found` で止まった。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明がすでにあるホストには届かない)(#20)
 - PDF ビューアー(Atril)を入れ、agent の PDF の既定のアプリにした。just verify に「Atril」の確認(#19)

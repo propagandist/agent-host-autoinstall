@@ -21,7 +21,7 @@ GitFlow の release ブランチで版を決め、確かめてから main に入
 
 - 詳細な設定手順書の PDF(`agent-host-setup-guide-v<版>.pdf`)。表紙とフッターに日付とタグが入る
 - ソース(GitHub が zip と tar.gz を自動で付ける)
-- **ISO は成果物にしない。** env.yaml のパスワードのハッシュ、RDP のパスワード、Webhook の URL が入るため。使う人が自分の env.yaml で `just iso` を実行して作る
+- **ISO は成果物にしない。** env.yaml のパスワードのハッシュ、RDP の仮のパスワード、Webhook の URL が入るため。使う人が自分の env.yaml で `just iso` を実行して作る
 
 ## 初めて行うときの準備
 
@@ -33,7 +33,9 @@ git config gitflow.prefix.versiontag v
 
 `just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。Ubuntu の ISO は `just fetch-iso` で build/ に取得しておく。
 
-- `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 と 3389 は、手元の PC の 127.0.0.1:2222 と 127.0.0.1:13389 に転送する)
+- `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 は手元の PC の 127.0.0.1:2222 に、RDP の 3389〜3392 は 127.0.0.1:13389〜13392 に転送する)
+- `users` は 2 人以上にし、`port` は 3389〜3392 にする(vm-test は 1 人目のセッションを落とし、2 人目が続いていることも確かめる)。`dev_ports` は `port` と重ねない(例 `3000:3099`)
+- 同じ Windows から mstsc で 2 人分を同時につなぐときは、2 つ目を `127.0.0.2:<転送先のポート>` にする(127.0.0.1 への 2 つ目は mstsc が「既に進行中のコンソール セッション」で止める)。VirtualBox の転送も 127.0.0.2 に足す(`VBoxManage controlvm <VM> natpf1 "<名前>,tcp,127.0.0.2,<ポート>,,<ポート - 10000>"`)
 - 試験用の鍵を作り(`ssh-keygen -t ed25519 -f build/test/id_ed25519 -N ""`)、公開鍵を `sysadmin.ssh_authorized_keys` に入れる
 - sudo のパスワードは、実行したときに聞かれる(環境変数 `AGENT_HOST_SUDO_PASSWORD` でも渡せる)
 - `editors`・`agents`・`clouds` などは、確かめたいものをすべて選んでおく
@@ -61,9 +63,9 @@ git config gitflow.prefix.versiontag v
    ```
 5. release ブランチのスクリプトで VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
    ```sh
-   just vm-test          # 入れなおし → verify・verify-rdp → 電源を切って戻るか → セッションが落ちて戻るか
+   just vm-test          # 入れなおし → verify・verify-rdp(全員) → 電源を切って戻るか → 1 人目のセッションが落ちて、その人だけ戻るか
    ```
-   通ったら、残りの人が確かめるもの(RDP の画面と日本語入力、エージェントが動くこと、切断しても続くこと)を RDP で行う
+   通ったら、残りの人が確かめるもの(RDP の画面と日本語入力、エージェントが動くこと、切断しても続くこと、2 人で同時に RDP できること、互いのホームが読めないこと、本人が RDP のパスワードを変えられること)を RDP で行う
 6. 仕上げる(main へのマージ、タグ、develop への戻し)
    ```sh
    git flow release finish -m "v0.1.0" 0.1.0

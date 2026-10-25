@@ -27,7 +27,7 @@
 \definecolor{codebg}{HTML}{F4F5F7}
 \definecolor{localcol}{HTML}{1F3A5F}     % 手元の PC
 \definecolor{hostcol}{HTML}{6A3D9A}      % ホスト(sysadmin)
-\definecolor{termcol}{HTML}{2E7D32}      % RDP の端末(agent)
+\definecolor{termcol}{HTML}{2E7D32}      % RDP の端末(利用者)
 \definecolor{filecol}{HTML}{6B7280}      % ファイルの中身
 \definecolor{coverbg}{HTML}{0D102F}      % 表紙の地(絵の端の色)
 \definecolor{covercyan}{HTML}{6FD3F0}
@@ -61,7 +61,7 @@
   {\end{Verbatim}\end{cmdframe}}
 \newenvironment{host}{\VerbatimEnvironment\begin{cmdframe}{hostcol}{ホスト(sysadmin)}\begin{Verbatim}[fontsize=\small]}
   {\end{Verbatim}\end{cmdframe}}
-\newenvironment{term}{\VerbatimEnvironment\begin{cmdframe}{termcol}{RDP の端末(agent)}\begin{Verbatim}[fontsize=\small]}
+\newenvironment{term}{\VerbatimEnvironment\begin{cmdframe}{termcol}{RDP の端末(利用者)}\begin{Verbatim}[fontsize=\small]}
   {\end{Verbatim}\end{cmdframe}}
 \newenvironment{filebox}[1]{\VerbatimEnvironment\begin{cmdframe}{filecol}{#1}\begin{Verbatim}[fontsize=\small]}
   {\end{Verbatim}\end{cmdframe}}
@@ -143,7 +143,7 @@
     {AI コーディングエージェントを動かし続ける専用の PC を、USB メモリ 1 本で自動で組み立てる。\\
      再起動のあとも、人の手を借りずにリモートデスクトップで使える状態に戻る。};
   \coordinate (prev) at ([xshift=2.2cm,yshift=4.3cm]current page.south west);
-  \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME デスクトップ共有(RDP)}{
+  \foreach \t in {Ubuntu Desktop 26.04 LTS,Orca,Claude Code,Codex,GNOME リモート デスクトップ(RDP)}{
     \node[anchor=west,draw=covercyan!70,text=covercyan,rounded corners=2pt,font=\sffamily\gtfamily\small,
       inner xsep=5pt,inner ysep=3pt,text height=0.9em,text depth=0.3em] (chip) at (prev) {\t};
     % 文字の高さと深さを固定して、日本語やかっこがあっても枠の高さをそろえる
@@ -222,7 +222,7 @@ RDP で接続できる状態に戻ることを目指す。
   \item \textbf{Orca 自身が「作業する PC」と「操作する PC」を分ける使い方を想定している。}Orca の文書の Remote Orca Server では、
         作業する側がプロジェクト・worktree・端末・エージェントのセッションを持ち、ノート PC やブラウザ、スマホは画面になる。
         ノート PC が眠ってもエージェントは動き続ける。この構成は、その作業する側を OS ごと人手なしで保つもの
-        (自動ログイン、キーリング、RDP、セッションの見張り、UPS は Orca の範囲の外なので、ここで用意する)
+        (利用者ごとのセッション、キーリング、RDP、落ちたときの立てなおし、UPS は Orca の範囲の外なので、ここで用意する)
   \item \textbf{特定の会社のエージェントに縛られない。}Claude Code と Codex に加え、OpenCode・Copilot CLI・Antigravity CLI も同じ画面に並べられる。
         同じ作業を別々のエージェントに任せて結果を比べることも、得意なものに振り分けることもできる
   \item \textbf{並べてもぶつからない。}エージェントごとに git の worktree を分けるので、同時に進めても互いのファイルを壊さない
@@ -237,7 +237,7 @@ RDP で接続できる状態に戻ることを目指す。
   \item RDP なら、Windows に最初からあるリモート デスクトップ接続でつながり、手元に何も入れなくてよい。
         手元の Orca から作業する側につなぐ方法(Remote Orca Servers)はベータで、手元にも Orca が要る
   \item エージェントが Chrome で画面を確かめる作業も、人が VS Code やファイルを触って手を入れる作業も、同じデスクトップでできる
-  \item そのかわり、自動ログイン・空パスワードのキーリング・画面のロックなし、という妥協がいる(\ref{sec:caution} 節)
+  \item そのかわり、パスワードなしで立てるセッション・空パスワードのキーリング・画面のロックなし、という妥協がいる(\ref{sec:caution} 節)
 \end{itemize}
 
 \noindent\textbf{向かない場合。}作業が短く、リポジトリが GitHub にあり、LAN の資源が要らないなら、クラウドのエージェントで足りることが多い。
@@ -258,7 +258,7 @@ just status <ホスト>     # 手元の PC(リポジトリの直下)で打つ
 sudo systemctl reboot    # just ssh などでホストに入り、sysadmin で打つ
 \end{host}
 \begin{term}
-gh auth status           # RDP で入った agent のデスクトップの端末で打つ
+gh auth status           # RDP で入った自分(利用者)のデスクトップの端末で打つ
 \end{term}
 \begin{hint}
 \code{<ホスト>} はホスト名か IP アドレスに置き換える。囲みは、\textcolor{cautioncol}{\textbf{注意}}(誤ると戻せないこと)、
@@ -268,7 +268,8 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 \subsection{できあがる環境}
 \begin{itemize}
   \item OS: Ubuntu Desktop 26.04 LTS(GNOME 50。GNOME のセッションは Wayland のみ)
-  \item 遠隔操作: GNOME の「デスクトップ共有」(RDP、ポート 3389)。物理の画面のセッションをそのまま共有する
+  \item 遠隔操作: GNOME のリモート デスクトップ(RDP)。利用者ごとに画面のない(ヘッドレスの)GNOME のセッションを立て、
+        それぞれ自分のポート(env.yaml の \code{users[].port}。例 3389、3390)で待ち受ける。モニターは要らない
   \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
   \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
   \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome、
@@ -287,12 +288,12 @@ gh auth status           # RDP で入った agent のデスクトップの端末
     \node[group,fill=accentlight,fit=(rdpc)(sshc)(sftpc),label={[font=\headstyle\small,text=accent]above:手元の PC}] (pc) {};
   \end{scope}
   % ホスト
-  \node[box,right=34mm of rdpc,minimum width=36mm] (grd) {デスクトップ共有\\[-1pt]{\scriptsize :3389}};
-  \node[box,right=34mm of sshc,minimum width=36mm] (sshd) {sshd\\[-1pt]{\scriptsize :22(sysadmin ／ agent は SFTP)}};
+  \node[box,right=34mm of rdpc,minimum width=36mm] (grd) {リモート デスクトップ\\[-1pt]{\scriptsize 利用者ごとのポート :3389 ・ :3390 …}};
+  \node[box,right=34mm of sshc,minimum width=36mm] (sshd) {sshd\\[-1pt]{\scriptsize :22(sysadmin ／ 利用者は SFTP)}};
   \node[soft,right=6mm of grd,minimum width=40mm,minimum height=18mm] (session)
-    {agent の GNOME セッション\\[-1pt]{\scriptsize 自動ログイン}\\[-1pt]{\scriptsize Orca ・ Claude Code ・ Codex ・ Chrome}};
-  \node[box,below=of session,minimum width=40mm] (docker) {rootless Docker\\[-1pt]{\scriptsize mise ・ uv}};
-  \node[box,below=of docker,minimum width=40mm] (watch) {見張り・監視\\[-1pt]{\scriptsize セッション ・ ディスク}};
+    {利用者ごとの GNOME セッション\\[-1pt]{\scriptsize ヘッドレス}\\[-1pt]{\scriptsize Orca ・ Claude Code ・ Codex ・ Chrome}};
+  \node[box,below=of session,minimum width=40mm] (docker) {rootless Docker\\[-1pt]{\scriptsize 利用者ごと ・ mise ・ uv}};
+  \node[box,below=of docker,minimum width=40mm] (watch) {立てなおし・監視\\[-1pt]{\scriptsize セッション ・ ディスク}};
   \begin{scope}[on background layer]
     \node[group,fill=white,fit=(grd)(sshd)(session)(docker)(watch),
       label={[font=\headstyle\small,text=accent]above:エージェントホスト(Ubuntu 26.04)}] (host) {};
@@ -316,12 +317,15 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 ユーザー & 用途 & sudo & ログイン \\
 \midrule
 \code{sysadmin} & OS の管理・更新 & あり & SSH(鍵認証のみ)。コンソール \\
-\code{agent} & Orca とエージェントの実行 & なし & GDM の自動ログイン。SSH は SFTP 専用(鍵を登録した人だけ) \\
+利用者(env.yaml の \code{users}) & Orca とエージェントの実行。1 人に 1 ユーザー & なし & 起動のときに systemd がヘッドレスのセッションを立てる(パスワードはロック)。RDP は自分のポートと自分の認証情報で入る。SSH は SFTP 専用(鍵を登録した人だけ) \\
 \bottomrule
 \end{tabularx}}
 
 \code{admin} は Ubuntu の予約名でインストーラーに拒否されるため、管理ユーザーは \code{sysadmin} にしている。
-\code{agent} はこのホストを使う 1 人のためのユーザーで、置く秘密はその人の各サービスのログインだけにする(複数の人で共有しない)。
+利用者は 1 人に 1 ユーザーで、Claude Code・Codex などのログイン(サブスクリプション)は本人のホームに置く。
+1 台を複数の人で使えるが、ログインは人ごとに分け、共有しない。ホームは本人だけが読める(700)。ただし \code{sysadmin}(root)は全員のホームを読める。
+メモリの目安は、1 人あたり 0.5〜1GB(GNOME のセッションと RDP。エージェントとビルドは別。VM で測った)。
+0.2 までの \code{agent} ユーザーは、env.yaml の \code{users} に \code{name: agent} と書けば、そのまま利用者の 1 人として使える。
 
 \subsection{起動の流れ}
 \begin{figure}[htbp]
@@ -330,18 +334,17 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \node[box] (power) {電源\\[-1pt]{\scriptsize 停電からの復帰も}};
   \node[box,right=of power] (boot) {GRUB ・ systemd};
   \node[once,right=of boot] (prov) {構成サービス\\[-1pt]{\scriptsize 初回だけ}};
-  \node[box,right=of prov] (gdm) {GDM\\[-1pt]{\scriptsize agent で自動ログイン}};
-  \node[soft,below=9mm of gdm] (gnome) {GNOME セッション\\[-1pt]{\scriptsize キーリングは自動で開く}};
-  \node[once,left=of gnome] (fl) {first-login\\[-1pt]{\scriptsize 初回だけ}};
-  \node[box,left=of fl] (rdp) {RDP 待ち受け\\[-1pt]{\scriptsize :3389}};
+  \node[box,right=of prov] (gdm) {GDM\\[-1pt]{\scriptsize 自動ログインはしない}};
+  \node[soft,below=9mm of gdm] (gnome) {利用者ごとの GNOME セッション\\[-1pt]{\scriptsize ヘッドレス。systemd が立てる}};
+  \node[box,left=of gnome] (rdp) {RDP 待ち受け\\[-1pt]{\scriptsize 利用者ごとのポート}};
   \node[box,left=of rdp] (orca) {Orca 起動};
   \draw[flow] (power) -- (boot); \draw[flow] (boot) -- (prov); \draw[flow] (prov) -- (gdm);
-  \draw[flow] (gdm) -- (gnome); \draw[flow] (gnome) -- (fl); \draw[flow] (fl) -- (rdp); \draw[flow] (rdp) -- (orca);
-  \node[box,draw=cautioncol,fill=cautionbg,right=10mm of gnome] (watch) {見張り\\[-1pt]{\scriptsize 落ちたら GDM を再起動}};
-  \draw[flow,draw=cautioncol,dashed] (watch) |- node[lbl,pos=0.25,right] {約 2 分} (gdm);
+  \draw[flow] (gdm) -- (gnome); \draw[flow] (gnome) -- (rdp); \draw[flow] (rdp) -- (orca);
+  \node[box,draw=cautioncol,fill=cautionbg,right=10mm of gnome] (watch) {systemd\\[-1pt]{\scriptsize 落ちたその人だけ立てなおす}};
+  \draw[flow,draw=cautioncol,dashed] (watch) |- node[lbl,pos=0.25,right] {約 15 秒} (gnome.north east);
   \draw[flow,draw=cautioncol,dashed] (gnome) -- node[lbl,above] {落ちる} (watch);
 \end{tikzpicture}
-\caption{起動から RDP まで。点線の箱は初回だけ動く}
+\caption{起動から RDP まで。点線の箱は初回だけ動く。セッションは利用者の数だけ並んで立つ}
 \end{figure}
 
 \subsection{利用上の注意と免責}\label{sec:caution}
@@ -355,9 +358,9 @@ gh auth status           # RDP で入った agent のデスクトップの端末
 
 \paragraph{守る前提}
 \begin{itemize}
-  \item \textbf{LAN の中だけで使う。}SSH(22)と RDP(3389)は \code{lan_cidrs} の範囲だけに許可する。インターネットに開けず、LAN の外からは VPN などを通す
-  \item \textbf{PC は関係者だけが触れる場所に置く。}自動ログインのため画面のロックを止めている。モニターとキーボードをつなげば、誰でも \code{agent} のデスクトップを操作できる
-  \item \textbf{\code{agent} に置く秘密は、各サービスのログインの情報だけにする。}ログインキーリングは空パスワードで、ディスクも暗号化しない。PC やディスクを持ち出されれば中身を読まれる
+  \item \textbf{LAN の中だけで使う。}SSH(22)と RDP(利用者ごとのポート)は \code{lan_cidrs} の範囲だけに許可する。インターネットに開けず、LAN の外からは VPN などを通す
+  \item \textbf{PC は関係者だけが触れる場所に置く。}利用者のセッションはパスワードなしで立ち、画面のロックも止めている。RDP のパスワードが、利用者どうし(と各自のサブスクリプション)を隔てる実質の唯一の境界になるので、本人が最初の RDP で仮の値から変える(\ref{sec:rdp} 節)
+  \item \textbf{利用者のホームに置く秘密は、各サービスのログインの情報だけにする。}ログインキーリングは空パスワードで、ディスクも暗号化しない。PC やディスクを持ち出されれば中身を読まれる。\code{sysadmin}(root)は全員のホームを読める
 \end{itemize}
 
 \paragraph{知っておくこと}
@@ -367,7 +370,7 @@ gh auth status           # RDP で入った agent のデスクトップの端末
   \item \textbf{版を固定したソフトには、セキュリティ更新が自動では入らない。}apt で hold したもの、/opt に置いたもの、npm で入れたツール、VS Code の拡張機能は、利用者が版を上げて反映する(\ref{sec:versions} 節)。OS のセキュリティ更新と Google Chrome は自動で入る
   \item \textbf{ほかのソフトとサービスの規約・ライセンスは、利用者が同意するもの。}インストールのときに各社の配布元から取得する(再配布はしない)。契約が要るものもある
   \item \textbf{止められない通信がある。}たとえば Orca の更新の確認は止める手段がない
-  \item \textbf{秘密情報が入るファイルがある。}ISO と USB、env.yaml、移行の書き出し、手元の \code{build/} の一時ファイル、ホストの \code{/opt/agent-host/env.sh}(と \code{/opt/agent-host.prev/env.sh})、\code{/etc/agent-host/notify.env}、\code{/etc/nut/}。IP Messenger の通知は暗号化されない
+  \item \textbf{秘密情報が入るファイルがある。}ISO と USB、env.yaml、移行の書き出し、手元の \code{build/} の一時ファイル、ホストの \code{/opt/agent-host/env.sh} と \code{/opt/agent-host/users/}(と \code{/opt/agent-host.prev/} の同じもの)、\code{/etc/agent-host/notify.env}、\code{/etc/nut/}。IP Messenger の通知は暗号化されない
 \end{itemize}
 
 %======================================================================
@@ -400,7 +403,7 @@ Azure CLI & Azure の操作 & \code{az} \\
 Node.js、npm & JavaScript の実行環境とパッケージ管理 & \code{node}、\code{npm}、\code{npx} \\
 uv & Python とパッケージ・仮想環境の管理 & \code{uv}、\code{uvx} \\
 mise & 言語の版の切り替え(Go、Rust、Java など、sudo なしで入れる) & \code{mise use go@1.24} など \\
-Docker(rootless) & コンテナ。agent 専用で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
+Docker(rootless) & コンテナ。利用者ごとに別々で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
 GitHub CLI & GitHub の操作(PR、Issue、認証) & \code{gh} \\
 Gitea CLI & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証にも使える & \code{tea} \\
 git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具、\code{python}(python3 と同じ) & エージェントがそのまま使う \\
@@ -414,14 +417,14 @@ Zed & 軽くて速い GUI エディター(GPU が要る)。TOML、Docker、HTML�
 Google Chrome & 既定のブラウザ。エージェントのログインや画面の確認に使う & Dock から \\
 Xfce Terminal & 軽い端末。右クリックで貼り付け、選択でコピー & \key{Ctrl}+\key{Alt}+\key{T} \\
 Atril & PDF ビューアー(PDF の既定のアプリ) & Files で PDF をダブルクリック \\
-Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え \\
+Mozc & 日本語入力 & \key{Ctrl}+\key{Space} で切り替え(半角/全角キーは RDP では使えない) \\
 Clipboard Indicator & クリップボードの履歴 & 上部のバーから選ぶ \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}遠隔操作・通知・運用} \\
-GNOME デスクトップ共有 & 画面を RDP で共有する(GNOME の標準の機能) & 手元の RDP クライアントで接続(\ref{sec:rdp} 節) \\
-OpenSSH & 管理用の SSH と、agent のファイルのやり取り(SFTP) & \code{just ssh}、WinSCP など \\
+GNOME リモート デスクトップ & 利用者ごとのヘッドレスのセッションを RDP で使う(GNOME の標準の機能) & 手元の RDP クライアントで、自分のポートに接続(\ref{sec:rdp} 節) \\
+OpenSSH & 管理用の SSH と、利用者のファイルのやり取り(SFTP) & \code{just ssh}、WinSCP など \\
 agent-notify & 承認待ち・エラー・完了を Slack と IP Messenger に知らせる & エージェントが自動で呼ぶ \\
-見張りと監視 & セッションが落ちたら戻す。ディスクの残りを知らせる & 自動で動く \\
+立てなおしと監視 & セッションが落ちたら、その人のセッションだけを立てなおす。ディスクの残りを知らせる & 自動で動く \\
 agent-host-backup ほか & 環境を入れ替えるときの書き出しと取り込み & \code{just backup}、\code{just restore} \\
 \bottomrule
 \end{longtable}}
@@ -442,8 +445,7 @@ MIT でアカウントが要らず、.deb 版は自分では更新しないの�
   \item x86\_64 の PC。メモリ 32GB 以上、NVMe SSD を推奨。ディスクは全体を消して使う
   \item GPU は、Intel の第 6 世代(Skylake)以降の内蔵 GPU か AMD を勧める。RDP の画面を GPU で H.264 に符号化でき、CPU を
         エージェントに回せる。NVIDIA はプロプライエタリ ドライバーをインストールの中で入れる(実機では未確認)
-  \item HDMI のダミープラグ。モニターなしでも描画させるため。
-        RDP の解像度はプラグの解像度になる(手元からは変えられない)ので、\textbf{1920×1080 のもの}を選ぶ
+  \item モニターは要らない(セッションは画面のないヘッドレスで立つ)。HDMI のダミープラグも要らない
   \item USB メモリ(8GB 以上)
   \item 有線 LAN。インストール中にネットワークが要る(Desktop の ISO には openssh-server が入っていない)
 \end{itemize}
@@ -481,7 +483,7 @@ NTP サーバー & その LAN から ntp.ubuntu.com に届かない場合だけ 
 \end{tabularx}}
 
 \subsection{アカウントと契約}
-どれも、このホストを使う本人のアカウントと契約を使う(複数の人で共有しない)。
+どれも、利用者ごとに本人のアカウントと契約を使う(複数の人で共有しない)。
 
 \noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
 \toprule\headrow
@@ -498,8 +500,8 @@ Slack & 通知を送るチャンネルの Incoming Webhook の URL \\
 \end{tabularx}}
 
 \begin{caution}
-どのアカウントで \code{agent} にログインするかは先に決める。ログインしたアカウントの設定
-(たとえば Claude のスキル)は \code{agent} のホームに同期される。
+利用者ごとに、どのアカウントでログインするかを先に決める。サブスクリプションは個人の契約なので、1 人に 1 つで共有しない。
+ログインしたアカウントの設定(たとえば Claude のスキル)は、その利用者のホームに同期される。
 \end{caution}
 
 %======================================================================
@@ -537,7 +539,13 @@ just check-env common.yaml hosts/agent-host-01.yaml
 \code{proxy.no_proxy} & プロキシを通さない宛先 \\
 \code{ca_certs} & 独自の CA 証明書(PEM)の並び。空なら何もしない \\
 \code{ntp_servers} & 足す NTP サーバー。空なら Ubuntu の既定と DHCP で配られたもの \\
-\code{git_user_name}, \code{git_user_email} & \code{agent} が git commit するときの名前とメール \\
+\code{users} & 利用者の並び(1 人以上)。1 人ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを持つ。外すと、ユーザーとホームは残したまま止める(\ref{sec:users} 節) \\
+\code{users[].name} & Linux のユーザー名(英小文字で始まり、英小文字・数字・\code{-})。\code{sysadmin} などシステムの名前は使えない \\
+\code{users[].port} & RDP のポート(\textbf{必須}。人に固定する。例 3389、3390)。並べ替えや削除で、ほかの人の接続先は変わらない。\code{dev_ports} と重ねられない \\
+\code{users[].rdp.username} & RDP クライアントで入力するユーザー名 \\
+\code{users[].rdp.initial_password} & RDP の初回だけの仮のパスワード(秘密情報)。\textbf{本人が最初の RDP で変える}(\ref{sec:rdp} 節)。just update はその利用者に RDP の認証情報がまだないときだけ入れる \\
+\code{users[].git_user_name}, \code{git_user_email} & その利用者が git commit するときの名前とメール \\
+\code{users[].ssh_authorized_keys} & SFTP でその利用者に入る人の公開鍵。空なら入れない \\
 \code{editors} & 入れるエディター: \code{vscode}、\code{neovim}、\code{zed}(Zed は GPU が要る) \\
 \code{vscode_extensions} & VS Code に足す拡張機能(\code{発行者.名前} か \code{発行者.名前@版})。基本の拡張機能と、\code{clouds} に合わせたクラウドの拡張機能は書かなくても入る \\
 \code{zed_extensions} & Zed に足す拡張機能(zed.dev の ID。版は指定できず、次に Zed を起動したときの最新が入り、その後は更新しない) \\
@@ -548,12 +556,10 @@ just check-env common.yaml hosts/agent-host-01.yaml
 \code{notify.ipmsg_broadcast} & 探すときのブロードキャストの宛先。空なら 255.255.255.255(同じサブネットだけ)。別のサブネットも探すときに足す \\
 \code{desktop_color} & 壁紙の色(\texttt{\#RRGGBB})。台ごとに変えると、どのホストに入っているか見分けやすい \\
 \code{gitea_url} & Gitea の URL(任意)。tea のログインの既定の接続先になり、エージェント向けの説明に載る \\
-\code{agent_ssh_authorized_keys} & SFTP で \code{agent} に入る人の公開鍵。空なら入れない \\
-\code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3999"})。1024 以上 \\
+\code{dev_ports} & 手元の PC から開発サーバーを見るために開けるポート(例 \code{"3000:3099"})。1024 以上。利用者全員で共有する(同じポートを 2 人で待ち受けられない)。\code{users[].port} と重ねない \\
 \code{lan_cidrs} & SSH・RDP・\code{dev_ports}・IP Messenger(UDP 2425)を許可する LAN の範囲 \\
 \code{sysadmin.password_hash} & \code{sysadmin} のパスワードのハッシュ(sudo とコンソールで使う) \\
 \code{sysadmin.ssh_authorized_keys} & \code{sysadmin} の SSH の公開鍵 \\
-\code{rdp.username}, \code{rdp.password} & デスクトップ共有(RDP)の認証情報 \\
 \code{ups.mode} & UPS: \code{none}(使わない)・\code{usb}・\code{netclient}(\ref{sec:ups} 節) \\
 \code{ups.driver}, \code{ups.port} & usb のとき: NUT のドライバーとポート(多くは \code{usbhid-ups} と \code{auto}) \\
 \code{ups.name} & UPS の名前(netclient では NUT サーバーの側の名前) \\
@@ -582,22 +588,32 @@ proxy:
   no_proxy: "localhost,127.0.0.1,::1"
 ca_certs: []
 ntp_servers: []
-git_user_name: agent-host-01
-git_user_email: agent-host-01@example.invalid
 editors: [vscode]
 agents: [opencode]
 notify:
   slack_webhook_url: "https://hooks.slack.com/services/..."
   ipmsg_to: [user1]
-agent_ssh_authorized_keys: ["ssh-ed25519 AAAA... user@pc"]
 dev_ports: ["3000:3099"]
 lan_cidrs: [192.0.2.0/24]
 sysadmin:
   password_hash: "$6$..."
   ssh_authorized_keys: ["ssh-ed25519 AAAA... admin@pc"]
-rdp:
-  username: agent
-  password: "..."
+users:
+  - name: alice
+    port: 3389
+    rdp:
+      username: alice
+      initial_password: "..."     # 本人が最初の RDP で変える
+    git_user_name: alice
+    git_user_email: alice@example.invalid
+    ssh_authorized_keys: ["ssh-ed25519 AAAA... alice@pc"]
+  - name: bob
+    port: 3390
+    rdp:
+      username: bob
+      initial_password: "..."
+    git_user_name: bob
+    git_user_email: bob@example.invalid
 \end{filebox}
 
 %======================================================================
@@ -638,7 +654,6 @@ env.yaml は安全な場所に保管しておく(入れなおしや移行で使�
 \begin{checklist}
   \item 「Restore on AC Power Loss」(名称は機種による)を \textbf{Power On} にする
   \item UEFI で起動する。USB から起動できるようにする
-  \item HDMI のダミープラグを挿す
   \item NVIDIA の GPU で Secure Boot が有効なら、そのままにしておく(インストールの中で入る NVIDIA のドライバーが署名済みのモジュールで動くかは未確認。動かなければ \code{just verify} の「GPU」で失敗が出る)
   \item (UPS を使うとき)UPS の「電源が戻ったら出力を戻す」(自動再起動)を有効にする
 \end{checklist}
@@ -686,8 +701,10 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \subsection{何が起きるか}
 初回の起動で \code{agent-host-provision.service} が、GDM より前に
 \code{/opt/agent-host/post-install/} のスクリプトを番号順に実行する。
-ネットワークから各ツールを取得するので数分〜十数分かかる。終わるまで画面はログインに進まない。
-終わると \code{agent} で自動ログインし、first-login がデスクトップ共有を有効にし、Orca が起動する。
+ネットワークから各ツールを取得するので数分〜十数分かかる。
+終わると GDM が起動し、利用者ごとのヘッドレスの GNOME のセッション(\code{gnome-headless-session@<利用者>})が立ち、
+それぞれの RDP が自分のポートで待ち受け、Orca が起動する(VirtualBox では起動から約 25 秒でセッション、約 60 秒で RDP)。
+自動ログインはしないので、モニターをつないでもログイン画面が出るだけ。
 
 \begin{figure}[htbp]
 \centering
@@ -696,10 +713,10 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
   pstep/.style={box,minimum width=31mm,text width=29mm,minimum height=5.6mm,font=\scriptsize\gtfamily,inner sep=1.5pt},
   x=38mm,y=-7.2mm]
   \foreach \c/\head/\items in {%
-    0/OS の土台/{05 プロキシ・CA,10 agent を作る,20 自動ログイン・見張り,30 スリープ無効,35 時刻・上限・apport,36 最小化・最適化,37 GPU の符号化},%
+    0/OS の土台/{05 プロキシ・CA,10 利用者を作る,20 セッションと RDP,30 スリープ無効,35 時刻・上限・apport,36 最小化・最適化,37 GPU の符号化},%
     1/ネットワーク/{40 SSH ・ ufw,50 自動更新},%
     2/道具とアプリ/{60 開発の道具,62 追加のエージェント,63 クラウドの CLI,65 rootless Docker,70 Orca,72 エディター,75 Chrome,76 デスクトップ},%
-    3/仕上げ/{80 agent のセッション,84 通知・ディスク監視,85 UPS,86 移行の道具}} {
+    3/仕上げ/{80 利用者の準備,84 通知・ディスク監視,85 UPS,86 移行の道具,88 セッションを立てる}} {
     \foreach \t [count=\r from 0] in \items {
       \node[pstep] (s\c-\r) at (\c,\r) {\t};
     }
@@ -725,39 +742,40 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \midrule
 \endhead
 \code{05-proxy-ca.sh} & HTTP プロキシと独自の CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
-\code{10-users.sh} & \code{agent} を作る(sudo なし、パスワードなし、ホームは 700)。\code{sysadmin} の SSH の鍵とパスワードを env.yaml に合わせる \\
-\code{20-autologin.sh} & GDM の自動ログイン(/etc/gdm3/custom.conf)。GNOME のセッションが落ちたら GDM を再起動して戻す見張り(1 分ごと) \\
+\code{10-users.sh} & 利用者(\code{users})を作る(sudo なし、パスワードなし、ホームは 700。グループ \code{agent-host-users})。env.yaml から外した利用者は、ユーザーとホームを残したまま期限切れにし、セッション・linger・ユーザーのサービスを止める。\code{sysadmin} の SSH の鍵とパスワードを env.yaml に合わせる \\
+\code{20-sessions.sh} & GDM の自動ログインと 0.2 までの見張りをやめる。ヘッドレスのセッションのユニットに drop-in(\code{DynamicUser=no}・\code{User=gdm}・\code{Restart=always})を置く。利用者ごとに linger と RDP(\code{grdctl --headless}。ポートは \code{users[].port}、TLS の証明書、認証情報はまだないときだけ仮の値)を設定する \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
 \code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。snap・snapd と kdump、使わないパッケージ(画面の読み上げ、印刷のドライバー、AD・LDAP、VPN・モデム、Bluetooth、報告など)を消す。zram、電源のプロファイル、GRUB の待ち \\
 \code{37-gpu.sh} & RDP の画面の符号化を GPU に任せる(Intel の VA-API の full 版、Vulkan のドライバー、vainfo)。NVIDIA のドライバーはインストールの中で入る \\
-\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、\code{agent} を SFTP 専用に。ufw で 22・3389・\code{dev_ports}(と IP Messenger の UDP 2425)を LAN だけに許可 \\
+\code{40-ssh-ufw.sh} & SSH を鍵認証のみに、利用者を SFTP 専用に。\code{AllowUsers} を \code{sysadmin} と今の利用者だけにする。ufw で 22・利用者ごとの RDP のポート・\code{dev_ports}(と IP Messenger の UDP 2425)を LAN だけに許可し、外した利用者のポートの規則を消す \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
-\code{65-docker.sh} & Docker と、\code{agent} 専用の rootless Docker \\
-\code{70-orca.sh} & Orca と、その自動起動 \\
+\code{65-docker.sh} & Docker と、利用者ごとの rootless Docker \\
+\code{70-orca.sh} & Orca と、利用者ごとの自動起動 \\
 \code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
-\code{75-chrome.sh} & Google Chrome と、\code{agent} の既定のブラウザ \\
-\code{76-desktop.sh} & 日本語入力と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色と Dock(ログインのたびに入れる自動起動。ログイン中ならその場で)、ブックマーク \\
-\code{80-agent-session.sh} & キーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明、RDP の認証情報の受け渡し(変わったら入れなおす。ログイン中ならその場で)、first-login の準備 \\
+\code{75-chrome.sh} & Google Chrome と、利用者の既定のブラウザ \\
+\code{76-desktop.sh} & 日本語入力と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色と Dock(セッションが立つたびに入れる自動起動。セッションが動いていればその場で)、ブックマーク \\
+\code{80-agent-session.sh} & 利用者ごとに、空パスワードのキーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明 \\
 \code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
 \code{85-ups.sh} & env.yaml の \code{ups} で選んだ UPS を NUT で見る。バッテリーが少ないと終了し、USB でつないだときは UPS の出力を止めて、電源が戻ったら起動させる。停電と復電を通知する \\
 \code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
+\code{88-start-sessions.sh} & 利用者ごとに、GNOME の設定(first-login。画面のロックなし、日本語入力、端末など)を利用者のバスで一度だけ入れ、ヘッドレスのセッションを有効にする(just update のときは、動いていなければその場で立てる) \\
 \bottomrule
 \end{longtable}}
 
 \subsection{結果を確かめる}
 \begin{local}
-just status <ホスト>    # 置いた版と成功した版・構成・RDP・セッション・ディスク・メモリ・失敗した unit
-just logs <ホスト>      # 構成・first-login・セッションの見張りの記録
-just verify <ホスト>    # 仕様どおりかを 100 項目あまりで確かめる(読むだけ。sudo のパスワードを聞かれる)
-just verify-rdp <ホスト> # env.yaml の rdp で RDP の認証が通るか(画面は開かない)
+just status <ホスト>    # 置いた版と成功した版・構成・待ち受けのポート・利用者のセッション・ディスク・メモリ・失敗した unit
+just logs <ホスト>      # 構成・利用者ごとの first-login とセッションの記録
+just verify <ホスト>    # 仕様どおりかを確かめる(全体と利用者ごと。読むだけ。sudo のパスワードを聞かれる)
+just verify-rdp <ホスト> # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
 \end{local}
 
 \begin{confirm}
-\code{just status} で「構成: 済み」「RDP: 待ち受け中」「agent のセッション: seat0」が出て、
+\code{just status} で「構成: 済み」と、利用者の RDP のポートの待ち受け、利用者ごとの「セッション: あり」が出て、
 失敗した unit がないこと。\code{just verify} の最後が「○ 項目のうち ○ 項目が通った」で、失敗した項目がないこと。
 \end{confirm}
 
@@ -765,18 +783,22 @@ just verify-rdp <ホスト> # env.yaml の rdp で RDP の認証が通るか(画
 スクリプトは冪等で、何度流しても同じ状態になる。
 
 \begin{hint}
-first-login の記録に \code{RDP server certificate is invalid} が出ることがあるが、最終的な状態は正常で、
-RDP も待ち受ける(原因は未調査)。
+構成の記録に \code{RDP server certificate is invalid} や \code{Init TPM credentials failed} が出ることがあるが、
+最終的な状態は正常で、RDP も待ち受ける(原因は未調査)。
+
+\code{just verify-rdp} は、env.yaml の仮のパスワードで確かめる。本人がパスワードを変えたあとは、その人の分は
+「未検証」と出る(失敗ではない)。今のパスワードで確かめるなら \code{just verify-rdp <ホスト> --ask <利用者>} で聞かれる値を入れる。
+つながらない、TLS のエラーなど、認証の前で止まったものは失敗になる。
 \end{hint}
 
 %======================================================================
 \section{初回の手作業}
 %======================================================================
-以降は、手元の PC から RDP で \code{agent} のデスクトップに入って行う。
+以降は、利用者がそれぞれ、手元の PC から RDP で自分のデスクトップに入って行う。
 
 \subsection{チェックリスト}
 \begin{checklist}
-  \item RDP でつなぐ(\ref{sec:rdp} 節)
+  \item RDP でつなぎ、RDP のパスワードを仮の値から変える(\ref{sec:rdp} 節)
   \item Claude Code にログインする
   \item Codex にログインする(デバイスコード)
   \item Orca の初回の設定(利用統計と更新の通知をオフ)
@@ -790,18 +812,33 @@ RDP も待ち受ける(原因は未調査)。
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
 \begin{local}
-just rdp <ホスト>       # build/<ホスト>.rdp を作る(Windows のリモート デスクトップ接続用)
+just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
 \end{local}
-ユーザーとパスワードは env.yaml の \code{rdp} の値。RDP のクライアントは何でもよい
+接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。ユーザーとパスワードは、その人の \code{rdp.username} と
+\code{rdp.initial_password}(仮の値)。RDP のクライアントは何でもよい
 (Windows のリモート デスクトップ接続(mstsc)、Linux の Remmina や FreeRDP、macOS の Windows App など)。
 \code{just rdp} が作る接続ファイルは mstsc 向けで、Windows キーを常にホストへ送り、クリップボードを共有し、
 色を 24 ビットにする(同じ 26.04 で、mstsc の 32 ビットは遅いという報告がある)。ほかのクライアントでも、同じ設定にするとよい。
 初回は証明書の警告が出る(自己署名のため)。mstsc では「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
 
 \begin{caution}
-このホストは 1 人で使う。Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない
-(規約に反するおそれがある)。複数の人で使うときは、人数分のホストを用意する(2 台目からは構成リポジトリでまとめて管理できる。
-\ref{sec:fleet} 節)。デスクトップ共有は画面の前のセッションをそのまま映すので、入るのは本人だけ。
+\textbf{最初の RDP で、自分の RDP のパスワードを変える。}env.yaml の仮の値は、ISO や構成リポジトリを扱う人が知っている。
+RDP のパスワードは、利用者どうし(と各自のサブスクリプション)を隔てる実質の唯一の境界になる。
+\begin{term}
+grdctl --headless rdp set-credentials <ユーザー名> <新しいパスワード>
+\end{term}
+ユーザー名は env.yaml の \code{rdp.username} と同じにする。次の接続から新しい値になる。just update と移行のあとも、変えた値が残る
+(just update は、認証情報がまだないときだけ仮の値を入れる)。端末の履歴にパスワードが残るので、気になるなら打ったあとに
+\code{history -d} で消す。
+
+忘れたときは、管理者が \code{sysadmin} で \code{sudo rm <利用者のホーム>/.local/share/gnome-remote-desktop/credentials.ini}
+としてから \code{just update} を行うと、仮の値に戻る。
+\end{caution}
+
+\begin{caution}
+Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない(規約に反するおそれがある)。
+1 台を複数の人で使うときは、env.yaml の \code{users} に人数分を書き、それぞれが自分のポートと自分のパスワードで入り、
+自分のアカウントでログインする。ほかの利用者のホームは読めない。開発サーバーのポート(\code{dev_ports})は全員で取り合う。
 \end{caution}
 
 \subsection{日本語入力と使い勝手}
@@ -809,7 +846,7 @@ just rdp <ホスト>       # build/<ホスト>.rdp を作る(Windows のリモ�
 \toprule\headrow
 操作 & キーと動き \\
 \midrule
-日本語入力の切り替え & \key{Ctrl}+\key{Space}(Mozc と英字) \\
+日本語入力の切り替え & \key{Ctrl}+\key{Space}(Mozc と英字)。半角/全角キーは、RDP では押しっぱなしの変換キーとして届くので使えない \\
 スクリーンショット & \key{Ctrl}+\key{Shift}+\key{Alt}+\key{S}。撮った画像はクリップボードに入り、Claude Code に \key{Ctrl}+\key{V} で貼れる(Windows のクライアントでは、\key{PrintScreen} は手元に取られることがある) \\
 端末 & \key{Ctrl}+\key{Alt}+\key{T} で Xfce Terminal。右クリックで貼り付け、選択でコピー \\
 クリップボードの履歴 & 上部のバーの Clipboard Indicator から選んで貼る \\
@@ -884,7 +921,7 @@ gcloud config set project <プロジェクト ID>
 az login                                # サブスクリプションを選ぶ
 \end{term}
 \begin{caution}
-認証情報は agent のホーム(\code{~/.aws}、\code{~/.config/gcloud}、\code{~/.azure})に残り、エージェントは確認なしで
+認証情報は利用者のホーム(\code{~/.aws}、\code{~/.config/gcloud}、\code{~/.azure})に残り、エージェントは確認なしで
 コマンドを動かせる。長く使えるアクセスキー(\code{aws configure} で入れるものやサービスアカウントの鍵)は置かず、
 上の短い時間だけ有効なログインを使う。本番の権限は渡さず、開発用に権限を絞ったアカウント・プロジェクト・サブスクリプションを使う。
 \end{caution}
@@ -915,7 +952,7 @@ claude remote-control   # 作業するディレクトリで。初回は確認に
 \subsection{スマホからの操作(Orca Mobile)}
 Orca のワークツリーやターミナルの出力をスマホで見て、コマンドを送れる。つなぎ方は Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)で選ぶ。
 \begin{caution}
-スマホから agent のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。
+スマホから自分のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。
 画面のロックをかけたスマホだけをペアリングし、無くしたら「設定 > モバイル」からその端末を外す。
 \end{caution}
 \noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
@@ -932,12 +969,14 @@ Orca Relay(ベータ) & Orca のサーバーが中継する。モバイル回線
   \item RDP で入り、Orca の Settings → Mobile(日本語の表示では「設定 > モバイル」)で、つなぎ方を選んで QR コードを作る(LAN ならアドレスに LAN の IP を選ぶ)
   \item スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 \end{enumerate}
+1 台を複数の人で使うとき、6768 番を待ち受けられるのは 1 人だけで、2 人目以降の Orca は別のポートにずれる見込み
+(Orca の CLI の説明から。デスクトップの Orca で確かめていない)。LAN でつなぐなら、ずれた先のポートも \code{dev_ports} に足す。
 
 \subsection{ファイルのやり取り}
-env.yaml の \code{agent_ssh_authorized_keys} に公開鍵を書いた人は、SFTP で \code{agent} に入れる(シェルには入れない)。
-作業の置き場所は \code{/home/agent/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
+env.yaml の \code{users[].ssh_authorized_keys} に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。
+作業の置き場所は \code{/home/<利用者>/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
 \begin{checklist}
-  \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{agent}
+  \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{<利用者>}
   \item 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は、PuTTY の形式(\code{.ppk})への変換を勧められるので、変換して保存する
   \item 「保存」して「ログイン」。初回はホスト鍵の指紋が出るので、下のコマンドの結果と同じか確かめてから受け入れる
 \end{checklist}
@@ -945,23 +984,19 @@ env.yaml の \code{agent_ssh_authorized_keys} に公開鍵を書いた人は、S
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub   # ホスト鍵の指紋
 \end{host}
 \begin{hint}
-macOS や Linux からは、FileZilla か、端末の \code{sftp agent@<ホスト>} を使う。
+macOS や Linux からは、FileZilla か、端末の \code{sftp <利用者>@<ホスト>} を使う。
 FileZilla は公式サイトの標準のインストーラーにほかのソフトの勧誘が付くので、付かない版を選ぶ。
 小さなファイルは RDP のクリップボードでも渡せる(未確認)。
 \end{hint}
 
 \subsection{自動化が効かなかったときだけ}
-\paragraph{ログインキーリング}
-first-login の記録に \code{set-credentials} の失敗が出ていたら、キーリングが開いていない。
-「パスワードと鍵」(seahorse)で「ログイン」キーリングのパスワードを空にし、
-\code{/opt/agent-host/first-login/first-login.sh} を実行する。
+\paragraph{新しいキーリングのパスワードを聞かれる}
+アプリ(VS Code など)が「Choose password for new keyring」を出したら、構成が置く空パスワードのキーリングがない。
+2 つの欄を空のまま「続行」する(空パスワードのキーリングができる)。
 
-\paragraph{デスクトップ共有}
-設定 → システム → リモートデスクトップ →「デスクトップ共有」と「リモート操作」をオンにし、
-認証情報を env.yaml の \code{rdp} の値にする。
-\begin{caution}
-「リモートログイン」は\textbf{オンにしない}(デスクトップ共有が 3390 番に移る)。
-\end{caution}
+0.2 までと違い、デスクトップ共有の設定やキーリングのパスワードを空にする手作業は要らない
+(RDP は構成が \code{grdctl --headless} で設定し、認証情報はキーリングではなくホームのファイルに入る)。
+設定画面の「デスクトップ共有」「リモートログイン」はオンにしない。
 
 %======================================================================
 \section{受け入れテスト}
@@ -974,29 +1009,29 @@ first-login の記録に \code{set-credentials} の失敗が出ていたら、�
 \# & 確認すること & 合格の条件 & 結果 \\
 \midrule
 \endhead
-1 & 無人でインストールできる & 確認画面なしで終わり、\code{agent} で自動ログインする & \okng \\
-2 & 手作業を終えられる & 各ログインが終わる & \okng \\
-3 & 電源が切れても自動で戻る & 電源ケーブルを抜き差しすると、何もしなくても起動し自動ログインする & \okng \\
+1 & 無人でインストールできる & 確認画面なしで終わり、利用者全員のセッションが立ち、RDP が待ち受ける & \okng \\
+2 & 手作業を終えられる & 利用者ごとに RDP のパスワードを変え、各ログインが終わる。2 人が同時に RDP でき、互いのホームが読めない & \okng \\
+3 & 電源が切れても自動で戻る & 電源ケーブルを抜き差しすると、何もしなくても起動し、全員のセッションが立つ & \okng \\
 4 & 再起動後、何もせずに RDP がつながる & Orca が起動済みの画面が出る。\key{Ctrl}+\key{Space} で日本語を打て、記号がキーの刻印どおりに出る & \okng \\
 5 & エージェントが動く & Orca から Claude Code と Codex で、簡単なタスクがそれぞれ終わる & \okng \\
 6 & 切断しても作業が続く & RDP を切断し 10 分後に再接続しても、ロックされずタスクが続いている & \okng \\
-7 & LAN の外から到達できない & \code{lan_cidrs} の外から 22・3389(と開けたポート)に届かない & \okng \\
-8 & セッションが落ちても戻る & GNOME Shell を落とすと、2〜3 分で agent のセッションと RDP が戻り、通知が届く & \okng \\
+7 & LAN の外から到達できない & \code{lan_cidrs} の外から 22・利用者の RDP のポート(と開けたポート)に届かない & \okng \\
+8 & セッションが落ちても戻る & 1 人の GNOME Shell を落とすと、その人のセッションと RDP だけが 1 分ほどで戻り、ほかの人は続いている & \okng \\
 \bottomrule
 \end{longtable}}
 
 \noindent 実施日: \rule{30mm}{0.4pt}\qquad ホスト: \rule{40mm}{0.4pt}\qquad 実施者: \rule{35mm}{0.4pt}
 
 \medskip
-構成の確認は、まず手元の PC で \code{just verify <ホスト>} を行う(100 項目あまり。失敗した行だけを詳しく見ればよい。ディスク・ネットワーク・NTP の同期先は見ないので、下のコマンドで見る)。
+構成の確認は、まず手元の PC で \code{just verify <ホスト>} を行う(全体と利用者ごと。失敗した行だけを詳しく見ればよい。ディスク・ネットワーク・NTP の同期先は見ないので、下のコマンドで見る)。
 1・3・4(認証まで)・8 は、VM なら \code{just vm-test} が人手なしで行う(\code{docs/acceptance-test.md})。
 手で見るときはホストで行う。
 \begin{host}
 df -h /; sudo vgs                      # ルートがディスクのほぼ全部
 ip -4 addr; ip route                   # env.yaml の network どおり
 apt-mark showhold                      # 版を固定したパッケージ
-sudo ufw status                        # 22/3389/dev_ports(と 2425/udp)が lan_cidrs だけ
-sudo -u agent XDG_RUNTIME_DIR=/run/user/$(id -u agent) \
+sudo ufw status                        # 22/利用者の RDP のポート/dev_ports(と 2425/udp)が lan_cidrs だけ
+sudo -u <利用者> XDG_RUNTIME_DIR=/run/user/$(id -u <利用者>) \
     systemctl --user show-environment  # mise の PATH、DOCKER_HOST など
 \end{host}
 
@@ -1033,10 +1068,11 @@ env.yaml の項目 & just update で & 注記 \\
 \midrule
 \code{hostname}・\code{network}・\code{keyboard_layout} & \textbf{反映しない} & インストールのときだけ効く。変えるなら入れなおす \\
 \code{sysadmin} & 反映する & 鍵とパスワードを env.yaml の内容に置き換える \\
-\code{rdp}・\code{desktop_color} & 反映する(セッション) & ログイン中ならその場で、そうでなければ次のログインで(Dock も) \\
+\code{users} & 反映する & 足した人は作ってセッションを立てる。外した人はユーザーとホームを残して止める(\ref{sec:users} 節)。\code{rdp.initial_password} は、その人に RDP の認証情報がまだないときだけ入る(本人が変えた値は上書きしない) \\
+\code{desktop_color} & 反映する(セッション) & セッションが動いていればその場で、そうでなければ次にセッションが立つときに(Dock も) \\
 \code{editors}・\code{agents}・\code{clouds}・拡張機能 & 足すだけ & 外しても消さない \\
 \code{lan_cidrs}・\code{dev_ports} & 足すだけ & ufw の許可は外しても消えない \\
-ほか(\code{proxy}・\code{ca_certs}・\code{notify}・\code{ups} など) & 反映する & agent の環境変数は次のログインで効く \\
+ほか(\code{proxy}・\code{ca_certs}・\code{notify}・\code{ups} など) & 反映する & 利用者の環境変数は、次にセッションが立つときに効く \\
 \bottomrule
 \end{tabularx}}
 \begin{itemize}
@@ -1046,9 +1082,9 @@ env.yaml の項目 & just update で & 注記 \\
   \item NVIDIA の GPU があるのにドライバーが入っていないと、構成の記録に注意が出る(\code{sudo ubuntu-drivers install} のあとに再起動)
   \item 途中で失敗すると \code{just status} に「前回の実行が最後まで終わっていない」と出る。\code{just logs} の「最後の just update」で止まったスクリプトを見て、直してから just update する
   \item 壁紙の色と Dock は、env.yaml か入っているエディターが変わったときだけ入れなおす(自分で変えた Dock は、それまで残る)
-  \item RDP の認証情報(\code{rdp})を替えると、agent がログイン中ならその場で、そうでなければ次のログインで入れ替わる
+  \item RDP の認証情報は本人が変えるもので、just update では入れ替わらない(戻すときは \ref{sec:rdp} 節)
   \item 反映したら \code{just verify <ホスト>} で、固定の版と設定が仕様どおりかを確かめる
-  \item agent がログイン中だと、agent の環境変数の変更は次のログインで反映される
+  \item 利用者のセッションが動いていると、その人の環境変数の変更は次にセッションが立つときに反映される(再起動か、その人のセッションを落とす)
   \item Chrome は Google のリポジトリに最新版しかないため固定せず、unattended-upgrades が自動で上げる
 \end{itemize}
 \begin{caution}
@@ -1056,11 +1092,35 @@ ufw の許可は足すだけなので、\code{lan_cidrs} や \code{dev_ports} �
 (\code{just ssh} → \code{sudo ufw status numbered} → \code{sudo ufw delete <番号>})。
 \end{caution}
 
+\subsection{利用者を足す・外す}\label{sec:users}
+env.yaml の \code{users} を直して \code{just update} する。\code{port} は人に固定し、ほかの人と重ねない。
+\begin{itemize}
+  \item \textbf{足す}: ユーザーを作り、RDP を設定し、セッションを立てる。本人は仮のパスワードで入り、最初に変える(\ref{sec:rdp} 節)
+  \item \textbf{外す}: ユーザーとホーム(ログインと作業)は残す。ログインを止める(期限切れにし、SSH の \code{AllowUsers} から外す。
+        鍵の SSH・SFTP も拒まれる)。セッション、linger、ユーザーのサービス(rootless Docker を含む)、ufw のその人の RDP のポートも止める。
+        env.yaml に戻すと、同じユーザーとホームで使える
+  \item ホームを消すときは、外したあとに \code{sysadmin} で \code{sudo userdel -r <利用者>} を行う(戻せない)
+  \item 通知は \code{[ホスト名/利用者名]} で届くので、誰のエージェントかが分かる
+\end{itemize}
+
+\paragraph{0.2 から上げるとき}
+0.2 までの env.yaml の \code{rdp}・\code{git_user_name}・\code{git_user_email}・\code{agent_ssh_authorized_keys} は使えなくなった
+(書き換え先を出して検査で止まる)。\code{users} の 1 人目を \code{name: agent}、\code{port: 3389} にすれば、
+今のホーム、ログイン、RDP の証明書をそのまま使える。\code{rdp.password} は \code{rdp.initial_password} にする
+(0.2 で入れた認証情報はキーリングにあり、ヘッドレスの RDP には引き継がれないので、この値が入る)。
+\code{dev_ports} が利用者の port と重なっていると止まる(例 \code{"3000:3999"} は 3389 を含むので、\code{"3000:3099"} などにする)。
+\begin{caution}
+上げたときの \code{just update} の途中で GDM を再起動するので、0.2 の自動ログインのセッション(端末、Orca、動いているエージェント)は終わる。
+作業していない時間に行う。
+\end{caution}
+
 \subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
 ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、\code{~/work} と Orca の worktree を移す。
 ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
 \code{~/work} の中の \code{node_modules}・\code{__pycache__}・\code{.venv} と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。\code{npm install} や \code{uv sync} で作りなおす)。
 ほかの名前(\code{dist}、\code{target} など)は、ビルドの出力でも除かない。
+利用者全員のホームを書き出し、取り込むのは新しいホストの env.yaml の \code{users} にいる名前の分だけ(同じ名前で合わせ、所有者を付けなおす)。
+RDP の認証情報(本人が変えたもの)はホームごと移る(TPM のある機械では TPM に入るので移らない見込み。未確認。移らなければ just update で仮の値が入る)。
 
 \begin{figure}[htbp]
 \centering
@@ -1138,7 +1198,7 @@ just facts agent-host-01      # facts/agent-host-01.yaml(機種、シリアル�
 道具の版を上げるときは、CHANGELOG の「env.yaml の変更」を読み、すべてのホストの env.yaml を検査し、1 台で試してから全台に反映する。
 \begin{caution}
 ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れない。作業する人が抜けたら、\code{sops updatekeys} で鍵を外し、
-その人が知っている秘密情報(RDP と sysadmin のパスワード、Webhook)を替える。
+その人が知っている秘密情報(sysadmin のパスワード、Webhook、まだ変えていない利用者の RDP の仮のパスワード)を替える。
 \end{caution}
 
 \subsection{困ったとき}
@@ -1148,10 +1208,11 @@ ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れ�
 症状 & 見るところ・対処 \\
 \midrule
 \endhead
-RDP がつながらない & \code{just status} で待ち受けとセッションを見る。first-login の記録(\code{just logs})を見る。画面がロックされていないか。リモートログインを有効にしていないか(3390 に移る) \\
-ログイン画面のまま & GNOME のセッションが落ちた。見張りが 2〜3 分で GDM を再起動して戻し、通知する。\code{just logs} で確かめる \\
+RDP がつながらない & 接続先のポートがその人の \code{port} か。\code{just status} で待ち受けとセッションを見る。\code{just logs} でその人の first-login とセッションの記録を見る。起動の直後は RDP が待ち受けるまで 1 分ほどかかる(その前につなぐと mstsc は「内部エラー」を出すことがある)。同じ Windows から同じホストの 2 人目につなぐと mstsc が「既に進行中のコンソール セッション」と止めることがある(127.0.0.1 につないだとき。VM で確認) \\
+RDP のパスワードを忘れた & \ref{sec:rdp} 節の手順で、管理者が仮の値に戻す \\
+セッションが落ちた & systemd がその人のセッションだけを 15 秒ほどで立てなおす(ほかの人は続く)。\code{just logs} で確かめる \\
 構成サービスが失敗した & \code{just logs} で止まったスクリプトを見て、直して \code{just update} で再実行する \\
-エージェントが apt を試して失敗する & \code{agent} には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
+エージェントが apt を試して失敗する & 利用者には sudo がない。言語は mise、サービスは rootless Docker を使う(\code{~/.claude/CLAUDE.md} に書いてある) \\
 mise のコマンドが見つからない & 再ログイン(再起動)で環境が入る。\code{systemctl --user show-environment} で PATH を確かめる \\
 Docker のイメージが取れない & \code{docker login} をしたか。プロキシの下なら env.yaml の \code{proxy} \\
 EMFILE / ファイル監視の上限 & \code{ulimit -n}(65536)と \code{fs.inotify.max_user_watches}(524288) \\
@@ -1207,29 +1268,30 @@ NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨す�
 \midrule
 \endhead
 \code{/opt/agent-host/} & 構成スクリプト一式と env.sh(秘密情報) \\
+\code{/opt/agent-host/users/} & 利用者ごとの値(RDP の仮のパスワードを含む。root だけが読める)と SFTP の公開鍵 \\
 \code{/var/lib/agent-host/provisioned} & 構成が一度成功した印 \\
 \code{/var/lib/agent-host/provision-incomplete} & 構成の実行中の印(残っていれば前回の実行が失敗か中断) \\
 \code{/opt/agent-host/BUILD-INFO} & 置いた版(道具の版、構成の版、使った env のファイル名、作った日時) \\
 \code{/var/lib/agent-host/BUILD-INFO.ok} & 構成が最後まで成功した版 \\
-\code{/var/lib/agent-host/rdp-credentials.sha256} & 渡した RDP の認証情報の印(root だけが読める) \\
 \code{/opt/agent-host.prev/} & just update の前の一式(戻すときに使う。env.sh を含む) \\
 \code{/var/log/agent-host-update.log} & 最後の just update の構成の出力 \\
-\code{~agent/.config/agent-host/} & first-login の済みの印、渡した RDP の認証情報(入れたら消す)、壁紙の色 \\
-\code{~agent/.config/autostart/agent-host-*.desktop} & first-login、RDP の認証情報、壁紙の色と Dock の自動起動 \\
-\code{/usr/local/sbin/agent-host-session-watchdog} & セッションの見張りの本体 \\
+\code{~<利用者>/.config/agent-host/} & first-login の済みの印、壁紙の色 \\
+\code{~<利用者>/.config/autostart/agent-host-desktop.desktop} & 壁紙の色と Dock の自動起動 \\
+\code{~<利用者>/.local/share/gnome-remote-desktop/} & RDP の TLS 証明書と認証情報(\code{credentials.ini}。TPM がないとき) \\
 \code{/usr/local/sbin/agent-host-ups-notify} & UPS の通知を agent-notify に渡す(UPS を使うとき) \\
 \code{/opt/agent-host/verify.sh} & 仕様どおりかを確かめる(\code{just verify} と同じ) \\
 \code{/etc/nut/} & UPS の設定(env.yaml の \code{ups} を書いたとき。root と nut だけが読める) \\
-\code{/etc/agent-host/notify.env} & 通知の送り先(root:agent、640) \\
+\code{/etc/agent-host/notify.env} & 通知の送り先(root:agent-host-users、640) \\
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
 \code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\
 \code{agent-host-diskcheck.timer} & ディスクの残りの監視(1 時間ごと) \\
-\code{agent-host-session-watchdog.timer} & セッションの見張り(1 分ごと) \\
-\code{/etc/gdm3/custom.conf} & 自動ログイン \\
+\code{gnome-headless-session@<利用者>.service} & 利用者ごとのヘッドレスのセッション \\
+\code{/etc/systemd/system/gnome-headless-session@.service.d/} & セッションのユニットの drop-in(静的な gdm、Restart=always) \\
+\code{/etc/gdm3/custom.conf} & 自動ログインを使わない(\code{AutomaticLoginEnable=false}) \\
 \code{/etc/ssh/sshd_config.d/10-agent-host.conf} & SSH の設定 \\
-\code{~agent/.config/environment.d/} & \code{agent} のセッションの環境変数(mise、Docker、Orca など) \\
-\code{~agent/.claude/CLAUDE.md} & エージェント向けのホストの説明(Codex は \code{~/.codex/AGENTS.md}) \\
-\code{~agent/.local/state/agent-host/first-login.log} & first-login の記録 \\
+\code{~<利用者>/.config/environment.d/} & 利用者のセッションの環境変数(mise、Docker、Orca など) \\
+\code{~<利用者>/.claude/CLAUDE.md} & エージェント向けのホストの説明(Codex は \code{~/.codex/AGENTS.md}) \\
+\code{~<利用者>/.local/state/agent-host/first-login.log} & first-login の記録 \\
 \bottomrule
 \end{longtable}}
 
@@ -1264,16 +1326,17 @@ ssh sysadmin@<ホスト>
 \end{local}
 \begin{host}
 test -f /var/lib/agent-host/provisioned && echo 構成済み
-ss -tln | grep 3389
+ss -tln                                             # 利用者の RDP のポート
+systemctl status 'gnome-headless-session@*'         # 利用者ごとのセッション
 sudo journalctl -u agent-host-provision.service    # 初回の構成
 sudo tail -40 /var/log/agent-host-update.log        # 最後の just update
-sudo cat /home/agent/.local/state/agent-host/first-login.log
+sudo cat /home/<利用者>/.local/state/agent-host/first-login.log
 sudo /opt/agent-host/verify.sh     # 仕様どおりかを確かめる(just verify と同じ)
 \end{host}
 
 \subsection{設定やスクリプトを変えたとき}
 \code{scripts/stage.sh autoinstall/env.yaml <作業ディレクトリ>} で \code{<作業ディレクトリ>/agent-host/} を作り、
-ホストの \code{/opt/agent-host} と入れ替えてから(\code{env.sh}・\code{agent_authorized_keys}・\code{sysadmin_authorized_keys} は 600、所有者は root)、
+ホストの \code{/opt/agent-host} と入れ替えてから(\code{env.sh}・\code{users/} の中・\code{sysadmin_authorized_keys} は 600、\code{users/} は 700、所有者は root)、
 \code{sudo /opt/agent-host/provision.sh} を実行する。
 
 \subsection{移行の書き出しと取り込み}
@@ -1289,7 +1352,7 @@ unset PW
 \end{local}
 
 \subsection{RDP の接続ファイル}
-\code{docs/agent-host.rdp.example} をコピーし、\code{full address} をホスト名に直す(改行は CRLF のまま)。
+\code{docs/agent-host.rdp.example} をコピーし、\code{full address} を \code{<ホスト>:<その人の port>} に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
 リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。
@@ -1304,7 +1367,10 @@ scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
 このリポジトリの検証は、VirtualBox 7.2 の VM(UEFI、メモリ 4GB。Windows のホストで Hyper-V と共存させたため CPU 1)で行った。
 次のことは実機で確かめていない。実機で問題が見つかったら、修正の版(hotfix)で直す。
 \begin{itemize}
-  \item HDMI のダミープラグでの RDP、電源が戻ったときの起動(BIOS)、LAN の外からの到達(テスト 7)
+  \item 実機でのヘッドレスのセッションと RDP、電源が戻ったときの起動(BIOS)、LAN の外からの到達(テスト 7)
+  \item TPM のある機械での RDP の認証情報の置き場所(TPM に入ると移行で移らない見込み)
+  \item 2 人目以降の Orca Mobile のポート
+  \item 0.2 から上げたホストで、\code{agent} の RDP が新しい仮の値で入れること
   \item 電源のプロファイル performance、RDP の extend モード
   \item 実際のプロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
   \item Slack への送信、Claude Code の Remote Control、Orca Mobile のペアリング、クラウドの CLI の実際のログイン

@@ -17,13 +17,13 @@
 1. 物理 PC への Ubuntu の自動構成は、公式の autoinstall を使う。Server 専用ではなく Desktop でも使える
 2. 常時稼働させたいが、AI エージェントを動かすためにデスクトップが必要 → Desktop 版に常時稼働の設定を足す
 3. エージェントの作業環境は Orca(stablyai/orca。Claude Code や Codex を git worktree ごとに並列実行する ADE)。Codex も併用する
-4. 遠隔操作は xrdp ではなく、GNOME 標準の「デスクトップ共有」(RDP)にする
-   - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない(主な理由)
+4. 遠隔操作は xrdp ではなく、GNOME のリモートデスクトップ(gnome-remote-desktop)の RDP にする。0.3 から、利用者ごとのヘッドレスのセッションで動かす(下の 7)
+   - (0.2 まで)xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない、として seat0 のデスクトップ共有を使っていた。0.3 からは systemd がヘッドレスのセッションを起動のときに立てるので、この理由は当たらない
    - Ubuntu の GNOME のセッションは 25.10 から Wayland だけ(上流の mutter が 49 で X11 を既定で無効にし、50 で削除)。xrdp は Xorg のセッションを作るので、GNOME を動かせない。xrdp・xorgxrdp と、Xfce などの X11 のセッションは 26.04 にもある(Ubuntu 26.04 のリリースノート「Other desktop sessions, such as KDE on X11, Xfce, ... can still be launched using an X.org session」。2026-10-25 に確認)
-   - デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立する
-5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(1 人で使う専用ユーザーで、置く秘密はその人の各サービスのログインだけ、が前提)
+   - (0.2 まで)デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立した
+5. パスワードなしで立てるセッションではキーリングが開かない → 利用者のキーリングを空パスワードにする(中身はホームの 700 だけで守られる)
 6. post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)
-7. 1 台は 1 人で使う。複数の人が同じセッション(agent)に入ると、Claude Code・Codex のログインが 1 つになり、ひとりのサブスクリプション(個人の契約)を全員で使うことになる。`CLAUDE_CONFIG_DIR` などで分けても、同じセッションに入れる人は誰の認証情報でも使えるので、分けたことにならない。複数の人で使うときはホストを人数分にする
+7. 1 台を複数の人で使えるように、利用者ごとに Linux のユーザー、ヘッドレスのセッション、RDP のポートを分ける(0.3、#15)。0.2 までの「1 台は 1 人」では、複数の人が同じセッション(agent)に入ると Claude Code・Codex のログインが 1 つになり、ひとりのサブスクリプションを共有することになった。比べた方式は「利用者ごとのヘッドレスのセッション: 方式の比較」
 
 詳細は SPEC.md §8 を参照。
 
@@ -340,28 +340,42 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 
 - ほかに分かったこと: `useradd -m` のホームは 750 だった(700 にする)。ヘッドレスのセッションの PAM のサービスは `gdm-autologin`、`Remote=yes`
 
+### 利用者ごとのヘッドレスのセッション: 方式の比較(2026-10-25、#15)
+
+| 方式 | 選ばなかった理由 / 選んだ理由 |
+|---|---|
+| 全員ヘッドレス(選んだ) | systemd が起動のときに全員のセッションを立て、落ちたら立てなおす(Restart=always)ので、人手なしで戻る目的を保てる。1 人の台も同じ作りにでき、seat0 の自動ログイン・見張り・HDMI ダミープラグが要らなくなる。利用者ごとに Linux のユーザーが分かれるので、ホーム(サブスクリプションのログイン)も分かれる |
+| 1 人目だけ seat0 の自動ログイン + デスクトップ共有、2 人目からヘッドレス | 作りが 2 通りになり、検査と手順も 2 通りになる。1 人目だけダミープラグと見張りが要る |
+| GDM のリモートログイン(RDP でつないだときにログインする) | つなぐまでセッションと Orca が立たないので、再起動のあとに誰かがログインするまでエージェントが動かない |
+| 1 つのセッションで CLAUDE_CONFIG_DIR などを分ける | 同じセッションに入れる人は、誰の認証情報でも使えるので、分けたことにならない |
+
+- RDP のパスワードは、env.yaml の値を初回だけの仮のものにし、本人が `grdctl --headless rdp set-credentials` で変える。構成は認証情報がまだないときだけ仮の値を入れる。利用者どうしを隔てる実質の境界なので、管理者(env.yaml と ISO を見られる人)が知らない値にする
+- RDP のポートは利用者に固定する(env.yaml で必須)。並び順で割り当てると、外したり並べ替えたりしたときに残った人の接続先が変わる(計画のレビューの指摘)
+- 外した利用者は、ユーザーとホームを残して期限切れにする(`usermod --expiredate 1`)。パスワードのロックだけでは鍵の SSH は止まらない。`AllowUsers` からも外す(`Match User` から外れた人が鍵でシェルに入れるのを防ぐ)
+- `just verify-rdp` は、仮のパスワードで通らなかったときに成功にも失敗にもせず「未検証」と出す。変えたのか、設定の誤りや障害かを区別できないので、`--ask` で今のパスワードを確かめる経路を足した
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
 
-- HDMI のダミープラグでの RDP(モニターなし)、BIOS の停電復帰、lan_cidrs の外から 22・3389 に届かないこと(受け入れテスト 7)
-- 電源のプロファイル performance(VM にはない)、RDP の extend モード(VM では GNOME Shell が異常終了した)
+- 実機でのヘッドレスのセッション(モニターなし。RDP の解像度がつなぐ側に合うか)、BIOS の停電復帰、lan_cidrs の外から 22・利用者の RDP のポートに届かないこと(受け入れテスト 7)
+- 電源のプロファイル performance(VM にはない)
 - 実際の HTTP プロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
 - Slack への送信、Claude Code の Remote Control、Orca Mobile でのペアリング(LAN・Relay)、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
-- systemd-oomd がメモリ不足のときに Orca ごと止めないか
+- 利用者ごとのヘッドレスのセッションで: 本人が端末で `grdctl --headless rdp set-credentials` を実行してパスワードを変えられること、TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
-- agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、agent のホームの外を書き換えられないか(#1 と同じ種類の問題)
+- agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、利用者のホームの外を書き換えられないか(#1 と同じ種類の問題)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
 
 - Codex のログインはデバイスコード認証(`codex login --device-auth`)。ChatGPT 側の設定で事前に有効化しておかないと、エラーにならず止まって見える
-- Codex の認証情報は `~/.codex/auth.json` に平文で保存される。`agent` のホームの権限を絞る
+- Codex の認証情報は `~/.codex/auth.json` に平文で保存される。利用者のホームは 700 にしている(sysadmin は読める)
 - Orca は .deb 版なら自分では更新を適用しない(通知は出る)。apt-mark hold で固定している。上げるときは 70-orca.sh の版と SHA256 を直す
 - バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
 - build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh`(root のみ読める)には秘密情報が入る
