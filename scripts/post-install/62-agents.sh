@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # env.yaml の agents で選んだ追加のエージェント(opencode / copilot / antigravity)を入れる。
 # Claude Code と Codex は 60-devtools.sh で必ず入れる。選ばなくなったものは消さない。
-# どれも root で /opt か npm の全体に入れるので、agent からは書き換えられない(自己更新もできない)。
-# そのうえで、各ツールの設定でも自動更新を止める(environment.d は agent の GNOME セッションと Orca に入る)。
+# どれも root で /opt か npm の全体に入れるので、利用者からは書き換えられない(自己更新もできない)。
+# そのうえで、各ツールの設定でも自動更新を止める(environment.d は利用者の GNOME セッションと Orca に入る)。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
@@ -16,18 +16,17 @@ ANTIGRAVITY_VERSION=1.4.6
 ANTIGRAVITY_SHA256=513c74ad3e70323839a65d8dccc6f9977b0903e5facd914cbb06be283c2bb640
 
 selected() { [[ " ${AH_AGENTS:-} " == *" $1 "* ]]; }
-env_d="$AGENT_HOME/.config/environment.d"
 
 # --- OpenCode(MIT。モデルは API キーや OAuth で選ぶ) ---
 if selected opencode; then
     npm_global opencode-ai "$OPENCODE_VERSION" opencode
-    printf 'OPENCODE_DISABLE_AUTOUPDATE=1\n' | write_agent_file 644 "$env_d/62-opencode.conf"
+    printf 'OPENCODE_DISABLE_AUTOUPDATE=1\n' | write_users_file 644 ".config/environment.d/62-opencode.conf"
 fi
 
 # --- GitHub Copilot CLI(Copilot の契約が要る。ログインは /login のデバイスコード) ---
 if selected copilot; then
     npm_global @github/copilot "$COPILOT_VERSION" copilot
-    printf 'COPILOT_AUTO_UPDATE=false\n' | write_agent_file 644 "$env_d/62-copilot.conf"
+    printf 'COPILOT_AUTO_UPDATE=false\n' | write_users_file 644 ".config/environment.d/62-copilot.conf"
 fi
 
 # --- Antigravity CLI(Google。ログインは URL とコード。テレメトリはアカウント側の /config で切り替える) ---
@@ -44,6 +43,6 @@ if selected antigravity; then
     # 文書のコマンド名は agy。tar の中の実行ファイル名は antigravity
     ln -sfn "$agy_dir/antigravity" /usr/local/bin/agy
     ln -sfn "$agy_dir/antigravity" /usr/local/bin/antigravity
-    printf 'AGY_CLI_DISABLE_AUTO_UPDATE=true\n' | write_agent_file 644 "$env_d/62-antigravity.conf"
+    printf 'AGY_CLI_DISABLE_AUTO_UPDATE=true\n' | write_users_file 644 ".config/environment.d/62-antigravity.conf"
     log "Antigravity CLI $ANTIGRAVITY_VERSION を入れた"
 fi

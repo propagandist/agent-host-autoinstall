@@ -5,6 +5,7 @@
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+load_env
 
 # 入っていない unit を指定しても止まらないように、あるものだけ mask する
 mask_units() {
@@ -17,7 +18,7 @@ mask_units() {
         fi
     done
 }
-# agent のセッションで動く unit(systemd のユーザー側)。全ユーザーに効く --global で mask する
+# 利用者のセッションで動く unit(systemd のユーザー側)。全ユーザーに効く --global で mask する
 mask_user_units() {
     local unit
     for unit in "$@"; do
@@ -26,13 +27,13 @@ mask_user_units() {
         fi
     done
 }
-# ログイン時の自動起動を agent だけ止める(/etc/xdg/autostart の同名ファイルを Hidden で上書きする)
+# ログイン時の自動起動を利用者だけ止める(/etc/xdg/autostart の同名ファイルを Hidden で上書きする)
 hide_autostart() {
     local name
     for name in "$@"; do
         [ -f "/etc/xdg/autostart/$name.desktop" ] || continue
         printf '[Desktop Entry]\nType=Application\nName=%s\nHidden=true\n' "$name" |
-            write_agent_file 644 "$AGENT_HOME/.config/autostart/$name.desktop"
+            write_users_file 644 ".config/autostart/$name.desktop"
     done
 }
 
@@ -52,7 +53,7 @@ mask_user_units ubuntu-insights-collect.timer ubuntu-insights-upload.timer
 # 5. ファイルの索引作り(ホーム全体を索引し、worktree や node_modules で CPU とディスクを使う)
 mask_user_units localsearch-3.service
 hide_autostart localsearch-3
-# 6. agent のセッションの不要な常駐(予定表・連絡先、携帯・カメラ・オンラインアカウントの監視、位置情報、
+# 6. 利用者のセッションの不要な常駐(予定表・連絡先、携帯・カメラ・オンラインアカウントの監視、位置情報、
 #    Ubuntu Pro と利用報告の通知、ディスクの通知、snap の補助、Mozc のために常に起動される Xwayland)
 mask_user_units evolution-addressbook-factory.service evolution-calendar-factory.service \
     evolution-source-registry.service gvfs-afc-volume-monitor.service gvfs-gphoto2-volume-monitor.service \
@@ -70,7 +71,8 @@ if dpkg-query -W -f='${Status}' snapd 2>/dev/null | grep -q 'install ok installe
     snap wait system seed.loaded || true
     apt-get purge -y snapd firefox
     rm -rf /var/cache/snapd /root/snap
-    agent_run rm -rf "$AGENT_HOME/snap"
+    remove_snap_dir() { agent_run rm -rf "$AGENT_HOME/snap"; }
+    for_each_user remove_snap_dir
 fi
 cat >/etc/apt/preferences.d/agent-host-no-snapd.pref <<'EOF'
 # agent-host-autoinstall が置いた設定: snapd を入れない(36-minimize.sh)
@@ -123,6 +125,14 @@ swap-priority = 100
 EOF
 systemctl daemon-reload
 systemctl restart systemd-zram-setup@zram0.service || log "注意: zram を今は作れなかった(次の起動で作られる)"
+# zram はディスクより速いので早めにスワップへ逃がし(swappiness は 0〜200、既定 60)、先読みは止める。
+# 値は Pop!_OS の zram の設定にならった。カーネルの文書は、zram では 100 を超える値も「考えられる」とするだけ(#18)
+cat >/etc/sysctl.d/60-agent-host-zram.conf <<'EOF'
+# agent-host-autoinstall が置いた設定
+vm.swappiness = 180
+vm.page-cluster = 0
+EOF
+sysctl -q -p /etc/sysctl.d/60-agent-host-zram.conf
 
 # 14. 電源のプロファイル(ビルドやテストを速くする)
 if command -v powerprofilesctl >/dev/null; then

@@ -1,20 +1,16 @@
 #!/usr/bin/env bash
-# agent のセッションの準備: 空パスワードのログインキーリング、RDP 認証情報の受け渡し、first-login の自動起動。
-# デスクトップ共有の設定(grdctl)は agent のセッションの中でしか動かないので、first-login で行う。
+# 利用者ごとのセッションの準備: 空パスワードのログインキーリング、ホームのフォルダー名、git、プロキシ、mise、
+# エージェントへのホストの説明。セッションは 88-start-sessions.sh が立てる。RDP の設定は 20-sessions.sh。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
 load_env
-
-state_dir="$AGENT_HOME/.config/agent-host"
-done_mark="$state_dir/first-login.done"
+run_per_user
 
 # --- ログインキーリング(空パスワード = 平文) ---
-# 自動ログインではキーリングが開かず、RDP の認証情報が読めない(SPEC.md §8)。
-# マスターパスワードが空のキーリングは平文の形式で保存される(gnome-keyring のソースで確認済み)ので、
-# その形式のファイルを最初から置いておく。既にキーリングがあるときは触らない。
-# このファイルを置くだけで、自動ログイン後に grdctl set-credentials が通る(VirtualBox で確認済み)。
-# 効かない環境では docs/manual-steps.md の手順でパスワードを空にする
+# パスワードなしで立てるセッションではキーリングが開かず、アプリ(VS Code など)が新しいキーリングのパスワードを
+# 聞いてくる(#15 の段 0)。マスターパスワードが空のキーリングは平文の形式で保存される(gnome-keyring のソースで
+# 確認済み)ので、その形式のファイルを最初から置いておく。既にキーリングがあるときは触らない。中身はホームの 700 だけで守られる
 keyrings="$AGENT_HOME/.local/share/keyrings"
 if [ ! -f "$keyrings/login.keyring" ]; then
     write_agent_file 600 "$keyrings/login.keyring" <<'EOF'
@@ -103,10 +99,10 @@ agent_git() { runuser -u "$AGENT_USER" -- env HOME="$AGENT_HOME" git config --gl
 agent_git user.name "$AH_GIT_USER_NAME"
 agent_git user.email "$AH_GIT_USER_EMAIL"
 agent_git init.defaultBranch main
-log "agent の git の名前・メール・既定ブランチを設定した"
+log "$AGENT_USER の git の名前・メール・既定ブランチを設定した"
 
 # --- 更新の通知を出さない ---
-# agent には sudo がなく更新できないうえ、誰も見ていない画面に残る。更新は unattended-upgrades と sysadmin が行う
+# 利用者には sudo がなく更新できないうえ、誰も見ていない画面に残る。更新は unattended-upgrades と sysadmin が行う
 write_agent_file 644 "$AGENT_HOME/.config/autostart/update-notifier.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
@@ -116,7 +112,7 @@ Hidden=true
 EOF
 
 # --- プロキシと CA 証明書(05-proxy-ca.sh の続き) ---
-# agent の systemd(ユーザー)には /etc/environment が入らないことがあるので、同じ値を environment.d にも置く
+# 利用者の systemd(ユーザー)には /etc/environment が入らないことがあるので、同じ値を environment.d にも置く
 # (rootless Docker のイメージ取得などに効かせる)
 agent_env="$AGENT_HOME/.config/environment.d/50-proxy-ca.conf"
 block="$(sed -n '/^# >>> agent-host-autoinstall$/,/^# <<< agent-host-autoinstall$/p' /etc/environment |
@@ -124,7 +120,7 @@ block="$(sed -n '/^# >>> agent-host-autoinstall$/,/^# <<< agent-host-autoinstall
 if [ -n "$block" ]; then
     printf '%s\n' "$block" | write_agent_file 644 "$agent_env"
 else
-    rm -f "$agent_env"
+    agent_run rm -f "$agent_env"
 fi
 # Chrome は CA 証明書をシステムのストアではなく、ユーザーごとの NSS のデータベースから読む
 if compgen -G "/usr/local/share/ca-certificates/agent-host/*.crt" >/dev/null; then
@@ -136,12 +132,12 @@ if compgen -G "/usr/local/share/ca-certificates/agent-host/*.crt" >/dev/null; th
     for crt in /usr/local/share/ca-certificates/agent-host/*.crt; do
         runuser -u "$AGENT_USER" -- certutil -A -d "sql:$nssdb" -t "C,," -n "$(basename "$crt" .crt)" -i "$crt"
     done
-    log "agent の Chrome に独自の CA 証明書を登録した"
+    log "$AGENT_USER の Chrome に独自の CA 証明書を登録した"
 fi
 
 # --- mise(プロジェクトごとの言語のバージョン) ---
 # GUI のアプリ(Orca)や非対話のシェルからも使えるよう、shims を PATH に入れる。対話のシェルでは activate も使う。
-# agent のホーム以下の mise.toml は信頼する(確認で止まらないように。エージェントはどのみち任意のコードを動かす)
+# 利用者のホーム以下の mise.toml は信頼する(確認で止まらないように。エージェントはどのみち任意のコードを動かす)
 # environment.d はファイル名の順に読まれ、/usr/lib/environment.d/99-environment.conf(= /etc/environment)が
 # PATH を固定の値で上書きする。それより後に読まれる名前(990-snapd.conf よりも後)にする(26.04 で確認済み)
 agent_run rm -f "$AGENT_HOME/.config/environment.d/40-mise.conf"
@@ -173,16 +169,18 @@ agent_notes="$(cat <<'EOF'
 agent-host-autoinstall が置いた説明。環境の事実だけを書いている。
 
 - このマシンは常時稼働の AI エージェント用ホスト(Ubuntu Desktop 26.04 LTS)。人が画面を見ていないことが多い
-- あなたは agent ユーザーで、sudo は使えない。apt でのインストールはできないので、試さない
-- 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
+- あなたは @USER@ ユーザーで、sudo は使えない。apt でのインストールはできないので、試さない
+- このホストはほかの利用者と共有していることがある。ほかの利用者のホームは読めない。開発サーバーのポート(手元の PC から見るもの)はほかの利用者と取り合う
+- 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`、`mise use -g just`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
 - Python は uv(`uv venv`、`uv pip install`、`uv run`)を使える。pnpm と yarn は corepack で使える
 - データベースなどのサービスは rootless Docker(`docker compose`)で動かす。1024 未満のポートは待ち受けできない
-- 入っている主な道具: git、gh、tea、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
+- 入っている主な道具: git、gh、tea、node、npm、python3(`python` でも動く)、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
 - GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
 - Terraform・OpenTofu・kubectl・Helm などは入れていない。プロジェクトに合う版を mise で入れる(例: `mise use terraform@1.13`)
 - 作業は ~/work の下で行う
 EOF
 )"
+agent_notes="${agent_notes//@USER@/$AGENT_USER}"
 if [ -n "${AH_GITEA_URL:-}" ]; then
     agent_notes="$agent_notes"$'\n'"- Gitea($AH_GITEA_URL)の Issue・PR などの操作は tea を使う(\`tea login list\` で確かめる)。Gitea への HTTPS の push は tea のログインの認証を使う"
 fi
@@ -203,46 +201,17 @@ runuser -u "$AGENT_USER" -- mkdir -p "$AGENT_HOME/work"
 log "mise の有効化と、エージェントへのホストの説明を置いた"
 
 # --- environment.d を読み直させる ---
-# 65-docker.sh の linger で agent の systemd(ユーザー)はもう動いていて、そのあとに置いた environment.d
+# 20-sessions.sh の linger で利用者の systemd(ユーザー)はもう動いていて、そのあとに置いた environment.d
 # (Orca・Docker・mise など)を読んでいない。GNOME のセッションはこの systemd をそのまま使うので、
-# agent がまだログインしていなければ再起動して読み直させる(rootless Docker も一緒に再起動する)。
-# ログイン中(構成を手で再実行したとき)は止めない。次のログインで反映される
+# セッションがまだなければ再起動して読み直させる(rootless Docker も一緒に再起動する)。
+# セッションが動いているとき(just update)は止めない。次にセッションが立つときに反映される
 agent_uid="$(id -u "$AGENT_USER")"
 if systemctl is-active --quiet "user@$agent_uid.service"; then
     # linger のための manager のセッションは除き、ログインのセッション(CLASS が user)だけを見る
     if loginctl list-sessions --no-legend | awk -v u="$AGENT_USER" '$3 == u && $6 == "user"' | grep -q .; then
-        log "注意: $AGENT_USER がログイン中なので、environment.d の変更は次のログインで反映される"
+        log "注意: $AGENT_USER のセッションが動いているので、environment.d の変更は次にセッションが立つときに反映される"
     else
         systemctl restart "user@$agent_uid.service"
         log "$AGENT_USER の systemd(ユーザー)を再起動して environment.d を読み直させた"
     fi
-fi
-
-# --- RDP の認証情報 ---
-# env.yaml の rdp が前に渡したものと違えば渡しなおす(初回は first-login が、以後はログインのたびの自動起動が入れる)。
-# agent がログイン中なら、その場でセッションに入れる(キーリングが開いているので入る)
-if queue_rdp_credentials; then
-    log "RDP の認証情報を渡した"
-    if [ -f "$done_mark" ]; then
-        rc=0
-        agent_session_run "$AH_ROOT/first-login/rdp-credentials.sh" || rc=$?
-        case "$rc" in
-        0) log "ログイン中の $AGENT_USER のセッションに RDP の認証情報を入れた" ;;
-        2) ;;  # ログインしていない。次のログインで入る
-        *) log "注意: RDP の認証情報をその場では入れられなかった。次のログインで入る" ;;
-        esac
-    fi
-fi
-
-# --- first-login ---
-if [ ! -f "$done_mark" ]; then
-    write_agent_file 644 "$AGENT_HOME/.config/autostart/agent-host-first-login.desktop" <<EOF
-[Desktop Entry]
-Type=Application
-Name=agent-host first login
-Exec=$AH_ROOT/first-login/first-login.sh
-X-GNOME-Autostart-enabled=true
-NoDisplay=true
-EOF
-    log "first-login の自動起動を設定した"
 fi

@@ -40,9 +40,10 @@ status target:
 verify target:
     just -f {{tool}} verify {{target}}
 
-# ホストの env.yaml の rdp で RDP の認証が通るかを確かめる(画面は開かない)
-verify-rdp host target=host:
-    scripts/with-env.sh {{host}} just -f {{tool}} verify-rdp {{target}}
+# ホストの env.yaml の users で、利用者ごとに RDP の認証が通るかを確かめる(画面は開かない)。
+# 本人が変えたパスワードで確かめるなら ask に利用者の名前を書く(例: just verify-rdp agent-host-01 ask=alice)
+verify-rdp host target=host ask="":
+    scripts/with-env.sh {{host}} just -f {{tool}} verify-rdp {{target}} {{ if ask != "" { "--ask " + ask } else { "" } }}
 
 # 台帳のための情報を facts/<ホスト>.yaml に書く(コミットする。秘密情報は入らない)
 facts host target=host:
@@ -50,7 +51,7 @@ facts host target=host:
     just -f {{tool}} facts {{target}} | sed '/^$/d' > facts/{{host}}.yaml
     @echo "書いた: facts/{{host}}.yaml"
 
-# 構成・first-login・セッションの見張りの記録を見る
+# 構成・利用者ごとの first-login とセッションの記録を見る
 logs target:
     just -f {{tool}} logs {{target}}
 
@@ -58,11 +59,11 @@ logs target:
 ssh target:
     just -f {{tool}} ssh {{target}}
 
-# RDP の接続ファイルを build/<ホスト>.rdp に作る
-rdp target:
-    just -f {{tool}} rdp {{target}}
-    mkdir -p build && mv -f tool/build/{{target}}.rdp build/
-    @echo "移した: build/{{target}}.rdp"
+# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートは hosts/<ホスト>.yaml の users の port)
+rdp target port="3389":
+    just -f {{tool}} rdp {{target}} {{port}}
+    mkdir -p build && mv -f tool/build/{{target}}-{{port}}.rdp build/
+    @echo "移した: build/{{target}}-{{port}}.rdp"
 
 # 移行の書き出し(ログインの情報が入るので、out はこのリポジトリの外の暗号化された場所にする)
 backup target out:

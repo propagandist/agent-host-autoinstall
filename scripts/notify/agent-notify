@@ -14,6 +14,7 @@
 import hashlib
 import json
 import os
+import pwd
 import socket
 import sys
 import time
@@ -23,6 +24,9 @@ CONF = "/etc/agent-host/notify.env"
 STATE = os.path.expanduser("~/.cache/agent-notify/last.json")
 DEDUP_SECONDS = 60  # 同じ通知が続いたら 1 回にまとめる
 TITLES = {"approval": "承認待ち", "error": "エラー", "done": "完了"}
+# 実行しているユーザー(利用者ごとのエージェントの hook から呼ばれる。root や nut のときはホストの通知)
+USER = pwd.getpwuid(os.getuid()).pw_name
+SYSTEM_USERS = {"root", "nut"}
 
 
 def load_conf():
@@ -104,7 +108,7 @@ DISCOVER_SECONDS = 2.0
 
 
 def ipmsg_packet(command, extra):
-    head = f"1:{int(time.time() * 1000) % 2**31}:agent:{socket.gethostname()}:{command}:"
+    head = f"1:{int(time.time() * 1000) % 2**31}:{USER}:{socket.gethostname()}:{command}:"
     return head.encode("utf-8") + extra.encode("utf-8") + b"\0"
 
 
@@ -137,7 +141,7 @@ def ipmsg_discover(broadcasts):
         s.bind(("", IPMSG_PORT))  # 応答は 2425 番に返ってくる
         s.settimeout(0.2)
         for addr in broadcasts:
-            s.sendto(ipmsg_packet(BR_ENTRY | UTF8OPT | CAPUTF8OPT, "agent\0"), (addr, IPMSG_PORT))
+            s.sendto(ipmsg_packet(BR_ENTRY | UTF8OPT | CAPUTF8OPT, USER + "\0"), (addr, IPMSG_PORT))
         end = time.time() + DISCOVER_SECONDS
         while time.time() < end:
             try:
@@ -151,7 +155,7 @@ def ipmsg_discover(broadcasts):
                 found.setdefault(name, set()).add(ip)
         # 各 PC のメンバー一覧から消す
         for addr in broadcasts:
-            s.sendto(ipmsg_packet(BR_EXIT | UTF8OPT, "agent\0"), (addr, IPMSG_PORT))
+            s.sendto(ipmsg_packet(BR_EXIT | UTF8OPT, USER + "\0"), (addr, IPMSG_PORT))
     return found
 
 
@@ -207,7 +211,9 @@ def main():
         return
 
     conf = load_conf()
-    text = f"[{socket.gethostname()}] {TITLES[kind]}\n{body}"
+    # 頭に [ホスト名/利用者名]。1 台を複数の利用者で使うので、誰のエージェントかを分かるようにする
+    who = socket.gethostname() if USER in SYSTEM_USERS else f"{socket.gethostname()}/{USER}"
+    text = f"[{who}] {TITLES[kind]}\n{body}"
     if conf.get("SLACK_WEBHOOK_URL"):
         try:
             send_slack(conf["SLACK_WEBHOOK_URL"], text)

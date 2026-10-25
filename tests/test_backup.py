@@ -1,4 +1,5 @@
-"""移行の書き出し(agent-host-backup)が、作りなおせるものだけを除き、原本を除かないことの試験(Issue #4)。
+"""移行の書き出し(agent-host-backup)が、作りなおせるものだけを除き、原本を除かないことの試験(Issue #4)と、
+書き出しと取り込みが、利用者の置いたリンクをたどって root のファイルを読み書きしないことの試験(Issue #23)。
 
 実物の scripts/migrate/agent-host-backup を root で動かすので、使い捨てのコンテナ(just test は Docker の中で root で動く)の
 ときだけ実行する。/opt/agent-host/lib と agent ユーザーを作る。
@@ -33,6 +34,9 @@ class TestBackupExcludes(unittest.TestCase):
     def setUpClass(cls):
         os.makedirs("/opt/agent-host/lib", exist_ok=True)
         shutil.copy(os.path.join(REPO, "scripts", "lib", "common.sh"), "/opt/agent-host/lib/common.sh")
+        # 書き出しは env.sh の利用者(AH_USERS)全員の分を書く
+        write("/opt/agent-host/env.sh", "AH_USERS=agent\n")
+        write("/opt/agent-host/users/agent.env", "AH_USER_PORT=3389\n")
         try:
             pwd.getpwnam("agent")
         except KeyError:
@@ -67,13 +71,30 @@ class TestBackupExcludes(unittest.TestCase):
         write(f"{HOME}/.azure/msal_token_cache.json")
         write(f"{HOME}/.config/tea/config.yml")
         run("chown", "-R", "agent:agent", HOME)
+        # 利用者が途中のディレクトリを、root だけが読めるディレクトリへのリンクにする(Issue #23)
+        write("/srv/ah-secret/config.json", "ROOT-ONLY\n")
+        os.chmod("/srv/ah-secret/config.json", 0o600)
+        os.chmod("/srv/ah-secret", 0o700)
+        run("runuser", "-u", "agent", "--", "ln", "-sfn", "/srv/ah-secret", f"{HOME}/.docker")
+        # 通り抜けはできる(711)が、その先のファイルは読めない場合
+        write("/srv/ah-711/keyrings/login.keyring", "ROOT-711\n")
+        os.chmod("/srv/ah-711/keyrings/login.keyring", 0o600)
+        os.chmod("/srv/ah-711", 0o711)
+        run("runuser", "-u", "agent", "--", "mkdir", "-p", f"{HOME}/.local")
+        run("runuser", "-u", "agent", "--", "ln", "-sfn", "/srv/ah-711", f"{HOME}/.local/share")
+        # rootless Docker のコンテナが作ったデータのように、~/work の中に利用者の読めないディレクトリがある
+        write(f"{WORK}/proj/pgdata/base/1")
+        run("chown", "-R", "100998:100998", f"{WORK}/proj/pgdata")
+        os.chmod(f"{WORK}/proj/pgdata", 0o700)
         out = tempfile.mkdtemp()
         cls.archive = os.path.join(out, "backup.tar.zst")
         with open(cls.archive, "wb") as f:
             subprocess.run(["bash", os.path.join(REPO, "scripts", "migrate", "agent-host-backup")],
                            stdout=f, stderr=subprocess.PIPE, check=True)
-        cls.members = set(run("tar", "--zstd", "-tf", cls.archive).stdout.splitlines())
-        cls.manifest = run("tar", "--zstd", "-xOf", cls.archive, "agent-host-manifest.txt").stdout
+        # 書き出しは root の tar のあとに利用者ごとの tar が続くので、-i で全部を読む
+        cls.members = set(run("tar", "--zstd", "-i", "-tf", cls.archive).stdout.splitlines())
+        cls.manifest = run("tar", "--zstd", "-i", "-xOf", cls.archive, "agent-host-manifest.txt").stdout
+        cls.contents = subprocess.run(["tar", "--zstd", "-i", "-xOf", cls.archive], check=True, capture_output=True).stdout
 
     def has(self, path):
         p = path.lstrip("/")
@@ -96,9 +117,86 @@ class TestBackupExcludes(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(self.has(path), path)
 
+    def test_manifest_lists_users(self):
+        # 取り込みは利用者ごとに UID を比べ、このホストにいない人の分を除く
+        self.assertIn(f"uid.agent={pwd.getpwnam('agent').pw_uid}", self.manifest)
+        self.assertIn("home.agent=home/agent", self.manifest)
+
+    def test_root_only_file_behind_link_is_not_read(self):
+        # ホームの分は利用者の権限で読むので、リンクの先の root だけが読めるファイルは入らない(Issue #23)
+        self.assertFalse(self.has(f"{HOME}/.docker/config.json"))
+        self.assertNotIn(b"ROOT-ONLY", self.contents)
+        self.assertNotIn(b"ROOT-711", self.contents)
+
+    def test_unreadable_are_reported_and_others_kept(self):
+        # 利用者に読めないものは書き出しを止めずに除き、記録に残す。ほかのものは書き出す
+        self.assertIn(f"unreadable={WORK.lstrip('/')}/proj/pgdata", self.manifest)
+        self.assertIn(f"unreadable={HOME.lstrip('/')}/.local/share/keyrings/login.keyring", self.manifest)
+        self.assertFalse(self.has(f"{WORK}/proj/pgdata"))
+        self.assertTrue(self.has(f"{WORK}/proj/src/main.py"))
+
     def test_manifest_lists_excluded(self):
         self.assertIn(f"excluded={WORK.lstrip('/')}/proj/node_modules", self.manifest)
         self.assertIn(f"excluded={WORK.lstrip('/')}/proj/.venv", self.manifest)
+
+
+def restore(archive):
+    with open(archive, "rb") as f:
+        return subprocess.run(["bash", os.path.join(REPO, "scripts", "migrate", "agent-host-restore")],
+                              stdin=f, capture_output=True, text=True)
+
+
+@unittest.skipUnless(IN_CONTAINER, "使い捨てのコンテナの中で root のときだけ(git と zstd も要る)")
+class TestRestore(unittest.TestCase):
+    """取り込みが、ホームの分を利用者の権限で展開すること(Issue #23)。"""
+
+    @classmethod
+    def setUpClass(cls):
+        TestBackupExcludes.setUpClass()
+        cls.archive = TestBackupExcludes.archive
+        write("/var/lib/agent-host/provisioned", "")
+        # 取り込み先は入れなおしたばかりのホームとして、書き出しの試験で置いたホームの外へのリンクを片づける
+        for link in (f"{HOME}/.docker", f"{HOME}/.local/share"):
+            os.remove(link)
+
+    def setUp(self):
+        shutil.rmtree("/srv/ah-out", ignore_errors=True)
+        os.makedirs("/srv/ah-out", mode=0o755)
+
+    def test_restored_as_user(self):
+        shutil.rmtree(f"{HOME}/.aws")
+        r = restore(self.archive)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertTrue(os.path.exists(f"{HOME}/.aws/config"))
+        self.assertEqual(pwd.getpwuid(os.stat(f"{HOME}/.aws/config").st_uid).pw_name, "agent")
+
+    def test_existing_relative_link_is_not_followed(self):
+        # 取り込む前のホームに、ホームの外を指す相対パスのリンクがあっても、その先に書かない。
+        # 書庫に項目のある ~/.config/tea などは tar がリンクを置き換えるので、項目のない ~/.config をリンクにする
+        os.rename(f"{HOME}/.config", f"{HOME}/.config.keep")
+        try:
+            run("runuser", "-u", "agent", "--", "ln", "-sfn", "../../srv/ah-out", f"{HOME}/.config")
+            r = restore(self.archive)
+            self.assertEqual(os.listdir("/srv/ah-out"), [])
+            # 利用者の権限では書けずに、その人の取り込みは失敗として終わる(ホストの身元とほかの人の分は続ける)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertIn("取り込みに失敗した利用者: agent", r.stderr)
+        finally:
+            os.remove(f"{HOME}/.config")
+            os.rename(f"{HOME}/.config.keep", f"{HOME}/.config")
+
+    def test_old_format_is_restored_as_user(self):
+        # v0.2.0 までの書き出し(記録は agent_uid= だけ。ホームの分も root の tar の中)も、利用者の権限で取り込む
+        src = tempfile.mkdtemp()
+        write(f"{src}/agent-host-manifest.txt",
+              f"hostname=old\nagent_uid={pwd.getpwnam('agent').pw_uid}\npath=home/agent/.legacy\n")
+        write(f"{src}/home/agent/.legacy/file", "old\n")
+        archive = os.path.join(src, "old.tar.zst")
+        run("tar", "--zstd", "-cf", archive, "-C", src, "agent-host-manifest.txt", "home/agent/.legacy")
+        shutil.rmtree(f"{HOME}/.legacy", ignore_errors=True)
+        r = restore(archive)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(pwd.getpwuid(os.stat(f"{HOME}/.legacy/file").st_uid).pw_name, "agent")
 
 
 if __name__ == "__main__":

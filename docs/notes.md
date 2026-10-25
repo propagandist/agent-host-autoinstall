@@ -10,6 +10,7 @@
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
 - v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの 100 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
+- v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
@@ -17,13 +18,13 @@
 1. 物理 PC への Ubuntu の自動構成は、公式の autoinstall を使う。Server 専用ではなく Desktop でも使える
 2. 常時稼働させたいが、AI エージェントを動かすためにデスクトップが必要 → Desktop 版に常時稼働の設定を足す
 3. エージェントの作業環境は Orca(stablyai/orca。Claude Code や Codex を git worktree ごとに並列実行する ADE)。Codex も併用する
-4. 遠隔操作は xrdp ではなく、GNOME 標準の「デスクトップ共有」(RDP)にする
-   - xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない(主な理由)
+4. 遠隔操作は xrdp ではなく、GNOME のリモートデスクトップ(gnome-remote-desktop)の RDP にする。0.3 から、利用者ごとのヘッドレスのセッションで動かす(下の 7)
+   - (0.2 まで)xrdp やリモートログインは別セッションを作るため、再起動後に誰かがログインするまで Orca が起動しない、として seat0 のデスクトップ共有を使っていた。0.3 からは systemd がヘッドレスのセッションを起動のときに立てるので、この理由は当たらない
    - Ubuntu の GNOME のセッションは 25.10 から Wayland だけ(上流の mutter が 49 で X11 を既定で無効にし、50 で削除)。xrdp は Xorg のセッションを作るので、GNOME を動かせない。xrdp・xorgxrdp と、Xfce などの X11 のセッションは 26.04 にもある(Ubuntu 26.04 のリリースノート「Other desktop sessions, such as KDE on X11, Xfce, ... can still be launched using an X.org session」。2026-10-25 に確認)
-   - デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立する
-5. 自動ログインではキーリングが開かず、デスクトップ共有の認証情報が読めない → `agent` ユーザーのキーリングを空パスワードにする(1 人で使う専用ユーザーで、置く秘密はその人の各サービスのログインだけ、が前提)
+   - (0.2 まで)デスクトップ共有は物理セッションを共有するので、自動ログイン + Orca 自動起動と両立した
+5. パスワードなしで立てるセッションではキーリングが開かない → 利用者のキーリングを空パスワードにする(中身はホームの 700 だけで守られる)
 6. post-install は late-commands の中ではなく、初回起動時の `agent-host-provision.service` が実行する(インストール中の chroot では ufw などが動かないため)
-7. 1 台は 1 人で使う。複数の人が同じセッション(agent)に入ると、Claude Code・Codex のログインが 1 つになり、ひとりのサブスクリプション(個人の契約)を全員で使うことになる。`CLAUDE_CONFIG_DIR` などで分けても、同じセッションに入れる人は誰の認証情報でも使えるので、分けたことにならない。複数の人で使うときはホストを人数分にする
+7. 1 台を複数の人で使えるように、利用者ごとに Linux のユーザー、ヘッドレスのセッション、RDP のポートを分ける(0.3、#15)。0.2 までの「1 台は 1 人」では、複数の人が同じセッション(agent)に入ると Claude Code・Codex のログインが 1 つになり、ひとりのサブスクリプションを共有することになった。比べた方式は「利用者ごとのヘッドレスのセッション: 方式の比較」
 
 詳細は SPEC.md §8 を参照。
 
@@ -76,6 +77,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 日本語入力: locale ja_JP.UTF-8 と keyboard jp の指定で、インストーラーが ibus-mozc・language-pack-ja・Noto CJK を入れ、agent の入力ソースは `[('xkb', 'jp'), ('ibus', 'mozc-jp')]` になる(VirtualBox で確認済み)。RDP 越しに Ctrl+Space で切り替えて日本語を打てる(VirtualBox + 101 キーボード + mstsc で確認済み)
 - キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
 - インストーラーが入れる `mozc-jp` は、切り替えた直後が直接入力で、ひらがなにするには半角/全角キーが要る。101 キーボードでは切り替えはできても日本語を打てなかった。`mozc-on`(切り替えた時点でひらがな)にして打てた(確認済み)
+- 入力ソースに Mozc が 2 つ並んでいた(`[('xkb', 'us'), ('ibus', 'mozc-on'), ('ibus', 'mozc-jp')]`。v0.3.0 の release ブランチの VM で、Ctrl+Space の切り替えに Mozc が 2 つ出た)。Ubuntu の gnome-settings-daemon(50.0-1ubuntu1)のパッチ keyboard-Use-ibus-sources-from-locale は、gsd-keyboard が利用者ごとに初めて動くとき(`~/.local/share/gnome-settings-daemon/input-sources-converted` がないとき)、ロケールの入力メソッド(ja_JP なら `mozc-jp`)を、入っているものを見ずに末尾に足す。first-login.sh がセッションの前にこの目印を置き、desktop-env.sh がすでに足された `mozc-jp` を外すようにした(bob で確認。新しく入れたときの確認は release の vm-test)。0.2 までの agent でも同じことが起きていたはず(未確認)
 - 動いている VM の配列を `localectl set-x11-keymap` で変えようとしたら、sudo でも "Access denied" になった。`/etc/default/keyboard` を直接書き換えて代えた(原因は未調査)
 - Google Chrome は 75-chrome.sh が公式 apt リポジトリから入れ、agent の `~/.config/mimeapps.list` で既定のブラウザにする(VirtualBox で確認済み。156.0.8078.47)
   - Google のリポジトリには最新版しかないので固定しない。unattended-upgrades の許可元に `Google LLC:stable` を足して自動更新する(dry-run で許可元を確認済み)
@@ -90,7 +92,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - ネットワークは env.yaml の `network` から autoinstall の `network:`(netplan、renderer NetworkManager、`match: name: en*`)を作る(VirtualBox の新規インストールで、固定 IP がインストール後も NetworkManager で同じ設定になることを確認済み。実機の LAN では未確認)
 - 26.04 の時刻同期は chrony(systemd-timesyncd は入っていない)。同期先は `/etc/chrony/sources.d/*.sources`、DHCP で配られた NTP も使う。35-system.sh が `ntp_servers` を `agent-host.sources` に書く(VirtualBox で確認済み)
 - agent の git 設定、GitHub CLI(リリースの .deb を SHA256 照合、2.103.2。apt リポジトリは最新版しか置かない)、build-essential 等、inotify の上限、apport の無効化、update-notifier の停止、`check-alive-timeout 0` を足した(動いている VM に反映して確認済み)
-- 未確認: systemd-oomd がメモリ不足のときに Orca ごと止めることがある。実機で様子を見る
+- systemd-oomd がメモリ不足のときに Orca ごと止めるかは、2026-10-25 に VM で確かめた(下の「メモリ不足のときの systemd-oomd」。端末 1 つだけが止まる)
 - SPEC.md §10 の対象外だが気付いた点: Orca の初回の案内で「Yolo モード」(確認なしでコマンド実行)が最初からオン。agent でログインしたアカウントのスキルが `~/.claude/skills/synced/` に同期される。どのアカウントでログインするかは決めておく
 
 ### Docker(2026-10-24 追加)
@@ -169,6 +171,9 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
 - Caps Lock: RDP(mstsc)で手元とホストの状態がずれた。原因は未調査(gnome-remote-desktop 50 にはロックキーの同期の修正が入っている。IBus が先に受け取っている可能性)。caps:none で使わないことにした
 - mstsc の色 32 ビットは遅いという報告(gnome-remote-desktop #333、同じ 26.04)があるので、.rdp のひな形は 24 ビットにした
+  - 2026-10-25 にソースで見直した(#17): gnome-remote-desktop 50.2 は、クライアントがグラフィックス パイプラインかコーデックに対応していると、色の深さを 32 にする(`grd-session-rdp.c`「Client prefers colour depth %u, invalidated by support of codecs or graphics pipeline」)。ホストの側では 24 にしても軽くならない。mstsc の側で 24 と 32 で何かが変わるか(#333 の遅さの原因)は未確認なので、値は 24 のまま残し、実機で比べてから決める
+  - 同じときに、ひな形の `networkautodetect` を 0 から 1 にした。自動検出がないと RTT が 0 のままで、確認の返らないフレームが 2 つで送る量を絞る(`grd-rdp-gfx-frame-controller.c` の `activate_throttling_th = MAX (2, MIN (delayed_frames + 2, refresh_rate))`。grd も「High latency connections will suffer!」と出す)。60Hz・RTT 1ms の LAN では 1 にしても同じ 2 だが、RTT 50ms(VPN 越しなど)では 5 になる(静的な確認。実機の VPN 越しでは未確認)
+  - #17 のもう 1 つの案(4K のダミープラグのとき、env.yaml で解像度を固定する)は入れなかった。#15 で seat0 の自動ログインとダミープラグをやめ、ヘッドレスのセッションにする予定のため
 - RDP の extend モード(仮想の画面を足し、大きさを手元に合わせる)は、VirtualBox(GPU なし)で仮想の画面を足した直後に GNOME Shell が signal 11 で異常終了した。採用せず mirror-primary のまま。実機での動作は未確認
 - GNOME のセッションが落ちると、自動ログインは起動時の 1 回だけなのでログイン画面のままになり、再起動まで RDP に戻れない。TimedLogin は agent がログイン画面の一覧に出ないので効かなかった。見張りのタイマー(agent-host-session-watchdog、1 分ごと、2 回続けて seat0 にログインのセッションがなければ GDM を再起動)を置き、GNOME Shell をわざと落として約 1 分 20 秒で戻ることを確かめた
 
@@ -278,7 +283,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #1: agent のホームの中は、すべて agent の権限(`agent_run` = runuser)で書く。write_agent_file は同じディレクトリの一時ファイルから `mv -T` で置き換える(末端のリンクは置き換わるだけで、途中のディレクトリのリンクは agent の権限で止まる)。tests/test_agent_home.py で、末端と途中のディレクトリのリンクでホームの外が変わらないことを確かめる(Docker の中)。動いている VM に just update して verify が通った
 - #2: sysadmin の鍵(`/opt/agent-host/sysadmin_authorized_keys` → `~sysadmin/.ssh/authorized_keys`。インストーラーもここに書いていた)とパスワード(`usermod -p`)を just update のたびに env.yaml に合わせる。VM で、鍵を 1 本足すと入れ、外すと `Permission denied (publickey)` になること、パスワードのハッシュを替えると新しいパスワードで sudo でき、古いものでは通らないことを確かめた
 - #3: RDP の認証情報は、渡したもののハッシュを `/var/lib/agent-host/rdp-credentials.sha256`(root だけ)に置き、env.yaml と違えば `rdp.env` を置きなおす。キーリングに入れるのは `first-login/rdp-credentials.sh`(ログインのたびの自動起動)。agent がログイン中なら just update がその場でセッションのバスを通して呼ぶ。VM で、パスワードを替えると新しいもので verify-rdp が通り、古いものでは通らない(終了コード 134)ことを確かめた。動いている gnome-remote-desktop は、再起動なしで新しい認証情報を使った
-- 未確認: agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで #1 と同じ問題を起こすか
+- agent-host-restore(root の tar の展開と chown -R)の件は、2026-10-25 に #23 で確かめて直した(下の「移行の書き出しと取り込みを利用者の権限で」)
 - #4: 移行の書き出しは、名前だけでの除外をやめ、~/work の中で見つけた node_modules・__pycache__・.venv のパスと、Orca のキャッシュ(~/.config/orca の中に固定したパターン)だけを除く。tests/test_backup.py で、同じ名前のファイルとブランチが残ることを確かめる(Docker の中)。VM での書き出しと取り込みの通しはしていない
 - #5: netclient では nut-server を入れないので、nut の HOME(/var/lib/nut)が無く、通知が送られなかった。85-ups.sh が mode に関わらず作り、agent-notify は記録を書けなくても送る。HOME の無いユーザーで偽の Slack に届くことを Docker で確かめた。netclient を VM・実機の NUT サーバーにつないでは確かめていない
 - #7: 移行の書き出しに ~/.aws・~/.config/gcloud(logs を除く)・~/.azure・~/.config/tea・~/.config/mise を足した(tests/test_backup.py)
@@ -291,28 +296,139 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #14: xrdp を採らなかった主な理由を「別のセッションを作る」に直した(上の「設計で決めたこと」)
 - #6: Node.js はシステムの証明書ストアを見ないので、05-proxy-ca.sh が CA を OS に入れても、構成の途中の npm は TLS を検査するプロキシの下で `UNABLE_TO_VERIFY_LEAF_SIGNATURE` になる(自己署名の CA と https のサーバーを Docker で立てて再現。`NODE_EXTRA_CA_CERTS` で通る)。provision.sh が CA があるとき `NODE_EXTRA_CA_CERTS`・`SSL_CERT_FILE`・`REQUESTS_CA_BUNDLE` を export し、`apt-get update` を 05-proxy-ca.sh のあとに回した。実際の TLS を検査するプロキシの下での通しは未確認のまま
 
+### Windows で作られた和文の本のリポジトリ(2026-10-25、VirtualBox で確認)
+
+v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本のリポジトリ 5 本を、agent として扱えるかを確かめた(手元の clone を git bundle で持ち込んだ)。
+
+- 日本語まわりは問題がなかった
+  - PDF は rootless Docker の TeX Live のコンテナ(paperist/texlive-ja)で組め、出力の所有者は agent だった
+  - 和文フォント(原ノ味)はすべて埋め込まれ、pdftotext で日本語を取り出せた
+  - 同じイメージの digest で組んだ 4 本は、Windows で組んだ PDF とページ画像が全ページ一致した(tools/compare_build.py 相当、40dpi)
+- 最初は 4 本中 3 本で差が出たが、原因はホストではなかった。`texlive-ja:latest` が手元と VM で別のイメージを指していた。FROM を同じ digest にすると差は 0 になった
+- draw.io の書き出し(原ノ味を入れた rlespinasse/drawio-export)、Playwright での表紙の書き出し(Google Fonts の Noto Sans JP、縦書きを含む)、Gradle のテスト(JDK 21 は `mise use java@temurin-21`)、python-pptx での PowerPoint の生成も、sudo なしで動いた
+- Playwright(1.64.1)は 26.04 を「非公式・24.04 とみなす」扱い。`npx playwright install chromium`(`--with-deps` なし)で取得でき、ホストに Chrome が入っているので足りないライブラリはなかった
+- 止まったもの(ホストの側)
+  - `python` コマンドがない。`python tools/....py` で `python: not found` になった(#20)
+    → 60-devtools.sh で python-is-python3(`/usr/bin/python` へのリンク 1 本。Depends は python3 だけ、`apt-get install -s` で新しく入るのはこれだけで削除は 0)を入れた。版は Ubuntu の更新に任せる
+- 止まったもの(本のリポジトリの側の書き方)
+  - justfile が `set windows-shell` だけで PowerShell の構文のため、Linux の just(`sh -cu`)では前段で構文エラーになる。justfile を通さず `docker compose run …` を打てば組める
+  - git に実行権なし(100644)で記録された gradlew が `./gradlew` で動かない(`sh ./gradlew` なら動く)
+- just はアーカイブ(universe)に 1.45.0 があるが、agent が `mise use -g just` で入れられる(1.59.0)ので入れていない。apt と mise の両方に入ると、どちらが動いているか分かりにくい。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明はすでにあれば上書きしないので、入れ済みのホストには届かない)
+- 5 本の PDF のイメージで、VM(ルート 37GB)の空きが約 15GB から約 7.6GB に減った
+
+### PDF ビューアー(2026-10-25 追加、#19)
+
+- PDF の既定のアプリを決めていなかったので、Atril(26.04 の universe の 1.28.2。GTK3、desktop ファイルは `atril.desktop`)を入れ、agent の mimeapps.list の `application/pdf` にした。Recommends は dbus のセッションと gvfs だけで、Caja は Suggests(ubuntu:26.04 のコンテナで `apt-cache show` を見た)
+- 選ばなかったもの: zathura(メニューがなく vim 風のキー操作が前提)、MuPDF(X11 なので開くたびに Xwayland が起動する)、qpdfview(このホストにない Qt を一式入れることになる)
+- 未確認: ubuntu-desktop-minimal で Papers(main に 50.2 がある)や Evince が入るか、Atril のメモリの量、日本語の PDF の表示(VM で確かめる)
+
+### 利用者ごとのヘッドレスのセッション: 段 0(2026-10-25、VirtualBox で確認、#15)
+
+v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログインと見張りを止め、試験用のユーザー alice・bob(パスワードはロック、sudo なし、linger)を作って手で確かめた。
+
+1. **ユニットはある。** gdm3 50.1 に `gnome-headless-session@.service`(system。`ExecStart=/usr/libexec/gdm-new-session %i --headless`、`Restart=on-failure`)、gnome-remote-desktop 50.2 に `gnome-remote-desktop-headless.service`(user)がある
+   - **そのままでは立たない。** ユニットの `DynamicUser=true` のままだと `gdm-new-session` が `Failed: The connection is closed`(終了コード 70)で止まる。root で直に実行すると立つ。`User=gdm` の一時のユニットでは polkit の `manage-user-displays` で拒まれた(gdm の polkit の規則 `20-gdm.rules` は、gdm グループで、ユニット名が `gnome-headless-session@<user>.service` のときだけ許す)。ドロップインで `DynamicUser=no`・`User=gdm` にすると立った。DynamicUser で切れる原因は調べていない
+2. **2 人が同時に RDP できた。** alice は 3389、bob は 3390 で、それぞれの画面で操作できた(mstsc)。FreeRDP の +auth-only で、それぞれの認証情報が通り、誤ったパスワードと、相手のポートに自分の認証情報では `ERRCONNECT_LOGON_FAILURE` になった
+   - 同じ Windows から 127.0.0.1 に 2 つつなぐと、2 つ目が mstsc で「既に進行中のコンソール セッションがあるため…」と止まった。2 つ目を 127.0.0.2 にすると通った(VirtualBox の転送を 127.0.0.2 にも足した)。実機は IP で、別の PC からつなぐので当たらない見込み
+   - **立てた直後のセッションはロックされていた**(`LockedHint=yes`)。パスワードがロックされているので本人は解除できない。画面ロックを無効にし(`lock-enabled false`、`idle-delay 0`、`disable-lock-screen true`)、`loginctl unlock-session` で外した。再起動のあとはロックされずに立った。画面ロックの設定は、セッションを立てる前(post-install)に入れる
+   - 入力ソース(`[('xkb', 'jp'), ('ibus', 'mozc-on')]`)と切り替えの Ctrl+Space は、first-login と同じ設定を入れると効いた。半角/全角キーは mstsc から `Henkan_Mode` の押しっぱなしで届き、切り替えに使えなかった(#21。今の作りでも同じはず)
+3. **root から設定できた。** `runuser -u <user> -- env XDG_RUNTIME_DIR=/run/user/<uid> DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus grdctl --headless rdp …`(linger で user のバスがある)で、set-port・TLS・set-credentials・disable-view-only・disable-port-negotiation・enable と `systemctl --user enable gnome-remote-desktop-headless.service` ができた。セッションがなくてよいので post-install で済む
+   - 認証情報は、TPM がないので `~/.local/share/gnome-remote-desktop/credentials.ini`(600)に GKeyFile で入る(「Init TPM credentials failed because No TPM device found, using GKeyFile as fallback」)。パスワードは平文。実機で TPM があるとどうなるかは未確認
+   - grdctl は今の作りと同じく「RDP server certificate is invalid」を出すが、待ち受けと認証は正常
+4. **再起動から戻った。** 誰も触らずに、起動から約 25 秒で 2 人のセッションが立ち、約 60 秒で RDP が待ち受けた(CPU 1 で負荷が 7 前後)。その前につなぐと mstsc は「内部エラーが発生しました」を出した(推定。待ち受けの前だったことからの推定で、確かめていない)
+5. **異常終了から戻るには `Restart=always` が要る。** alice の gnome-shell に SIGSEGV を送ると、`gdm-new-session` は「Session finished」で正常に終わり(終了コード 0)、`Restart=on-failure` では戻らなかった。ドロップインに `Restart=always`・`RestartSec=5` を足すと、約 15 秒で新しいセッションが立ち、RDP の認証も通った。bob は gnome-shell の PID もセッションも変わらなかった。本人がログアウトしても立ちなおす
+6. **切断しても続いた。** alice の端末で 5 秒おきに書くループを動かし、RDP を切って 3 分待つと、書き続けていた。セッションは残り、ロックされなかった
+7. 一部だけ確かめた: gsettings は user のバスから入れられ、ヘッドレスのセッションで効いた。Mozc は動いた。ログイン キーリングがないと、VS Code が「Choose password for new keyring」を出した(空のまま続行)。キーリング・Clipboard Indicator・rootless Docker は、post-install を利用者ごとに回してから確かめる
+8. GPU による符号化: VM に GPU がないので確かめられない(実機で未確認)
+9. Orca Mobile の 6768 番: 確かめきれていない。alice と bob で Orca(1.4.237)を起動したが、初めての起動で、どちらも 6768 を待ち受けなかった(初回の案内の途中で止まっていたと見ている)。Orca の CLI の `serve` の説明には「--port がなければ 6768 を使い、使われていれば別のポートに移る。--port を付けると、使われているときはエラー」とある(`out/cli/specs/serve.js`)。デスクトップの Orca も同じなら、2 人目は別のポートにずれる(推定)。利用者ごとに post-install を回したあと、ペアリングして確かめる
+10. メモリ: 何もしていない bob のセッションで PSS 約 460MB(gnome-shell 約 390MB。gnome-initial-setup が 145MB 動いていた)、RDP で使って VS Code と端末を開いた alice で約 880MB(PSS の合計。cgroup の memory.current はキャッシュを含め約 1.5GB)。エージェントやビルドを除いて、1 人あたり 0.5〜1GB を見込む
+
+- ほかに分かったこと: `useradd -m` のホームは 750 だった(700 にする)。ヘッドレスのセッションの PAM のサービスは `gdm-autologin`、`Remote=yes`
+
+### 利用者ごとのヘッドレスのセッション: 実装のあとの確認(2026-10-25、VirtualBox で確認、#15)
+
+2 人(alice 3389、bob 3390)の試験用の env.yaml で `just vm-test` を流した。
+
+- 入れなおしの初回の構成で、不具合が 2 つ見つかった(直した): まだいない利用者を `getent passwd` で引くと終了コード 2 で、set -e で構成が止まった。認証情報がないと `grdctl --headless status --show-credentials` は `Username: (null)` と出し、仮のパスワードが入らなかった。VM に直したものを当てて構成をやりなおしたため、vm-test の待ち時間(120 分)を過ぎ、入れなおしからの通しは ✗ になった。入れなおしから人手なしで通ることは、リリースのときの vm-test で確かめる
+- `just update` で直したものを反映し、`AGENT_HOST_VM_REUSE=1` の vm-test で、verify(193 項目)、verify-rdp(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけが戻り、2 人目の gnome-shell が続くことが通った
+- `ss -tln` の一覧に、待ち受けている 3389 が出ないことがあった(`/dev/tcp` でつなぐと開いている。原因は調べていない)。vm-test と verify は、実際につないで確かめる形にした
+- v0.3.0 の release ブランチで入れなおしから通すと、初回の構成は終わったのに、利用者のセッションが立たず RDP も待ち受けなかった。88-start-sessions.sh は GDM が動いていなければセッションを有効にするだけだったが、初回の構成は起動の途中(GDM の前)で動き、起動で立てるものはその前に決まっているので、有効にしてもその起動では立たない(次の再起動までつながらない)。上の確認は `just update` と `AGENT_HOST_VM_REUSE=1` で、GDM が動いている道しか通っていなかった。同じ VM でセッションを `systemctl start --no-block` で立てると、2 人とも RDP が待ち受けた。GDM の起動が控えているとき(`systemctl list-jobs gdm.service`)も立てる指示を積むようにした
+- v0.3.0 の release ブランチの VM(`keyboard_layout: jp`、入れなおしたもの)で、#15 の残りを確かめた。(1)alice が RDP のパスワードを変えたあと書き出し、alice の認証情報を仮のパスワードに戻して(新しいホストに入れた直後と同じ状態)、取り込んで再起動した。認証情報のファイルは書き出す前と同じ中身に戻り、仮のパスワードでは通らなかった(`just verify-rdp` は未検証)。(2)env.yaml の `users` から alice を外して `just update` すると、alice の鍵では SFTP もシェルも `Permission denied (publickey)` になった(sshd は「AllowUsers にない」。アカウントは期限切れ、セッションは止まり、3389 は閉じ、ufw の規則も消えた。ホームは残る)。外す前は、同じ鍵で SFTP に入れた(シェルは sftp だけで断られる)
+- `grdctl --headless status` は View-only を出さない。操作できることは RDP で確かめた
+- 画面で: 2 人が同時に mstsc でつながり、それぞれロックされていないデスクトップが出た。bob の端末から `ls /home/alice` は Permission denied。alice が RDP のパスワードを変え、デーモンを再起動したあと新しい値で入れた
+
+### 利用者ごとのヘッドレスのセッション: 方式の比較(2026-10-25、#15)
+
+| 方式 | 選ばなかった理由 / 選んだ理由 |
+|---|---|
+| 全員ヘッドレス(選んだ) | systemd が起動のときに全員のセッションを立て、落ちたら立てなおす(Restart=always)ので、人手なしで戻る目的を保てる。1 人の台も同じ作りにでき、seat0 の自動ログイン・見張り・HDMI ダミープラグが要らなくなる。利用者ごとに Linux のユーザーが分かれるので、ホーム(サブスクリプションのログイン)も分かれる |
+| 1 人目だけ seat0 の自動ログイン + デスクトップ共有、2 人目からヘッドレス | 作りが 2 通りになり、検査と手順も 2 通りになる。1 人目だけダミープラグと見張りが要る |
+| GDM のリモートログイン(RDP でつないだときにログインする) | つなぐまでセッションと Orca が立たないので、再起動のあとに誰かがログインするまでエージェントが動かない |
+| 1 つのセッションで CLAUDE_CONFIG_DIR などを分ける | 同じセッションに入れる人は、誰の認証情報でも使えるので、分けたことにならない |
+
+- RDP のパスワードは、env.yaml の値を初回だけの仮のものにし、本人が `grdctl --headless rdp set-credentials` で変える。動いている RDP のデーモンは起動したときの認証情報を使い続け、変えたあとも古いパスワードで通り、新しいものは拒まれた。`systemctl --user restart gnome-remote-desktop-headless.service` で新しいものに替わった(2026-10-25、VirtualBox で確認。just update のあとも変えた値が残り、verify-rdp はその人を「未検証」、`--ask` の経路で今のパスワードを渡すと通った)。構成は認証情報がまだないときだけ仮の値を入れる。利用者どうしを隔てる実質の境界なので、管理者(env.yaml と ISO を見られる人)が知らない値にする
+- RDP のポートは利用者に固定する(env.yaml で必須)。並び順で割り当てると、外したり並べ替えたりしたときに残った人の接続先が変わる(計画のレビューの指摘)
+- 外した利用者は、ユーザーとホームを残して期限切れにする(`usermod --expiredate 1`)。パスワードのロックだけでは鍵の SSH は止まらない。`AllowUsers` からも外す(`Match User` から外れた人が鍵でシェルに入れるのを防ぐ)
+- `just verify-rdp` は、仮のパスワードで通らなかったときに成功にも失敗にもせず「未検証」と出す。変えたのか、設定の誤りや障害かを区別できないので、`--ask` で今のパスワードを確かめる経路を足した
+
+### zram のスワップの sysctl(2026-10-25 追加、#18)
+
+- `vm.swappiness = 180`、`vm.page-cluster = 0` を `/etc/sysctl.d/60-agent-host-zram.conf` に置いた(36-minimize.sh)
+- 根拠: カーネルの文書(admin-guide/sysctl/vm.rst)は、swappiness は 0〜200 で既定 60、「zram や zswap のようなメモリ上のスワップでは 100 を超える値も考えられる」とする(180 を勧めてはいない)。page-cluster は「0 で先読みを完全に止める」。Pop!_OS は zram のとき swappiness 180、zstd なら page-cluster 0 にしている(pop-os/default-settings)。systemd-zram-generator は sysctl を設定しない
+- ファイルのスワップは優先度の低い予備として残した。swappiness が高いので、zram が満ちたあとはディスクにも積極的に送る(推定)
+- 未確認: 26.04 の既定の値(推定 60)、エージェントを並べたときの応答・圧縮率・systemd-oomd の挙動への効き目(32GB 以上の実機で確かめる)。最近のカーネルでは zram の読み込みが先読みを通らない場合があり、page-cluster 0 の効き目は小さいかもしれない
+
+### メモリ不足のときの systemd-oomd(2026-10-25、VirtualBox で確認、#16)
+
+v0.2.0 の VM(メモリ 4GB、CPU 1、zram あり)、Orca 1.4.237 で確かめた。**設定は変えていない。**
+
+- 既定: systemd-oomd は動いている。user@.service に Ubuntu の drop-in(`10-oomd-user-service-defaults.conf`)で `ManagedOOMMemoryPressure=kill`・`ManagedOOMMemoryPressureLimit=50%`、圧迫の時間は 20 秒(`oomctl dump`)。agent の user のマネージャーの `DefaultOOMPolicy` は stop
+- Orca は端末ごとに cgroup を分けている。画面は `app.slice/app-orca-<pid>.scope`、端末の daemon は `app.slice/orca-daemon-<uuid>.scope`、端末は 1 つずつ `orca_ptys_<daemon>.slice/orca_pty_<daemon>_<n>.scope`(daemon が `systemd-run --user --scope` で作る。`OOMPolicy=continue`、daemon のスコープに `BindsTo`。`out/main/daemon-entry.js`)
+- 試したこと: `orca terminal create` で端末を 3 つ作り、2 つで 2 秒ごとに時刻を書くループ、1 つで 64MB ずつ確保し続ける Python を動かした。約 50 秒で 2.7GB に達し、oomd が「memory pressure for …/user@1001.service being 81.58% > 50.00% for > 20s」で、**確保していた端末のスコープだけ**を止めた。ほかの 2 つの端末は書き続け(圧迫の間は間隔が最大 6 秒に延びた)、Orca の画面と daemon も動き続けた。カーネルの OOM killer は動かなかった
+- つまり、エージェントの 1 つ(とそこから動かしたビルド)が暴走しても、止まるのはその端末だけ。Orca が端末を分けているおかげなので、Orca の版を上げたら同じかを確かめる(`/sys/fs/cgroup/user.slice/user-<uid>.slice/user@<uid>.service/orca_ptys_*.slice/` に端末ごとのスコープがあるか)
+- 推定(確かめていない): rootless Docker のコンテナはすべて `app.slice/docker.service` に入るので、コンテナの中の暴走では、ほかのコンテナも一緒に止まる。Orca の画面そのものが膨らんだときは、画面のスコープが止まる(端末は daemon のスコープにつながっていて残るはず)
+- 実機(32GB 以上)で、エージェントを並べたときに圧迫の 50%・20 秒に届くかは未確認
+- **利用者が 2 人のとき(2026-10-25、#15 の作り、VirtualBox で確認)。** oomd は利用者ごとの user@ を別々に見る(`oomctl dump` に user@1001 と user@1002 が 50%・20s で並ぶ)。alice の user のサービス(Orca の端末と同じく app.slice の葉)で 64MB ずつ確保し続けると、約 45 秒で 2.4GB に達し、oomd は「memory pressure for …/user@1001.service being 54.61% > 50.00% for > 20s」で **alice のその単位だけ**を止めた。bob の user@1002 は oomd の記録に出ず、bob の 2 秒ごとのループ、2 人の gnome-shell・ヘッドレスのセッション・RDP のデーモン・Orca は動き続けた(ループの間隔は圧迫の間に最大 alice 7 秒、bob 5 秒)
+- 推定(確かめていない): 圧迫はホスト全体のメモリの取り合いなので、bob の user@ にもかかる(full の累計は bob 37 秒、alice 31 秒)。今回は bob の側が 50%・20 秒に届かなかったが、長く強い圧迫で bob の側が先に閾値を超えると、oomd は bob の中のいちばん大きい単位を止めうる。1 台を何人で使うかは、メモリに余裕を持って決める(SPEC §2)
+
+### 移行の書き出しと取り込みを利用者の権限で(2026-10-25、#23・#24)
+
+Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼んだエージェントが見つけ、主担当も Docker(ubuntu:26.04、GNU tar 1.35)で再現した。
+
+- 書き出し: root の `tar -c -C / home/<利用者>/...` は、引数のパスの途中のリンクをたどる。利用者が `~/.config` を root だけが読めるディレクトリ(700)へのリンクにすると、その中の 600 のファイルが書庫に入った(利用者が直接読むと Permission denied)。末端のリンクは、リンクとして書庫に入る(たどらない)
+- 取り込み: root の `tar -x -C /` は、展開先に元からある相対パスのリンク(`~/.config` → `../../srv/...`)をたどって、ホームの外に書いた。書庫に項目のあるディレクトリ(`~/.config/tea/` など)は、元のリンクを本物のディレクトリに置き換えた。推敲のエージェントの試験では、書庫の中のリンクを経由する書き込みと、展開先に元からある絶対パスのリンクは tar が拒んだ(仕組みは確かめていない)。`chown -R` は、ツリーの中のリンクも、引数がリンクの場合もたどらなかった(GNU coreutils 9.4、uutils 0.10.0)
+- 直し方: 書き出しは、root の tar(記録とホストの身元)のあとに、利用者ごとに `runuser` の tar を同じ出力に続ける(tar の連結。読むときは `-i`)。あるものの確認と ~/work の中の探索も利用者の権限で行い、一覧は引数と標準入力で渡す(root だけが読める一時ディレクトリにあるため)。取り込みは、ホームの外を root で、ホームの分を利用者ごとに `runuser` の tar(書庫は root が開いて標準入力で渡す)で展開する。所有者は展開した利用者になるので `chown -R` をやめた。v0.2.0 の書き出し(記録は `agent_uid=` だけ)は、`uid.agent=`・`home.agent=home/agent` として読む
+- 利用者に読めないもの: 書き出しの対象のパス自体が見えない(途中が 700 の root など)ものは、ないものとして飛ばす。見えるが読めないもの(rootless Docker のコンテナが subuid の持ち物で作った 700 のディレクトリ、711 の先の 600 のファイルなど)は、利用者の権限の `find ! -readable` で先に見つけて除き、記録に `unreadable=` として残し、書き出しと取り込みの最後に出す(止めると、ほかの全員の分を移せなくなるため)。リンクはリンクとして書庫に入るので見ない
+- 1 人の tar が失敗しても(読んでいる間に変わったファイルがあると 1、読めないものが途中で増えると 2)、ほかの人の分は書き、最後にいちばん大きい終了コードで終わる。取り込みも、1 人が失敗してもほかの人の分とホストの身元は取り込み、失敗した利用者を出して 1 で終わる。取り込み先のホームにホームの外を指すリンクがあると、その利用者の tar は失敗する(試験では「Cannot mkdir: Invalid cross-device link」。EXDEV になる仕組みは確かめていない)
+- 除くものの一覧は、`--exclude-from=-` で標準入力から渡す(`/dev/stdin` は利用者の権限で開きなおすので、root の umask が 077 だと読めなかった)
+- 独立のレビュー(別のエージェント)で、失敗のしかたの回帰(~/work に読めないディレクトリがあると何も出さずに止まる、1 人の失敗で後の人の分が入らない、umask 077)と、試験の取りこぼし(711 の先の 600 のファイル)を指摘され、直した。tar を root に戻す変異は、先に除く仕組みがあるため試験では捕まえられない(二重の守り)
+- tests/test_backup.py: 途中のリンクの先の root のファイルが書庫に入らない、元からある相対パスのリンクをたどらない、取り込んだものが利用者の持ち物になる、v0.2.0 の形も取り込める。直す前のコードでは前の 3 つが失敗することを確かめた
+- #24: 80-agent-session.sh の `rm -f "$agent_env"` を `agent_run rm -f` にした。#1 のときに見落とした。パスを変数で受けていたので、ホームのパスを探す grep に当たらなかった
+- VM での書き出しから取り込みまで(同じ VM に戻す形)は、2026-10-25 に v0.3.0 の release ブランチで確かめた(上の「実装のあとの確認」)。別の VM へ入れなおしての通しは未確認(just vm-test は取り込みを試さない)
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
 
-- HDMI のダミープラグでの RDP(モニターなし)、BIOS の停電復帰、lan_cidrs の外から 22・3389 に届かないこと(受け入れテスト 7)
-- 電源のプロファイル performance(VM にはない)、RDP の extend モード(VM では GNOME Shell が異常終了した)
+- 実機でのヘッドレスのセッション(モニターなし。RDP の解像度がつなぐ側に合うか)、BIOS の停電復帰、lan_cidrs の外から 22・利用者の RDP のポートに届かないこと(受け入れテスト 7)
+- 電源のプロファイル performance(VM にはない)
 - 実際の HTTP プロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
 - Slack への送信、Claude Code の Remote Control、Orca Mobile でのペアリング(LAN・Relay)、クラウドの CLI のログイン(SSO・ブラウザ)
 - IP Messenger の名前での検索を、実機の LAN の既定のブロードキャスト(255.255.255.255)で行うこと
 - RDP のクリップボードでのファイルのコピー、Zed での日本語入力
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
-- systemd-oomd がメモリ不足のときに Orca ごと止めないか
+- 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator と空パスワードのキーリングが効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、env.yaml から外した人の鍵で SFTP もシェルも入れないこと、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
+- 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
-- agent-host-restore(root の tar の展開と chown -R)が、細工した書き出しで、agent のホームの外を書き換えられないか(#1 と同じ種類の問題)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
 
 - Codex のログインはデバイスコード認証(`codex login --device-auth`)。ChatGPT 側の設定で事前に有効化しておかないと、エラーにならず止まって見える
-- Codex の認証情報は `~/.codex/auth.json` に平文で保存される。`agent` のホームの権限を絞る
+- Codex の認証情報は `~/.codex/auth.json` に平文で保存される。利用者のホームは 700 にしている(sysadmin は読める)
 - Orca は .deb 版なら自分では更新を適用しない(通知は出る)。apt-mark hold で固定している。上げるときは 70-orca.sh の版と SHA256 を直す
 - バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
 - build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh`(root のみ読める)には秘密情報が入る

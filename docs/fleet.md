@@ -32,7 +32,7 @@ scripts/with-env.sh      復号して道具に渡し、終わったら消す
 justfile                 just check / iso / update / status / facts など
 ```
 
-env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)。後のファイルの値が勝つ。辞書(`network`、`notify` など)はキーごとに重なり、並び(`editors`、`lan_cidrs` など)と値は置き換わる。知らないキー(書き間違い)はエラーになる。
+env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)。後のファイルの値が勝つ。辞書(`network`、`notify` など)はキーごとに重なり、並び(`editors`、`lan_cidrs`、`users` など)と値は置き換わる。利用者(`users`)はホストごとに違うので、`hosts/<ホスト>.yaml` にそのホストの全員を書く。知らないキー(書き間違い)はエラーになる。
 
 作ったホストの `/opt/agent-host/BUILD-INFO`(置いた版)と `/var/lib/agent-host/BUILD-INFO.ok`(構成が最後まで成功した版)には、道具の版、構成リポジトリの版(`AGENT_HOST_CONFIG_REV`)、使った env のファイル名、作った日時が残る。`just status` と `just facts` で見える。
 
@@ -66,7 +66,7 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
 
 ## 4. ホストを足す
 
-1. `hosts/<ホスト>.yaml` を作る(ファイル名はホスト名と同じ)。IP と壁紙の色を、ほかのホストと変える
+1. `hosts/<ホスト>.yaml` を作る(ファイル名はホスト名と同じ)。IP と壁紙の色を、ほかのホストと変える。`users` にそのホストを使う人を書く(`port` は人に固定する。`rdp.initial_password` は仮の値なので、`sops` で暗号化する)
 2. 検査して ISO を作る
    ```
    just check agent-host-02
@@ -95,7 +95,17 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
    ```
 4. `docs/hosts/<ホスト>.md` の変更の記録に、理由と手でしたことを書く
 
-ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(道具の手順書の「設定やバージョンを変える」)。
+ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外したものは手で消す(道具の手順書の「設定やバージョンを変える」)。利用者の RDP のポートは、外した人の分を `just update` が消す。
+
+### 利用者を足す・外す
+
+1. `hosts/<ホスト>.yaml` の `users` に足すか、外す(ほかの人の `port` は変えない)
+2. `just check <ホスト>` → レビュー → `just update <ホスト>`
+3. 足したとき: 本人に接続先(`<ホスト>:<port>`。`just rdp <ホスト> <port>` で接続ファイルを作れる)と仮のパスワードを渡し、最初の RDP で自分のパスワードに変えてもらう(道具の manual-steps の 4)。`just verify-rdp <ホスト>` で、その人が仮のパスワードで通ることを確かめる
+4. 外したとき: ユーザーとホームは残り、ログイン・セッション・ポートが止まる。`just verify <ホスト>` の「外した利用者」で確かめる。ホームの中を消すなら、本人に確かめてから手で消す
+5. 台帳の「使う人・用途」を直す
+
+`just verify-rdp <ホスト>` は、仮のパスワードで通らなかった人を「未検証」と出す(本人が変えていれば正常で、失敗にはしない)。今のパスワードで確かめるなら、本人に `just verify-rdp <ホスト> ask=<名前>` を実行してもらう。
 
 ## 6. 道具の版を上げる
 
@@ -107,7 +117,12 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    just check-all
    ```
    止まったら、CHANGELOG に従って `common.yaml` や `hosts/` を直す
-3. 1 台で試す。反映し、`just verify` と、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う
+
+   0.2 から 0.3 に上げるときは、`rdp`・`git_user_name`・`git_user_email`・`agent_ssh_authorized_keys` を `users` に書き換える。
+   今の `agent` のホームと RDP の証明書をそのまま使うなら、1 人目を `name: agent`・`port: 3389` にする。
+   `dev_ports` に `3000:3999` のような 3389 を含む範囲があれば、`port` と重なって止まるので狭める。
+   `just update` は途中で GDM を再起動するので、seat0 のセッション(端末やエージェントの作業)は終わる。作業していない時間に行う
+3. 1 台で試す。反映し、`just verify` と、受け入れテストの 4・5(RDP と、エージェントが動くこと)を行う(`just verify-rdp` は、パスワードを変えた人を「未検証」と出す)
    ```
    just update agent-host-01
    just verify agent-host-01
@@ -133,7 +148,7 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    ```
 4. `just verify` と受け入れテストの 4・5 を行い、`just facts` と記録を更新する。書き出したファイルは消す
 
-ホスト鍵と RDP の証明書も移るので、取り込んだあとは、手元の known_hosts と RDP の「今後確認しない」をそのまま使える(取り込むまでは使えない。known_hosts の古い鍵は消さない)。
+ホスト鍵と、利用者ごとの RDP の証明書と認証情報(本人が変えたパスワード)も移るので、取り込んだあとは、手元の known_hosts と RDP の「今後確認しない」をそのまま使える(取り込むまでは使えない。known_hosts の古い鍵は消さない)。
 
 ## 8. 作業する人が増える・減る
 
@@ -148,11 +163,11 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 減る:
 1. `.sops.yaml` から公開鍵を外し、上と同じように `sops updatekeys` する
 2. その人が知っている秘密情報を替える(過去のコミットは、その人の鍵で復号できるため)
-   - RDP のパスワード: `rdp.password` を替えて、すべてのホストに `just update`
+   - RDP のパスワード: 利用者が自分で変えたものは、ほかの人には知られていない。仮のパスワード(`rdp.initial_password`)のままの人には、変えてもらう
    - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(ホストのパスワードもこの値に置き換わる)
    - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替え、`just update`
    - UPS の監視用のパスワード(netclient のとき): NUT サーバーの側で替えて `ups.password` を替え、`just update`
-   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `agent_ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
+   - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `users[].ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
 
 ## 9. 記録の決まり
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # 開発に使う道具を入れる。Node.js・Codex・CCManager・Claude Code・GitHub CLI・uv・mise はバージョンを固定する。
-# agent には sudo がないので、エージェントが要るものはここで入れておくか、mise / Docker で済ませる。
+# 利用者には sudo がないので、エージェントが要るものはここで入れておくか、mise / Docker で済ませる。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
 . "$(dirname "$0")/../lib/common.sh"
+load_env
 
 # --- 固定するバージョン(上げるときはここと手順書の付録「固定しているバージョン」を直す) ---
 # Node.js: 公式の tar.xz を /opt に展開する(apt を経由しないので勝手に上がらない)
@@ -34,10 +35,11 @@ MISE_SHA256=0d41b60745a6273a80089c86f80d8729042d2f57f87fda70aecc7d1c3ffbd3be
 # エージェントがよく使う道具
 #   ビルド: build-essential、python3-dev、pkg-config、libssl-dev(pip / npm のネイティブのモジュール)
 #   小物: ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip/unzip、wget、rsync
-#   その他: git-lfs、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
+#   その他: python-is-python3(`python` を python3 にする。Windows や setup-python を前提に書かれた手順のため)、
+#           git-lfs、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
 #           libnss3-tools(Chrome に CA 証明書を登録する certutil)
 apt-get install -y git curl ca-certificates gnupg xz-utils openssl \
-    build-essential python3-dev python3-venv python3-pip pkg-config libssl-dev \
+    build-essential python3-dev python3-venv python3-pip python-is-python3 pkg-config libssl-dev \
     ripgrep fd-find jq tree htop tmux sqlite3 shellcheck zip unzip wget rsync \
     git-lfs wl-clipboard dnsutils netcat-openbsd libnss3-tools
 
@@ -85,15 +87,18 @@ npm_global @openai/codex "$CODEX_VERSION" codex
 npm_global ccmanager "$CCMANAGER_VERSION" ccmanager
 
 # 起動時の更新確認を止める(既にある config.toml には手を入れない)
-codex_conf="$AGENT_HOME/.codex/config.toml"
-if [ ! -f "$codex_conf" ]; then
-    write_agent_file 600 "$codex_conf" <<'EOF'
+codex_config() {
+    local codex_conf="$AGENT_HOME/.codex/config.toml"
+    if [ ! -f "$codex_conf" ]; then
+        write_agent_file 600 "$codex_conf" <<'EOF'
 # agent-host-autoinstall が置いた設定。バージョンは 60-devtools.sh で固定している
 check_for_update_on_startup = false
 EOF
-elif ! grep -q '^check_for_update_on_startup' "$codex_conf"; then
-    log "注意: $codex_conf に check_for_update_on_startup = false を手で足す(先頭のテーブルより前に)"
-fi
+    elif ! grep -q '^check_for_update_on_startup' "$codex_conf"; then
+        log "注意: $codex_conf に check_for_update_on_startup = false を手で足す(先頭のテーブルより前に)"
+    fi
+}
+for_each_user codex_config
 
 # --- Claude Code ---
 keyring=/etc/apt/keyrings/claude-code.gpg
@@ -133,7 +138,7 @@ done
 log "uv $UV_VERSION を入れた"
 
 # --- mise ---
-# 言語の実体は agent が自分のホーム(~/.local/share/mise)に入れる。有効化は 80-agent-session.sh
+# 言語の実体は利用者が自分のホーム(~/.local/share/mise)に入れる。有効化は 80-agent-session.sh
 mise_dir="/opt/mise-$MISE_VERSION"
 if [ ! -x "$mise_dir/bin/mise" ]; then
     tarball="$AH_CACHE/mise-v$MISE_VERSION-linux-x64.tar.gz"

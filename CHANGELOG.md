@@ -10,6 +10,53 @@
 
 ## [未リリース]
 
+## [0.3.0] - 2026-10-25 — 利用者ごとにセッションを分ける版
+
+### env.yaml の変更
+- **利用者を `users` の並びにした(互換性がなくなる変更。#15)。** `rdp`・`git_user_name`・`git_user_email`・`agent_ssh_authorized_keys` は使えなくなり、書くと書き換え先を出して止まる。0.2 のホストは次のように書き換えると、今の `agent` のホーム・ログイン・RDP の証明書をそのまま使える
+  ```yaml
+  users:
+    - name: agent
+      port: 3389
+      rdp: {username: <rdp.username>, initial_password: <rdp.password>}
+      git_user_name: <git_user_name>
+      git_user_email: <git_user_email>
+      ssh_authorized_keys: <agent_ssh_authorized_keys>
+  ```
+- `users[].port` は必須で、`dev_ports` と重ねられない。`dev_ports` に `"3000:3999"` などの 3389 を含む範囲を書いていたら狭める(例 `"3000:3099"`)
+- `rdp.password` は `users[].rdp.initial_password`(初回だけの仮の値)になった。本人が最初の RDP で `grdctl --headless rdp set-credentials` で変え、RDP のデーモンを再起動する(manual-steps の 4)。just update は認証情報がまだないときだけ入れる
+- 0.2 のホストに just update すると、途中で GDM を再起動して seat0 のセッション(自動ログイン)を終わらせ、ヘッドレスのセッションに移る。端末やエージェントは終わるので、作業していないときに行う
+
+### 変更
+- 利用者ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを分けた(#15)。1 台を複数の人で使っても、Claude Code・Codex などのログイン(サブスクリプション)が人ごとに分かれる。1 人の台も同じ作り
+  - seat0 の自動ログイン、デスクトップ共有、セッションの見張り(20-autologin.sh、watchdog)をやめ、`gnome-headless-session@<名前>` と gnome-remote-desktop の headless にした(20-sessions.sh、88-start-sessions.sh)。ユニットのままでは立たず、落ちても戻らないので、drop-in で `DynamicUser=no`・`User=gdm`・`Restart=always` にした(VirtualBox で確かめた。notes.md「段 0」)
+  - 画面ロックはセッションを立てる前に止める(立てた直後にロックされ、パスワードのない利用者は外せなかった)。HDMI のダミープラグは要らない
+  - env.yaml から外した利用者は、ユーザーとホームを残したまま、期限切れ・`AllowUsers` から外す・セッション・linger・rootless Docker・ufw のポートを止める
+  - `just verify-rdp` は利用者ごとに確かめ、仮のパスワードで通らなければ「未検証」と出す。`--ask <利用者>` で今のパスワードを確かめる。`just rdp <ホスト> <ポート>`
+  - `just verify`・`status`・`facts`・`logs`、移行(全員のホームを書き出し、名前で合わせて取り込む)、通知(`[ホスト名/利用者名]`)、`just vm-test`(2 人の env で、片方のセッションを落としてもう片方が続くこと)を利用者ごとにした
+
+### 追加
+- `python` コマンド(python-is-python3)を入れた。`python tools/x.py` のように Windows や setup-python を前提に書かれた手順が `python: not found` で止まった。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明がすでにあるホストには届かない)(#20)
+- PDF ビューアー(Atril)を入れ、agent の PDF の既定のアプリにした。just verify に「Atril」の確認(#19)
+- zram に合わせて、スワップの sysctl を vm.swappiness 180・vm.page-cluster 0 にした。just verify に 2 つの値の確認(#18)
+- RDP の接続ファイルのひな形(just rdp)で、回線の自動検出(networkautodetect)を有効にした。遅延の大きい回線で、ホストが送る量を絞りすぎないため。色 24 ビットの説明を事実に合わせた(グラフィックス パイプラインではホストは 32 ビットで送る)(#17)
+- メモリ不足のときに systemd-oomd が Orca ごと止めるかを VM で確かめた。Orca 1.4.237 は端末ごとに cgroup を分けるので、止まるのは暴走した端末だけだった。設定は変えず、技術メモに記録した(#16)
+- 直下に Orca がプロジェクトを登録するときに拾うアイコン(icon.png、256×256 の PNG)を置いた。元の絵は docs/icon.svg。owner のアバターが入り、同じ owner のほかのリポジトリと見分けがつかなかった(#25)
+
+### 修正
+- 移行の書き出し(agent-host-backup)が root の tar でホームを読んでいたため、利用者が途中のディレクトリを root だけが読めるディレクトリへのリンクにしておくと、利用者に読めない root のファイルが書庫に入り、取り込みで利用者の持ち物になった。取り込み(agent-host-restore)も root で展開していたため、ホームに元からある相対パスのリンクをたどってホームの外に書けた。ホームの分は、書き出しも取り込みも利用者の権限で行う(書庫は root の tar のあとに利用者ごとの tar が続く形。v0.2.0 の書き出しも取り込める)。tests/test_backup.py で、どちらも起きないことを確かめる。利用者に読めないもの(rootless Docker のデータなど)は書き出さず、一覧を出す(#23)
+- 入力ソースに Mozc が 2 つ並び、Ctrl+Space の切り替えに 2 つ出た。Ubuntu の gnome-settings-daemon が、初めてのセッションでロケールの mozc-jp を足していた。first-login で足させないようにし、すでに足されたものはセッションが立つときに外す。just verify に「入力ソースの Mozc は 1 つ」
+- 80-agent-session.sh の古い設定(50-proxy-ca.conf)の削除が root のままで、途中のリンクでホームの外の同じ名前のファイルを消せた。利用者の権限で消す。tests/test_agent_home.py に、末端がディレクトリへのリンクのときの write_agent_file の試験を足した(#24)
+
+### 確認した環境
+- VirtualBox 7.2 の VM(UEFI、メモリ 4GB、CPU 1)、利用者 2 人の env。release ブランチの `just vm-test` で新しく入れなおし(`keyboard_layout` は us と jp の両方で通した)、人手なしで 2 人の RDP が待ち受けること、`just verify`(jp で 195 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くことを確かめた
+- 動いている VM に `just update` で反映する道も確かめた。RDP で 2 人が同時につなげること、互いのホームが読めないこと、本人が RDP のパスワードを変えられることを画面で確かめた
+- 利用者 2 人で、片方がメモリを使い切ったとき、systemd-oomd がその人の単位だけを止め、もう 1 人のセッション・RDP・Orca が続くことを確かめた(docs/notes.md)
+- 移行の書き出しと取り込みは `just test`(Docker の中)と、VM での書き出し・取り込み・再起動で確かめた(本人が変えた RDP のパスワードが残ること)。別の VM へ入れなおしての通しは確かめていない
+- env.yaml の `users` から外した利用者が、古い鍵で SFTP にもシェルにも入れないことを VM で確かめた
+- GPU による符号化は、VM に GPU がないので確かめていない
+- 実機は未確認(モニターのないヘッドレスのセッション、電源が戻ったときの起動、LAN の外から届かないこと、プロキシ、Slack、クラウドへのログイン、実際の UPS、実機の GPU、Orca Mobile のペアリング、0.2 のホストから just update で上げること)。問題が出たら hotfix で直す
+
 ## [0.2.0] - 2026-10-25 — 機械で確かめる版
 
 ### env.yaml の変更
