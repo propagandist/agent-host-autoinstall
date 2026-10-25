@@ -17,6 +17,8 @@
 #   AGENT_HOST_VM_CPUS        CPU の数(1。Hyper-V と共存する Windows の VirtualBox では 2 以上で止まった。docs/notes.md)
 #   AGENT_HOST_VM_MEMORY      メモリ(MB。4096)
 #   AGENT_HOST_VM_TIMEOUT     インストールから RDP が待ち受けるまで待つ時間(分。120)
+#   AGENT_HOST_VM_REUSE       1 なら入れなおさず、動いている VM で 2(検査)から行う(手で直したあとの確かめなおし。
+#                             無人で最後まで通ったことにはならない)
 #   VBOXMANAGE                VBoxManage のパス(PATH に無ければ Windows の既定の場所)
 set -euo pipefail
 # shellcheck source=envs.sh
@@ -100,41 +102,46 @@ summary() {
     return "$fail"
 }
 
-step "1. ISO を作る(${envs[*]})"
-scripts/local/iso.sh build "build/ubuntu-26.04.1-desktop-amd64.iso" "$iso" "${envs[@]}"
+if [ "${AGENT_HOST_VM_REUSE:-}" != 1 ]; then
+    step "1. ISO を作る(${envs[*]})"
+    scripts/local/iso.sh build "build/ubuntu-26.04.1-desktop-amd64.iso" "$iso" "${envs[@]}"
 
-step "1. VM($name)のディスクを作りなおし、ISO から起動する"
-if ! "$vbm" showvminfo "$name" >/dev/null 2>&1; then
-    "$vbm" createvm --name "$name" --ostype Ubuntu_64 --basefolder "$(winpath "$base")" --register
-    "$vbm" modifyvm "$name" --firmware efi --memory "$memory" --cpus "$cpus" --vram 128 \
-        --graphicscontroller vmsvga --nic1 nat --audio-enabled off --usb-ohci off \
-        --boot1 disk --boot2 dvd --boot3 none --boot4 none \
-        --natpf1 "ssh,tcp,127.0.0.1,$ssh_port,,22"
-    "$vbm" storagectl "$name" --name SATA --add sata --controller IntelAhci --portcount 2
-else
-    case "$(vm_state)" in running | paused | stuck) "$vbm" controlvm "$name" poweroff; sleep 5 ;; esac
-    old_disk="$("$vbm" showvminfo "$name" --machinereadable | sed -n 's/^"SATA-0-0"="\(.*\)"/\1/p')"
-    if [ -n "$old_disk" ] && [ "$old_disk" != none ]; then
-        "$vbm" storageattach "$name" --storagectl SATA --port 0 --device 0 --medium none
-        "$vbm" closemedium disk "$old_disk" --delete
+    step "1. VM($name)のディスクを作りなおし、ISO から起動する"
+    if ! "$vbm" showvminfo "$name" >/dev/null 2>&1; then
+        "$vbm" createvm --name "$name" --ostype Ubuntu_64 --basefolder "$(winpath "$base")" --register
+        "$vbm" modifyvm "$name" --firmware efi --memory "$memory" --cpus "$cpus" --vram 128 \
+            --graphicscontroller vmsvga --nic1 nat --audio-enabled off --usb-ohci off \
+            --boot1 disk --boot2 dvd --boot3 none --boot4 none \
+            --natpf1 "ssh,tcp,127.0.0.1,$ssh_port,,22"
+        "$vbm" storagectl "$name" --name SATA --add sata --controller IntelAhci --portcount 2
+    else
+        case "$(vm_state)" in running | paused | stuck) "$vbm" controlvm "$name" poweroff; sleep 5 ;; esac
+        old_disk="$("$vbm" showvminfo "$name" --machinereadable | sed -n 's/^"SATA-0-0"="\(.*\)"/\1/p')"
+        if [ -n "$old_disk" ] && [ "$old_disk" != none ]; then
+            "$vbm" storageattach "$name" --storagectl SATA --port 0 --device 0 --medium none
+            "$vbm" closemedium disk "$old_disk" --delete
+        fi
     fi
+    # 利用者の RDP の転送をそろえる。名前が rdp で始まる転送(0.2 までの 3389 の 1 本や、手で足したもの)を消してから足す
+    while read -r rule; do
+        "$vbm" modifyvm "$name" --natpf1 delete "$rule"
+    done < <("$vbm" showvminfo "$name" --machinereadable | sed -n 's/^Forwarding([0-9]*)="\(rdp[^,]*\),.*/\1/p')
+    for p in "${rdp_ports[@]}"; do
+        "$vbm" modifyvm "$name" --natpf1 "rdp$p,tcp,127.0.0.1,$((p + 10000)),,$p"
+    done
+    disk="$base/$name/$name-$(date +%Y%m%d-%H%M%S).vdi"
+    mkdir -p "$(dirname "$disk")"
+    "$vbm" createmedium disk --filename "$(winpath "$disk")" --size 40960 --format VDI
+    "$vbm" storageattach "$name" --storagectl SATA --port 0 --device 0 --type hdd --medium "$(winpath "$disk")"
+    "$vbm" storageattach "$name" --storagectl SATA --port 1 --device 0 --type dvddrive --medium "$(winpath "$iso")"
+    "$vbm" startvm "$name" --type headless
 fi
-# 利用者の RDP の転送をそろえる。名前が rdp で始まる転送(0.2 までの 3389 の 1 本や、手で足したもの)を消してから足す
-while read -r rule; do
-    "$vbm" modifyvm "$name" --natpf1 delete "$rule"
-done < <("$vbm" showvminfo "$name" --machinereadable | sed -n 's/^Forwarding([0-9]*)="\(rdp[^,]*\),.*/\1/p')
-for p in "${rdp_ports[@]}"; do
-    "$vbm" modifyvm "$name" --natpf1 "rdp$p,tcp,127.0.0.1,$((p + 10000)),,$p"
-done
-disk="$base/$name/$name-$(date +%Y%m%d-%H%M%S).vdi"
-mkdir -p "$(dirname "$disk")"
-"$vbm" createmedium disk --filename "$(winpath "$disk")" --size 40960 --format VDI
-"$vbm" storageattach "$name" --storagectl SATA --port 0 --device 0 --type hdd --medium "$(winpath "$disk")"
-"$vbm" storageattach "$name" --storagectl SATA --port 1 --device 0 --type dvddrive --medium "$(winpath "$iso")"
-"$vbm" startvm "$name" --type headless
 
 step "2. インストールと構成を待つ(最大 $timeout_min 分)"
-if wait_ready "$timeout_min"; then
+if [ "${AGENT_HOST_VM_REUSE:-}" = 1 ]; then
+    record - "入れなおしは飛ばした(AGENT_HOST_VM_REUSE=1。無人で最後まで通ったことにはならない)"
+    check_all "今の VM"
+elif wait_ready "$timeout_min"; then
     record ✓ "インストールから RDP の待ち受けまで(人手なし)"
     check_all "入れた直後"
 else
