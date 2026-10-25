@@ -174,10 +174,10 @@ agent-host-autoinstall が置いた説明。環境の事実だけを書いてい
 
 - このマシンは常時稼働の AI エージェント用ホスト(Ubuntu Desktop 26.04 LTS)。人が画面を見ていないことが多い
 - あなたは agent ユーザーで、sudo は使えない。apt でのインストールはできないので、試さない
-- 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
+- 言語やツールのバージョンが足りないときは mise を使う(例: `mise use node@22`、`mise use go@latest`、`mise use -g just`)。プロジェクトに mise.toml や .tool-versions があれば、それに従う
 - Python は uv(`uv venv`、`uv pip install`、`uv run`)を使える。pnpm と yarn は corepack で使える
 - データベースなどのサービスは rootless Docker(`docker compose`)で動かす。1024 未満のポートは待ち受けできない
-- 入っている主な道具: git、gh、tea、node、npm、python3、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
+- 入っている主な道具: git、gh、tea、node、npm、python3(`python` でも動く)、uv、mise、docker、rg、fdfind、jq、sqlite3、shellcheck、tmux、Google Chrome
 - GitHub への push は gh の認証を使う(`gh auth status` で確かめる)
 - Terraform・OpenTofu・kubectl・Helm などは入れていない。プロジェクトに合う版を mise で入れる(例: `mise use terraform@1.13`)
 - 作業は ~/work の下で行う

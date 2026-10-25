@@ -69,7 +69,7 @@ sudo ss -tlnp | grep 33
 | Zed の拡張機能 | Zed を一度起動して閉じたあと `ls ~/.local/share/zed/extensions/installed` | 72-editors.sh の ZED_EXTENSIONS(と clouds・zed_extensions の分)が並ぶ |
 | Gitea CLI | RDP の端末で `tea --version` と `echo $GITEA_SERVER_URL` | 60-devtools.sh の版。gitea_url を書いたらその URL |
 | クラウドの CLI | RDP の端末で `aws --version; gcloud --version; az version`(選んだものだけ) | 63-clouds.sh の版。`echo $AWS_PAGER` は空 |
-| 開発の道具 | RDP の端末で `mise --version; uv --version; pnpm --version; ccmanager --version; ulimit -n` | それぞれ動く。ulimit -n は 65536 |
+| 開発の道具 | RDP の端末で `mise --version; uv --version; python --version; pnpm --version; ccmanager --version; ulimit -n` | それぞれ動く。python は Python 3。ulimit -n は 65536 |
 | エージェントへの説明 | `sudo cat /home/agent/.claude/CLAUDE.md` | 「このホストについて」が置かれている |
 | Orca のテレメトリ | RDP の端末で `echo $ORCA_TELEMETRY_DISABLED` | 1 |
 | サービスの最小化 | `systemctl list-units --type=service --state=running`、`command -v snap orca` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない。snap と(読み上げの)orca がない |

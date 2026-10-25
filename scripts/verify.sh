@@ -191,6 +191,7 @@ pkg_pinned gh "$(pin GH_VERSION)"
 cmd_ver "Gitea CLI(tea)" "$(pin TEA_VERSION)" tea --version
 cmd_ver "uv" "$(pin UV_VERSION)" uv --version
 cmd_ver "mise" "$(pin MISE_VERSION)" mise --version
+check "python が python3 を指す" test "$(readlink -f /usr/bin/python)" = "$(readlink -f /usr/bin/python3)"
 pkg_pinned orca-ide "$(pin ORCA_VERSION)"
 check "Orca の自動起動" test -f "$AGENT_HOME/.config/autostart/orca.desktop"
 check "Google Chrome が入っている" installed google-chrome-stable
