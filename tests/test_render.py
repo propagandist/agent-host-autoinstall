@@ -262,6 +262,42 @@ class TestOverlay(Case):
         self.ok(self.write(BASE), self.write(None, text=""))
 
 
+class TestFleetExample(unittest.TestCase):
+    """構成リポジトリのひな形(examples/fleet)で、秘密の値が SOPS の暗号化の対象に入っているか(#27)"""
+
+    def test_secret_keys_are_encrypted(self):
+        import glob
+        import re
+        fleet = os.path.join(REPO, "examples", "fleet")
+        with open(os.path.join(fleet, ".sops.yaml"), encoding="utf-8") as f:
+            rules = yaml.safe_load(f)["creation_rules"]
+        pattern = re.compile(rules[0]["encrypted_regex"])
+
+        def keys(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    yield k
+                    yield from keys(v)
+            elif isinstance(node, list):
+                for v in node:
+                    yield from keys(v)
+
+        files = [os.path.join(fleet, "common.yaml")] + glob.glob(os.path.join(fleet, "hosts", "*.yaml"))
+        found = set()
+        for path in files:
+            with open(path, encoding="utf-8") as f:
+                found |= set(keys(yaml.safe_load(f)))
+        # ひな形に書いていない秘密の値(UPS の password など)も、名前で一致させる
+        secrets = {k for k in found if "password" in k or "webhook" in k} | {"password", "slack_webhook_url"}
+        self.assertIn("initial_password", secrets)
+        for k in sorted(secrets):
+            with self.subTest(key=k):
+                self.assertRegex(k, pattern)
+        for k in ("username", "port", "name"):
+            with self.subTest(key=k):
+                self.assertNotRegex(k, pattern)
+
+
 class TestRejected(Case):
     def test_unknown_key(self):
         self.ng(self.with_(hostnmae="x"), "hostnmae は知らないキー")
