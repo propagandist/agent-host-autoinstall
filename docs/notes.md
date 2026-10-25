@@ -351,6 +351,7 @@ v0.2.0 を入れた VM(UEFI、メモリ 4GB、CPU 1)で、agent の自動ログ�
 - 入れなおしの初回の構成で、不具合が 2 つ見つかった(直した): まだいない利用者を `getent passwd` で引くと終了コード 2 で、set -e で構成が止まった。認証情報がないと `grdctl --headless status --show-credentials` は `Username: (null)` と出し、仮のパスワードが入らなかった。VM に直したものを当てて構成をやりなおしたため、vm-test の待ち時間(120 分)を過ぎ、入れなおしからの通しは ✗ になった。入れなおしから人手なしで通ることは、リリースのときの vm-test で確かめる
 - `just update` で直したものを反映し、`AGENT_HOST_VM_REUSE=1` の vm-test で、verify(193 項目)、verify-rdp(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけが戻り、2 人目の gnome-shell が続くことが通った
 - `ss -tln` の一覧に、待ち受けている 3389 が出ないことがあった(`/dev/tcp` でつなぐと開いている。原因は調べていない)。vm-test と verify は、実際につないで確かめる形にした
+- v0.3.0 の release ブランチで入れなおしから通すと、初回の構成は終わったのに、利用者のセッションが立たず RDP も待ち受けなかった。88-start-sessions.sh は GDM が動いていなければセッションを有効にするだけだったが、初回の構成は起動の途中(GDM の前)で動き、起動で立てるものはその前に決まっているので、有効にしてもその起動では立たない(次の再起動までつながらない)。上の確認は `just update` と `AGENT_HOST_VM_REUSE=1` で、GDM が動いている道しか通っていなかった。同じ VM でセッションを `systemctl start --no-block` で立てると、2 人とも RDP が待ち受けた。GDM の起動が控えているとき(`systemctl list-jobs gdm.service`)も立てる指示を積むようにした
 - `grdctl --headless status` は View-only を出さない。操作できることは RDP で確かめた
 - 画面で: 2 人が同時に mstsc でつながり、それぞれロックされていないデスクトップが出た。bob の端末から `ls /home/alice` は Permission denied。alice が RDP のパスワードを変え、デーモンを再起動したあと新しい値で入れた
 
