@@ -176,6 +176,8 @@ for unit in cups.service avahi-daemon.service ModemManager.service bluetooth.ser
     case "$state" in masked | "" | not-found) ok "$unit は止めている(${state:-なし})" ;; *) ng "$unit は止めている" "$state" ;; esac
 done
 check "zram のスワップがある" bash -c "swapon --show=NAME --noheadings | grep -q zram"
+eq "スワップの積極さ(vm.swappiness)" "$(sysctl -n vm.swappiness)" 180
+eq "スワップの先読み(vm.page-cluster)" "$(sysctl -n vm.page-cluster)" 0
 check "cloud-init を止めている" test -f /etc/cloud/cloud-init.disabled
 
 section "システム"

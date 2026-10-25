@@ -317,6 +317,13 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - 選ばなかったもの: zathura(メニューがなく vim 風のキー操作が前提)、MuPDF(X11 なので開くたびに Xwayland が起動する)、qpdfview(このホストにない Qt を一式入れることになる)
 - 未確認: ubuntu-desktop-minimal で Papers(main に 50.2 がある)や Evince が入るか、Atril のメモリの量、日本語の PDF の表示(VM で確かめる)
 
+### zram のスワップの sysctl(2026-10-25 追加、#18)
+
+- `vm.swappiness = 180`、`vm.page-cluster = 0` を `/etc/sysctl.d/60-agent-host-zram.conf` に置いた(36-minimize.sh)
+- 根拠: カーネルの文書(admin-guide/sysctl/vm.rst)は、swappiness は 0〜200 で既定 60、「zram や zswap のようなメモリ上のスワップでは 100 を超える値も考えられる」とする(180 を勧めてはいない)。page-cluster は「0 で先読みを完全に止める」。Pop!_OS は zram のとき swappiness 180、zstd なら page-cluster 0 にしている(pop-os/default-settings)。systemd-zram-generator は sysctl を設定しない
+- ファイルのスワップは優先度の低い予備として残した。swappiness が高いので、zram が満ちたあとはディスクにも積極的に送る(推定)
+- 未確認: 26.04 の既定の値(推定 60)、エージェントを並べたときの応答・圧縮率・systemd-oomd の挙動への効き目(32GB 以上の実機で確かめる)。最近のカーネルでは zram の読み込みが先読みを通らない場合があり、page-cluster 0 の効き目は小さいかもしれない
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
