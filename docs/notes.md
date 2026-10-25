@@ -304,10 +304,11 @@ v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本
 - Playwright(1.64.1)は 26.04 を「非公式・24.04 とみなす」扱い。`npx playwright install chromium`(`--with-deps` なし)で取得でき、ホストに Chrome が入っているので足りないライブラリはなかった
 - 止まったもの(ホストの側)
   - `python` コマンドがない。`python tools/....py` で `python: not found` になった(#20)
+    → 60-devtools.sh で python-is-python3(`/usr/bin/python` へのリンク 1 本。Depends は python3 だけ、`apt-get install -s` で新しく入るのはこれだけで削除は 0)を入れた。版は Ubuntu の更新に任せる
 - 止まったもの(本のリポジトリの側の書き方)
   - justfile が `set windows-shell` だけで PowerShell の構文のため、Linux の just(`sh -cu`)では前段で構文エラーになる。justfile を通さず `docker compose run …` を打てば組める
   - git に実行権なし(100644)で記録された gradlew が `./gradlew` で動かない(`sh ./gradlew` なら動く)
-- just はアーカイブ(universe)に 1.45.0 があるが、agent が `mise use -g just` で入れられる(1.59.0)ので入れていない
+- just はアーカイブ(universe)に 1.45.0 があるが、agent が `mise use -g just` で入れられる(1.59.0)ので入れていない。apt と mise の両方に入ると、どちらが動いているか分かりにくい。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明はすでにあれば上書きしないので、入れ済みのホストには届かない)
 - 5 本の PDF のイメージで、VM(ルート 37GB)の空きが約 15GB から約 7.6GB に減った
 
 ## 確認できていないこと

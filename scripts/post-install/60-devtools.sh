@@ -34,10 +34,11 @@ MISE_SHA256=0d41b60745a6273a80089c86f80d8729042d2f57f87fda70aecc7d1c3ffbd3be
 # エージェントがよく使う道具
 #   ビルド: build-essential、python3-dev、pkg-config、libssl-dev(pip / npm のネイティブのモジュール)
 #   小物: ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip/unzip、wget、rsync
-#   その他: git-lfs、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
+#   その他: python-is-python3(`python` を python3 にする。Windows や setup-python を前提に書かれた手順のため)、
+#           git-lfs、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
 #           libnss3-tools(Chrome に CA 証明書を登録する certutil)
 apt-get install -y git curl ca-certificates gnupg xz-utils openssl \
-    build-essential python3-dev python3-venv python3-pip pkg-config libssl-dev \
+    build-essential python3-dev python3-venv python3-pip python-is-python3 pkg-config libssl-dev \
     ripgrep fd-find jq tree htop tmux sqlite3 shellcheck zip unzip wget rsync \
     git-lfs wl-clipboard dnsutils netcat-openbsd libnss3-tools
 
