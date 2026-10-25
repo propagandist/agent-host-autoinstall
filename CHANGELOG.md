@@ -14,6 +14,7 @@
 - `python` コマンド(python-is-python3)を入れた。`python tools/x.py` のように Windows や setup-python を前提に書かれた手順が `python: not found` で止まった。エージェント向けの説明の mise の例に `mise use -g just` を足した(説明がすでにあるホストには届かない)(#20)
 - PDF ビューアー(Atril)を入れ、agent の PDF の既定のアプリにした。just verify に「Atril」の確認(#19)
 - zram に合わせて、スワップの sysctl を vm.swappiness 180・vm.page-cluster 0 にした。just verify に 2 つの値の確認(#18)
+- RDP の接続ファイルのひな形(just rdp)で、回線の自動検出(networkautodetect)を有効にした。遅延の大きい回線で、ホストが送る量を絞りすぎないため。色 24 ビットの説明を事実に合わせた(グラフィックス パイプラインではホストは 32 ビットで送る)(#17)
 
 ## [0.2.0] - 2026-10-25 — 機械で確かめる版
 

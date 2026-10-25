@@ -10,7 +10,7 @@ keyboardhook:i:1
 redirectclipboard:i:1
 audiomode:i:2
 connection type:i:6
-networkautodetect:i:0
+networkautodetect:i:1
 bandwidthautodetect:i:1
 compression:i:1
 allow font smoothing:i:1
