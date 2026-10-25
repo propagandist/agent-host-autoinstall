@@ -169,6 +169,9 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - 端末: VirtualBox で 1 つ開いたときの PSS は Xfce Terminal 約 27MB、Alacritty 約 73MB、Ghostty 約 148MB(GPU なしのソフトウェア描画)。RDP で Xfce Terminal と Ghostty を試し、どちらも日本語入力・右クリックの貼り付け・選択でコピーが問題なかったので、軽い Xfce Terminal にした
 - Caps Lock: RDP(mstsc)で手元とホストの状態がずれた。原因は未調査(gnome-remote-desktop 50 にはロックキーの同期の修正が入っている。IBus が先に受け取っている可能性)。caps:none で使わないことにした
 - mstsc の色 32 ビットは遅いという報告(gnome-remote-desktop #333、同じ 26.04)があるので、.rdp のひな形は 24 ビットにした
+  - 2026-10-25 にソースで見直した(#17): gnome-remote-desktop 50.2 は、クライアントがグラフィックス パイプラインかコーデックに対応していると、色の深さを 32 にする(`grd-session-rdp.c`「Client prefers colour depth %u, invalidated by support of codecs or graphics pipeline」)。ホストの側では 24 にしても軽くならない。mstsc の側で 24 と 32 で何かが変わるか(#333 の遅さの原因)は未確認なので、値は 24 のまま残し、実機で比べてから決める
+  - 同じときに、ひな形の `networkautodetect` を 0 から 1 にした。自動検出がないと RTT が 0 のままで、確認の返らないフレームが 2 つで送る量を絞る(`grd-rdp-gfx-frame-controller.c` の `activate_throttling_th = MAX (2, MIN (delayed_frames + 2, refresh_rate))`。grd も「High latency connections will suffer!」と出す)。60Hz・RTT 1ms の LAN では 1 にしても同じ 2 だが、RTT 50ms(VPN 越しなど)では 5 になる(静的な確認。実機の VPN 越しでは未確認)
+  - #17 のもう 1 つの案(4K のダミープラグのとき、env.yaml で解像度を固定する)は入れなかった。#15 で seat0 の自動ログインとダミープラグをやめ、ヘッドレスのセッションにする予定のため
 - RDP の extend モード(仮想の画面を足し、大きさを手元に合わせる)は、VirtualBox(GPU なし)で仮想の画面を足した直後に GNOME Shell が signal 11 で異常終了した。採用せず mirror-primary のまま。実機での動作は未確認
 - GNOME のセッションが落ちると、自動ログインは起動時の 1 回だけなのでログイン画面のままになり、再起動まで RDP に戻れない。TimedLogin は agent がログイン画面の一覧に出ないので効かなかった。見張りのタイマー(agent-host-session-watchdog、1 分ごと、2 回続けて seat0 にログインのセッションがなければ GDM を再起動)を置き、GNOME Shell をわざと落として約 1 分 20 秒で戻ることを確かめた
 
