@@ -119,12 +119,13 @@ else
         "$vbm" closemedium disk "$old_disk" --delete
     fi
 fi
-# 利用者の RDP の転送をそろえる(0.2 までの VM は 3389 の 1 本だけ)
+# 利用者の RDP の転送をそろえる。名前が rdp で始まる転送(0.2 までの 3389 の 1 本や、手で足したもの)を消してから足す
+while read -r rule; do
+    "$vbm" modifyvm "$name" --natpf1 delete "$rule"
+done < <("$vbm" showvminfo "$name" --machinereadable | sed -n 's/^Forwarding([0-9]*)="\(rdp[^,]*\),.*/\1/p')
 for p in "${rdp_ports[@]}"; do
-    "$vbm" modifyvm "$name" --natpf1 delete "rdp$p" >/dev/null 2>&1 || true
     "$vbm" modifyvm "$name" --natpf1 "rdp$p,tcp,127.0.0.1,$((p + 10000)),,$p"
 done
-"$vbm" modifyvm "$name" --natpf1 delete rdp >/dev/null 2>&1 || true
 disk="$base/$name/$name-$(date +%Y%m%d-%H%M%S).vdi"
 mkdir -p "$(dirname "$disk")"
 "$vbm" createmedium disk --filename "$(winpath "$disk")" --size 40960 --format VDI
