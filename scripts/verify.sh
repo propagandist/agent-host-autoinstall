@@ -73,7 +73,7 @@ agent_uid=0
 runtime_dir=""
 use_user() {
     AGENT_USER="$1"
-    AGENT_HOME="$(getent passwd "$1" | cut -d: -f6)"
+    AGENT_HOME="$(getent passwd "$1" | cut -d: -f6 || true)"
     AGENT_HOME="${AGENT_HOME:-/home/$1}"
     agent_uid="$(id -u "$1" 2>/dev/null || echo 0)"
     runtime_dir="/run/user/$agent_uid"

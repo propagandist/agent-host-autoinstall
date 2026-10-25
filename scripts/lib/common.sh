@@ -31,7 +31,7 @@ use_user() {
     local env_file="$AH_ROOT/users/$1.env"
     [ -r "$env_file" ] || { log "利用者ごとの値 $env_file が読めない"; exit 1; }
     AGENT_USER="$1"
-    AGENT_HOME="$(getent passwd "$1" | cut -d: -f6)"
+    AGENT_HOME="$(getent passwd "$1" | cut -d: -f6 || true)"  # まだいない利用者(10-users.sh が作る前)では空
     AGENT_HOME="${AGENT_HOME:-/home/$1}"
     # shellcheck source=/dev/null
     . "$env_file"
