@@ -291,6 +291,25 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - #14: xrdp を採らなかった主な理由を「別のセッションを作る」に直した(上の「設計で決めたこと」)
 - #6: Node.js はシステムの証明書ストアを見ないので、05-proxy-ca.sh が CA を OS に入れても、構成の途中の npm は TLS を検査するプロキシの下で `UNABLE_TO_VERIFY_LEAF_SIGNATURE` になる(自己署名の CA と https のサーバーを Docker で立てて再現。`NODE_EXTRA_CA_CERTS` で通る)。provision.sh が CA があるとき `NODE_EXTRA_CA_CERTS`・`SSL_CERT_FILE`・`REQUESTS_CA_BUNDLE` を export し、`apt-get update` を 05-proxy-ca.sh のあとに回した。実際の TLS を検査するプロキシの下での通しは未確認のまま
 
+### Windows で作られた和文の本のリポジトリ(2026-10-25、VirtualBox で確認)
+
+v0.2.0 の VM で、Windows の PC で書かれてきた upLaTeX の和文の本のリポジトリ 5 本を、agent として扱えるかを確かめた(手元の clone を git bundle で持ち込んだ)。
+
+- 日本語まわりは問題がなかった
+  - PDF は rootless Docker の TeX Live のコンテナ(paperist/texlive-ja)で組め、出力の所有者は agent だった
+  - 和文フォント(原ノ味)はすべて埋め込まれ、pdftotext で日本語を取り出せた
+  - 同じイメージの digest で組んだ 4 本は、Windows で組んだ PDF とページ画像が全ページ一致した(tools/compare_build.py 相当、40dpi)
+- 最初は 4 本中 3 本で差が出たが、原因はホストではなかった。`texlive-ja:latest` が手元と VM で別のイメージを指していた。FROM を同じ digest にすると差は 0 になった
+- draw.io の書き出し(原ノ味を入れた rlespinasse/drawio-export)、Playwright での表紙の書き出し(Google Fonts の Noto Sans JP、縦書きを含む)、Gradle のテスト(JDK 21 は `mise use java@temurin-21`)、python-pptx での PowerPoint の生成も、sudo なしで動いた
+- Playwright(1.64.1)は 26.04 を「非公式・24.04 とみなす」扱い。`npx playwright install chromium`(`--with-deps` なし)で取得でき、ホストに Chrome が入っているので足りないライブラリはなかった
+- 止まったもの(ホストの側)
+  - `python` コマンドがない。`python tools/....py` で `python: not found` になった(#20)
+- 止まったもの(本のリポジトリの側の書き方)
+  - justfile が `set windows-shell` だけで PowerShell の構文のため、Linux の just(`sh -cu`)では前段で構文エラーになる。justfile を通さず `docker compose run …` を打てば組める
+  - git に実行権なし(100644)で記録された gradlew が `./gradlew` で動かない(`sh ./gradlew` なら動く)
+- just はアーカイブ(universe)に 1.45.0 があるが、agent が `mise use -g just` で入れられる(1.59.0)ので入れていない
+- 5 本の PDF のイメージで、VM(ルート 37GB)の空きが約 15GB から約 7.6GB に減った
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
