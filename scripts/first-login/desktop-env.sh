@@ -23,6 +23,14 @@ for app in orca-ide xfce4-terminal google-chrome com.microsoft.VSCode dev.zed.Ze
     fi
 done
 
+# 0.3.0 より前に立てたセッションでは、gsd-keyboard が mozc-jp を足して Mozc が 2 つ並んでいる(first-login.sh)。
+# mozc-on があれば mozc-jp を外す(目印があるので、gsd-keyboard はもう足さない)
+sources="$(gsettings get org.gnome.desktop.input-sources sources)"
+if [[ "$sources" == *"('ibus', 'mozc-on')"* && "$sources" == *", ('ibus', 'mozc-jp')"* ]]; then
+    gsettings set org.gnome.desktop.input-sources sources "${sources//, (\'ibus\', \'mozc-jp\')/}"
+    echo "[agent-host] 入力ソースから重なった mozc-jp を外した"
+fi
+
 want="color=$desktop_color favorites=[$favorites]"
 if [ "$(cat "$applied" 2>/dev/null || true)" = "$want" ]; then
     exit 0

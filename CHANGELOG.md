@@ -45,6 +45,7 @@
 
 ### 修正
 - 移行の書き出し(agent-host-backup)が root の tar でホームを読んでいたため、利用者が途中のディレクトリを root だけが読めるディレクトリへのリンクにしておくと、利用者に読めない root のファイルが書庫に入り、取り込みで利用者の持ち物になった。取り込み(agent-host-restore)も root で展開していたため、ホームに元からある相対パスのリンクをたどってホームの外に書けた。ホームの分は、書き出しも取り込みも利用者の権限で行う(書庫は root の tar のあとに利用者ごとの tar が続く形。v0.2.0 の書き出しも取り込める)。tests/test_backup.py で、どちらも起きないことを確かめる。利用者に読めないもの(rootless Docker のデータなど)は書き出さず、一覧を出す(#23)
+- 入力ソースに Mozc が 2 つ並び、Ctrl+Space の切り替えに 2 つ出た。Ubuntu の gnome-settings-daemon が、初めてのセッションでロケールの mozc-jp を足していた。first-login で足させないようにし、すでに足されたものはセッションが立つときに外す。just verify に「入力ソースの Mozc は 1 つ」
 - 80-agent-session.sh の古い設定(50-proxy-ca.conf)の削除が root のままで、途中のリンクでホームの外の同じ名前のファイルを消せた。利用者の権限で消す。tests/test_agent_home.py に、末端がディレクトリへのリンクのときの write_agent_file の試験を足した(#24)
 
 ### 確認した環境

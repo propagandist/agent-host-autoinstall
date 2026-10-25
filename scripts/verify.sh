@@ -362,6 +362,7 @@ user_checks() {
     local sources bus_file engines
     sources="$(gset org.gnome.desktop.input-sources sources)"
     if [[ "$sources" == *"('ibus', 'mozc-on')"* ]]; then ok "入力ソースに Mozc がある"; else ng "入力ソースに Mozc がある" "$sources"; fi
+    if [[ "$sources" != *"('ibus', 'mozc-jp')"* ]]; then ok "入力ソースの Mozc は 1 つ"; else ng "入力ソースの Mozc は 1 つ" "$sources"; fi
     # IBus のアドレスは ~/.config/ibus/bus/ にある(新しいものが今のセッション)
     # shellcheck disable=SC2012  # ファイル名は 16 進と英数字だけ
     bus_file="$(ls -t "$AGENT_HOME"/.config/ibus/bus/* 2>/dev/null | head -1 || true)"
