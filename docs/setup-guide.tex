@@ -406,6 +406,7 @@ mise & 言語の版の切り替え(Go、Rust、Java など、sudo なしで入�
 Docker(rootless) & コンテナ。利用者ごとに別々で、root の権限を持たない & \code{docker}。DB などはこれで動かす \\
 GitHub CLI & GitHub の操作(PR、Issue、認証) & \code{gh} \\
 Gitea CLI & Gitea の操作(PR、Issue、リリース)。git の HTTPS の認証にも使える & \code{tea} \\
+Mermaid CLI & Mermaid の図を SVG・PNG・PDF に描き出す(Google Chrome を使う) & \code{mmdc -i 図.mmd -o 図.svg} \\
 git ほか & git、git-lfs、ripgrep、fd、jq、tmux、sqlite3、shellcheck、ビルドの道具、\code{python}(python3 と同じ) & エージェントがそのまま使う \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}エディター(選択)} \\
@@ -750,7 +751,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{37-gpu.sh} & RDP の画面の符号化を GPU に任せる(Intel の VA-API の full 版、Vulkan のドライバー、vainfo)。NVIDIA のドライバーはインストールの中で入る \\
 \code{40-ssh-ufw.sh} & SSH を鍵認証のみに、利用者を SFTP 専用に。\code{AllowUsers} を \code{sysadmin} と今の利用者だけにする。ufw で 22・利用者ごとの RDP のポート・\code{dev_ports}(と IP Messenger の UDP 2425)を LAN だけに許可し、外した利用者のポートの規則を消す \\
 \code{50-updates.sh} & unattended-upgrades をセキュリティ更新と Chrome だけ、自動再起動なしに \\
-\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
+\code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Mermaid CLI、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、利用者ごとの rootless Docker \\
@@ -1240,6 +1241,7 @@ Node.js & 24.22.1 & 公式の tar.xz(SHA256) \\
 Claude Code & 2.1.308-1 & 公式 apt、hold \\
 Codex & 0.164.0 & npm \\
 CCManager & 4.4.9 & npm \\
+Mermaid CLI & 12.0.0(puppeteer 25.16.0) & npm(\code{/opt} に入れる) \\
 GitHub CLI & 2.103.2 & リリースの .deb(SHA256)、hold \\
 Gitea CLI & 0.16.0 & dl.gitea.com のバイナリ(SHA256) \\
 uv & 0.13.5 & リリースの tar(SHA256) \\

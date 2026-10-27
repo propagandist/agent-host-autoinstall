@@ -74,6 +74,7 @@ sudo ss -tlnp | grep gnome-remote
 | Gitea CLI | RDP の端末で `tea --version` と `echo $GITEA_SERVER_URL` | 60-devtools.sh の版。gitea_url を書いたらその URL |
 | クラウドの CLI | RDP の端末で `aws --version; gcloud --version; az version`(選んだものだけ) | 63-clouds.sh の版。`echo $AWS_PAGER` は空 |
 | 開発の道具 | RDP の端末で `mise --version; uv --version; python --version; pnpm --version; ccmanager --version; ulimit -n` | それぞれ動く。python は Python 3。ulimit -n は 65536 |
+| Mermaid CLI | RDP の端末で `printf 'flowchart LR\n  A[開始] --> B[日本語のラベル]\n' >/tmp/t.mmd; for f in svg png pdf; do mmdc -i /tmp/t.mmd -o /tmp/t.$f; done` | 3 つとも出る。PNG・PDF の日本語が文字化けしない。sandbox のエラーが出ない |
 | エージェントへの説明 | `sudo cat /home/<名前>/.claude/CLAUDE.md` | 「このホストについて」が置かれ、「あなたは <名前> ユーザーで」になっている |
 | Orca のテレメトリ | RDP の端末で `echo $ORCA_TELEMETRY_DISABLED` | 1 |
 | サービスの最小化 | `systemctl list-units --type=service --state=running`、`command -v snap orca` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない。snap と(読み上げの)orca がない |
