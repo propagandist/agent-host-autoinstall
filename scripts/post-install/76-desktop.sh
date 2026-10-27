@@ -19,7 +19,7 @@ CLIPBOARD_INDICATOR_SHA256=687cb404f9540958ddb0c1de638970572cef73f22f016e5d6c6d6
 apt-get install -y mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk
 # 入力メソッドは IBus ではなく fcitx5 にする。RDP の半角/全角キーは押しっぱなしで届き、ホストのキーリピートで
 # 押され続ける(#21)。IBus の Mozc はそのたびに入力モードの表示を更新し、gnome-shell がそれを受けてメモリを漏らし、
-# ホストが固まって OOM で落ちた。fcitx5 は IBus のふりをする口(ibusfrontend)で gnome-shell とつながり、表示の
+# ホストが応答しなくなって OOM で落ちた(#36)。fcitx5 は IBus のふりをする口(ibusfrontend)で gnome-shell とつながり、表示の
 # 更新を送らないので、同じリピートで漏れなかった(どちらも実機で確認。docs/notes.md)。
 # Recommends は Qt6 と設定の画面、中国語の辞書まで引くので入れない(Mozc の設定は mozc-utils-gui で行う)
 apt-get install -y --no-install-recommends fcitx5 fcitx5-mozc fcitx5-frontend-gtk3 fcitx5-frontend-gtk4

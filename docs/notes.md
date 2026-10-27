@@ -411,16 +411,16 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 
 - `examples/fleet/.sops.yaml` の `encrypted_regex` が `initial_password`(v0.3.0 で `rdp.password` から名前を変えた)に一致せず、ひな形どおりに暗号化しても RDP の仮のパスワードが平文で残った。#15 で名前を変えたときの取りこぼし。正規表現に足し、ひな形の秘密の値のキーが一致することを tests/test_render.py で確かめる。確かめたのは正規表現とキーの突き合わせまでで、sops は実行していない
 
-### 半角/全角の押しっぱなしで gnome-shell が漏れて固まる(2026-10-27、実機で確認、#21)
+### 半角/全角の押しっぱなしで gnome-shell が漏れて固まる(2026-10-27、実機で確認、#36・#21)
 
 実機(AMD Renoir、RAM 約 15GB、v0.3.1。gnome-shell 50.1、mutter 50.1、gnome-remote-desktop 50.2、ibus 1.5.34~rc2-1、ibus-mozc 2.29.5160.102)で、Orca でエージェントを動かしていると画面が操作できなくなった。
 
-- 起きたこと: 利用者の `org.gnome.Shell@ubuntu.service` が 3 時間で 10.8GB(うち swap 7.3GB)に膨らみ、zram が埋まって応答しなくなり(at-spi の「unresponsive」)、カーネルの OOM killer に落とされた。同じ日に 2 回(2 回目は 11.8GB)。膨らんだのは gnome-shell の `[heap]`(malloc)で、Xwayland などほかのプロセスではなかった
-- systemd-oomd は止めなかった。圧迫が 50% を 20 秒続かないと動かず、swap の量では動かない(`oomctl` の Swap Monitored CGroups が空)。ゆっくり漏れると、閾値の手前で固まり続ける
-- 原因: RDP(Windows の mstsc、日本語キーボード)の半角/全角キーが、IBus に「離す → 押す」の順で届く(keyval 0xFF2A `Zenkaku_Hankaku`、keycode 41。dbus-monitor で IBus のバスを盗み聞きして確認)。ホストは押されたままと受け取り、キーリピート(既定の delay 500ms、interval 30ms)で 1 秒に 22〜34 回押し続ける。ほかのキー(Shift など)を押すまで止まらない。そのたびに IBus の Mozc が入力モードを切り替え、入力モードの表示の更新(`UpdateProperty` と `PropertyUpdated`。25 秒で 10374 回)が gnome-shell に流れ、gnome-shell が漏れた。漏れの速さは 0.4〜26MB/s と毎回違った(理由は調べていない)。ibus-daemon の CPU は 40〜50%
-- 確かめたこと: ibus を止める(`systemctl --user stop org.freedesktop.IBus.session.GNOME.service`)と、gnome-shell の CPU は 90% から 0% に落ち、漏れも止まった。ibus を起動しなおした直後は、半角/全角を押すまで漏れない
-- 漏れたあとの症状: 漏れた gnome-shell(約 2.8GB)は、本体のスレッドが 11 秒ごとに約 0.6 秒止まった(D-Bus でシェルのプロパティを 50ms ごとに読んで測った。`org.freedesktop.DBus.Peer.Ping` は GDBus が裏のスレッドで答えるので、これでは測れない)。止まっているあいだに届いた「離した」が待たされ、mutter の入力のスレッドがリピートを出すので、押していないのに長押しの扱いになった(4 分半で 6 回。どれも約 0.7 秒の詰まりのあとにまとめて届き、間隔は 11 秒の倍数)。セッションを立てなおした gnome-shell(88MB、RDP 接続中)では、60 秒のあいだ 0.16 秒を超える止まりはなかった。止まりの中身(ゴミ集めか)は調べていない
-- 根: RDP の入力のキーのリピートは、ホストの mutter が自分のタイマーで作る(mutter 50.1 の `meta_seat_impl_notify_key_in_impl` は、仮想の入力機器からの繰り返しの押下を捨てる。ホストのリピートを切ると、押し続けても 1 文字しか入らなかった)。そのため「離した」が遅れたり来なかったりすると、押していない文字が増える。Windows の半角/全角は「離した」を次に押すときまで送らない(walbrix の記事、Guacamole の GUACAMOLE-520 にも同じ報告。walbrix は gnome-remote-desktop にパッチを当てて回避)。そこに gnome-shell の漏れ(IBus の表示の更新のたび)が重なって固まった
+- 起きたこと: 利用者の `org.gnome.Shell@ubuntu.service` が、起動から 3 時間 6 分のあいだに最大 10.8GB(swap 7.3GB)になり、応答しなくなって(at-spi の「unresponsive」)、カーネルの OOM killer に落とされた。同じ日に 2 回(2 回目は最大 11.6GB、swap 8.2GB)。応答しなくなってから落ちるまで、1 回目は約 40 分、2 回目は約 20 分。2 回目の gnome-shell では、膨らんだのは `[heap]`(malloc)で、Xwayland などほかのプロセスではなかった(1 回目は記録がない)
+- systemd-oomd は止めなかった。user@ の設定は、圧迫が 50% を 20 秒続いたら止める(`ManagedOOMMemoryPressure=kill`)で、swap の量では見ない(`oomctl` の Swap Monitored CGroups が空)。18:44 の `oomctl` では、この利用者の user@ は Memory Pressure Monitored CGroups に入っていたが、21 時台には外れていた(ユニットの設定は変わらない)。いつ・なぜ外れたのか、落ちた 2 回の時点で見られていたのかは分からない(調べていない)
+- 原因: RDP(Windows の mstsc、日本語キーボード)の半角/全角キーが、IBus に「離す → 押す」の順で届く(keyval 0xFF2A `Zenkaku_Hankaku`、keycode 41。dbus-monitor で IBus のバスを盗み聞きして確認)。ホストは押されたままと受け取り、キーリピート(既定の delay 500ms、interval 30ms)で 1 秒に 22〜34 回押し続ける。ほかのキー(Shift など)を押すまで止まらない。そのたびに IBus の Mozc が入力モードを切り替え、入力モードの表示の更新(`UpdateProperty`)が gnome-shell に流れ、流れているあいだに gnome-shell が漏れた。同じくらい流れても、漏れの速さは時間帯で 1 桁以上違った(約 8900 回/分で +430MB/分のときと、約 8300 回/分で 25 秒に +6MB のとき。理由は調べていない)。1 回の更新は IBus のバスに 3 通(engine の signal と panel への 2 つ)流れるので、バスの通の数(1 分に UpdateProperty 26670、PropertyUpdated 17767)の約 3 分の 1 が更新の回数。ibus-daemon の CPU は 40〜50%
+- 確かめたこと: ibus を止める(`systemctl --user stop org.freedesktop.IBus.session.GNOME.service`)と、漏れが止まった(止める直前の gnome-shell の CPU は 118%。止めたあとの CPU は記録がない)。ibus を起動しなおした直後は、半角/全角を押すまで漏れない
+- 漏れたあとの症状: 漏れた gnome-shell(約 2.8GB)は、本体のスレッドが 11 秒ごとに約 0.6 秒止まった(D-Bus でシェルのプロパティを 50ms ごとに読んで測った。`org.freedesktop.DBus.Peer.Ping` は GDBus が裏のスレッドで答えるので、これでは測れない)。止まっているあいだに届いた「離した」が待たされ、mutter の入力のスレッドがリピートを出すので、押していないのに長押しの扱いになった(4 分半で、「離した」が約 0.6〜1.0 秒遅れてまとめて届いたのが 6 回で、どれも 11 秒の倍数の時刻。押していない文字が増えたのは、そのうちの 4 回)。セッションを立てなおした gnome-shell(88MB、RDP 接続中)では、60 秒のあいだ 0.16 秒を超える止まりはなかった(その場で見ただけで、記録は残していない)。漏れと止まり、止まりと長押しは、周期が合うことから見た相関で、同じ時間に測って突き合わせてはいない。「離した」がどこで待たされるかと、止まりの中身(ゴミ集めか)は調べていない
+- 根: RDP の入力のキーのリピートは、ホストの mutter が自分のタイマーで作る(mutter 50.1 の `meta_seat_impl_notify_key_in_impl` は、仮想の入力機器からの繰り返しの押下を捨てる。ホストのリピートを切ると、押し続けても 1 文字しか入らなかった)。そのため「離した」が遅れたり来なかったりすると、押していない文字が増える。ホストに届く半角/全角は「離す → 押す」の順で、物理的に離したときには何も届かない(Windows がそう送るのか、途中で変わるのかは区別していない。walbrix の記事は、Windows の RDP では「release-only → press → release」で届くと書き、gnome-remote-desktop にパッチを当てて回避している。GNOME/gnome-remote-desktop#234。ブラウザの Apache Guacamole にも、半角/全角の keyup と keydown がそろわない報告がある。GUACAMOLE-1004)。そこに gnome-shell の漏れ(IBus の表示の更新のたび)が重なって固まった
 - 取り違えたこと: はじめは「Orca の端末の出力で漏れる」「日本語を入力すると漏れる」と見たが、どちらも、そのとき利用者が半角/全角を押していたのと重なっていた
 - 効かなかったこと:
   - RDP の解像度の変更(RHEL-148314 に似た報告がある)は当てはまらなかった。このクライアントでは窓の大きさを変えても仮想モニターの解像度が変わらず、メモリも増えなかった
@@ -451,7 +451,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
-- 日本語入力の fcitx5: VM での構成と `just verify`・`just vm-test`、新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力(#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
+- 日本語入力の fcitx5: VM での構成と `just verify`・`just vm-test`、新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意

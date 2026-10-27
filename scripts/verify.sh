@@ -120,7 +120,7 @@ check "0.2 までのセッションの見張りがない" test ! -e /etc/systemd
 hl_dropin=/etc/systemd/system/gnome-headless-session@.service.d/50-agent-host.conf
 check "ヘッドレスのセッションを静的な gdm で動かす(drop-in)" bash -c "grep -qx 'DynamicUser=no' $hl_dropin && grep -qx 'User=gdm' $hl_dropin"
 check "ヘッドレスのセッションは落ちても立ちなおす(Restart=always)" grep -qx 'Restart=always' "$hl_dropin"
-# 漏れて膨らんだ gnome-shell は固まり続けた(docs/notes.md、#21)。上限で止めて立ちなおさせる
+# 漏れて膨らんだ gnome-shell は応答しないまま続いた(docs/notes.md、#36)。上限で止めて立ちなおさせる
 shell_dropin=/etc/systemd/user/org.gnome.Shell@.service.d/50-agent-host.conf
 check "gnome-shell のメモリに上限がある(drop-in)" bash -c "grep -qx 'MemoryMax=30%' $shell_dropin && grep -qx 'MemorySwapMax=512M' $shell_dropin"
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
