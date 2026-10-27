@@ -436,6 +436,6 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Codex の認証情報は `~/.codex/auth.json` に平文で保存される。利用者のホームは 700 にしている(sysadmin は読める)
 - Orca は .deb 版なら自分では更新を適用しない(通知は出る)。apt-mark hold で固定している。上げるときは 70-orca.sh の版と SHA256 を直す
 - バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
-- build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh`(root のみ読める)には秘密情報が入る
+- build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも。どれも root のみ読める)には秘密情報が入る。ほかに秘密情報が入るファイルは README の「利用上の注意」にまとめている
 - デスクトップ共有とリモートログインを両方有効にすると、デスクトップ共有が 3390 番に移る。リモートログインは有効にしない
 - いちばん崩れやすいのは受け入れテスト4(再起動後、何もせずに RDP がつながるか)。ここを最優先で検証する
