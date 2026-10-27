@@ -15,7 +15,7 @@
 | 項目 | 内容 |
 |---|---|
 | OS | Ubuntu Desktop 26.04 LTS(GNOME のセッションは Wayland のみ。xrdp の Xorg のセッションでは GNOME が動かないため不採用) |
-| 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 Mozc(autoinstall.yaml、76-desktop.sh、first-login で固定) |
+| 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 fcitx5 の Mozc(autoinstall.yaml、76-desktop.sh、first-login で固定。IBus は使わない) |
 | ハードウェア | x86_64 の物理PC。メモリ 32GB 以上(利用者 1 人あたり、セッションに 0.5〜1GB とエージェント・ビルドの分)、NVMe SSD 推奨、有線 LAN。GPU は Intel の第 6 世代以降の内蔵 GPU か AMD を推奨(RDP の画面を GPU で符号化する) |
 | 画面 | 物理モニターなし運用。利用者ごとのセッションはヘッドレス(ダミープラグは要らない) |
 | ネットワーク | LAN。固定IP(または DHCP 予約) |
@@ -47,7 +47,7 @@ LAN の RDP クライアント → :<その人の port> → その人のデス�
 ## 5. 機能要件
 
 ### 5.1 OS インストール(autoinstall)
-- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力の ibus-mozc・言語パック・日本語フォントは、インストーラーが入れないことがあったので 76-desktop.sh で入れる)
+- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力・言語パック・日本語フォントは、インストーラーが入れないことがあったので 76-desktop.sh で入れる。日本語入力は fcitx5 と fcitx5-mozc にし、インストーラーが入れる ibus-mozc は消して、IBus のデーモン(user の `org.freedesktop.IBus.session.GNOME.service`)を全員で mask する。RDP の半角/全角キーが押しっぱなしで届くと、IBus の Mozc では gnome-shell がメモリを漏らしてホストが固まるため。#21、docs/notes.md)
 - キーボード配列は env.yaml の `keyboard_layout`(`us` / `jp`)で台ごとに決める。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるので、RDP で使う人のキーボードに合わせる
 - ストレージは LVM、ディスク全体を使用(`sizing-policy: all`。既定の scaled はボリュームグループの半分ほどを空けて残す。暗号化はしない。§8 参照)
 - ネットワークは env.yaml の `network` で、DHCP か固定 IP(アドレス、ゲートウェイ、DNS、検索ドメイン)を台ごとに決める。インストール中もこの設定で通信し、インストール後は NetworkManager が管理する
@@ -66,7 +66,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - 利用者のホームのフォルダー名(デスクトップ、ダウンロードなど)は英語名(Desktop、Downloads など)にする
 - 利用者の GNOME 設定(セッションを立てる前に一度だけ適用。画面ロックの無効化は毎回):
-  - 入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい。jp でも半角/全角キーは RDP で押しっぱなしで届き、使えない。#21)
+  - 入力ソースを `[('xkb', <配列>)]` だけにし、GNOME の切り替えのキー(`switch-input-source`)は既定に戻す。日本語との切り替えは fcitx5 の Ctrl+Space(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすい。jp でも半角/全角キーは RDP で押しっぱなしで届き、使えない。#21)。fcitx5 の profile(配列と Mozc)とキーの割り当て(Ctrl+Space で切り替え、半角/全角は日本語にするだけ、無変換で英字)、Mozc の設定(MS-IME の割り当てから半角/全角を外した独自の表。`post-install/mozc-keymap.tsv`)は 76-desktop.sh が、ないときだけ置き、セッションごとの起動は user の `agent-host-fcitx5.service`(全員で有効)が行う
   - `org.gnome.desktop.session idle-delay 0`
   - `org.gnome.desktop.screensaver lock-enabled false`、`org.gnome.desktop.lockdown disable-lock-screen true`(利用者のパスワードはロックしてあるので、ロックされると本人も外せない)
   - `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'`

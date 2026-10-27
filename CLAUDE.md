@@ -49,7 +49,8 @@ scripts/
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、利用者の既定のブラウザにする
-    76-desktop.sh           # Xfce Terminal、Atril(PDF)、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
+    76-desktop.sh           # 日本語入力(fcitx5 と Mozc。IBus は止める)、Xfce Terminal、Atril(PDF)、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
+    mozc-keymap.tsv         # Mozc のキーの割り当て(MS-IME から半角/全角を外したもの)。mozc-config.py で config1.db にする(76 が使う)
     80-agent-session.sh     # 利用者ごとのキーリング、フォルダー名、git、プロキシ、mise、エージェントへの説明
     84-notify.sh            # 通知(Slack、IP Messenger)とディスクの残りの監視
     85-ups.sh               # env.yaml の ups で選んだ UPS を NUT で見る(バッテリーが少ないと終了、出力を止めて復電で起動、通知)

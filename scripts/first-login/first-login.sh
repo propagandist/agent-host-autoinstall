@@ -25,20 +25,21 @@ gsettings set org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'no
 gsettings set org.gnome.mutter check-alive-timeout 0
 
 # --- キーボードと日本語入力 ---
-# 配列はインストール時の指定(env.yaml の keyboard_layout → /etc/default/keyboard)に合わせ、Mozc と組にする。
-# Mozc は mozc-on(切り替えた時点でひらがな)を使う。mozc-jp は直接入力で始まり、ひらがなにするには
-# 半角/全角キーが要るので、101 キーボードでは日本語を打てなかった(VirtualBox + RDP で確認済み)
+# 日本語入力は fcitx5 と Mozc(76-desktop.sh)。GNOME の入力ソースは配列(インストール時の指定。env.yaml の
+# keyboard_layout → /etc/default/keyboard)だけにし、日本語との切り替えは fcitx5 が行う。
+# IBus の Mozc を入力ソースに置くと、gnome-shell が IBus の口(fcitx5)にエンジンの切り替えを頼むことになる
 # shellcheck source=/dev/null
 layout="$(. /etc/default/keyboard && echo "${XKBLAYOUT%%,*}")"
-gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout'), ('ibus', 'mozc-on')]"
+gsettings set org.gnome.desktop.input-sources sources "[('xkb', '$layout')]"
 # Ubuntu の gsd-keyboard は、利用者ごとに初めて動くとき(目印の input-sources-converted がないとき)、ロケールの
-# 入力メソッド(ja_JP なら mozc-jp)を入力ソースの末尾に足す(Ubuntu のパッチ keyboard-Use-ibus-sources-from-locale)。
-# mozc-on と並んで Mozc が 2 つになったので(VirtualBox で確認)、セッションが立つ前に目印を置いて足させない
+# 入力メソッド(ja_JP なら IBus の mozc-jp)を入力ソースの末尾に足す(Ubuntu のパッチ keyboard-Use-ibus-sources-from-locale。
+# VirtualBox で確認)。セッションが立つ前に目印を置いて足させない
 mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-settings-daemon"
 touch "${XDG_DATA_HOME:-$HOME/.local/share}/gnome-settings-daemon/input-sources-converted"
-# 101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に取られやすいので、Ctrl+Space でも切り替えられるようにする
-gsettings set org.gnome.desktop.wm.keybindings switch-input-source "['<Super>space', '<Control>space']"
-gsettings set org.gnome.desktop.wm.keybindings switch-input-source-backward "['<Shift><Super>space', '<Shift><Control>space']"
+# 切り替えのキーは fcitx5 の既定の Ctrl+Space(101 キーボードには半角/全角キーがなく、Super は RDP クライアント側に
+# 取られやすい)。GNOME が Ctrl+Space を取ると fcitx5 に届かないので、GNOME の割り当ては既定(Super+Space)に戻す
+gsettings reset org.gnome.desktop.wm.keybindings switch-input-source
+gsettings reset org.gnome.desktop.wm.keybindings switch-input-source-backward
 
 # --- RDP での使い勝手 ---
 # アニメーションを切る(RDP は画面の変化を送るので、動きが少ないほど軽い)。

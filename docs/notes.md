@@ -75,7 +75,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 ### SSH・日本語入力・Chrome(2026-10-23 追加)
 - SSH: sysadmin で鍵認証により接続できる。パスワード認証・root ログインは無効(VirtualBox で確認済み)。agent は SSH 鍵を持たない
 - 日本語入力: locale ja_JP.UTF-8 と keyboard jp の指定で、インストーラーが ibus-mozc・language-pack-ja・Noto CJK を入れ、agent の入力ソースは `[('xkb', 'jp'), ('ibus', 'mozc-jp')]` になる(VirtualBox で確認済み)。RDP 越しに Ctrl+Space で切り替えて日本語を打てる(VirtualBox + 101 キーボード + mstsc で確認済み)
-- キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
+- キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す(0.3 のあとで日本語入力を fcitx5 に替え、入力ソースは配列だけにした。下の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
 - インストーラーが入れる `mozc-jp` は、切り替えた直後が直接入力で、ひらがなにするには半角/全角キーが要る。101 キーボードでは切り替えはできても日本語を打てなかった。`mozc-on`(切り替えた時点でひらがな)にして打てた(確認済み)
 - 入力ソースに Mozc が 2 つ並んでいた(`[('xkb', 'us'), ('ibus', 'mozc-on'), ('ibus', 'mozc-jp')]`。v0.3.0 の release ブランチの VM で、Ctrl+Space の切り替えに Mozc が 2 つ出た)。Ubuntu の gnome-settings-daemon(50.0-1ubuntu1)のパッチ keyboard-Use-ibus-sources-from-locale は、gsd-keyboard が利用者ごとに初めて動くとき(`~/.local/share/gnome-settings-daemon/input-sources-converted` がないとき)、ロケールの入力メソッド(ja_JP なら `mozc-jp`)を、入っているものを見ずに末尾に足す。first-login.sh がセッションの前にこの目印を置き、desktop-env.sh がすでに足された `mozc-jp` を外すようにした(bob で確認。新しく入れたときの確認は release の vm-test)。0.2 までの agent でも同じことが起きていたはず(未確認)
 - 動いている VM の配列を `localectl set-x11-keymap` で変えようとしたら、sudo でも "Access denied" になった。`/etc/default/keyboard` を直接書き換えて代えた(原因は未調査)
@@ -411,6 +411,28 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 
 - `examples/fleet/.sops.yaml` の `encrypted_regex` が `initial_password`(v0.3.0 で `rdp.password` から名前を変えた)に一致せず、ひな形どおりに暗号化しても RDP の仮のパスワードが平文で残った。#15 で名前を変えたときの取りこぼし。正規表現に足し、ひな形の秘密の値のキーが一致することを tests/test_render.py で確かめる。確かめたのは正規表現とキーの突き合わせまでで、sops は実行していない
 
+### 半角/全角の押しっぱなしで gnome-shell が漏れて固まる(2026-10-27、実機で確認、#21)
+
+実機(AMD Renoir、RAM 約 15GB、v0.3.1。gnome-shell 50.1、mutter 50.1、gnome-remote-desktop 50.2、ibus 1.5.34~rc2-1、ibus-mozc 2.29.5160.102)で、Orca でエージェントを動かしていると画面が操作できなくなった。
+
+- 起きたこと: 利用者の `org.gnome.Shell@ubuntu.service` が 3 時間で 10.8GB(うち swap 7.3GB)に膨らみ、zram が埋まって応答しなくなり(at-spi の「unresponsive」)、カーネルの OOM killer に落とされた。同じ日に 2 回(2 回目は 11.8GB)。膨らんだのは gnome-shell の `[heap]`(malloc)で、Xwayland などほかのプロセスではなかった
+- systemd-oomd は止めなかった。圧迫が 50% を 20 秒続かないと動かず、swap の量では動かない(`oomctl` の Swap Monitored CGroups が空)。ゆっくり漏れると、閾値の手前で固まり続ける
+- 原因: RDP(Windows の mstsc、日本語キーボード)の半角/全角キーが、IBus に「離す → 押す」の順で届く(keyval 0xFF2A `Zenkaku_Hankaku`、keycode 41。dbus-monitor で IBus のバスを盗み聞きして確認)。ホストは押されたままと受け取り、キーリピート(既定の delay 500ms、interval 30ms)で 1 秒に 22〜34 回押し続ける。ほかのキー(Shift など)を押すまで止まらない。そのたびに IBus の Mozc が入力モードを切り替え、入力モードの表示の更新(`UpdateProperty` と `PropertyUpdated`。25 秒で 10374 回)が gnome-shell に流れ、gnome-shell が漏れた。漏れの速さは 0.4〜26MB/s と毎回違った(理由は調べていない)。ibus-daemon の CPU は 40〜50%
+- 確かめたこと: ibus を止める(`systemctl --user stop org.freedesktop.IBus.session.GNOME.service`)と、gnome-shell の CPU は 90% から 0% に落ち、漏れも止まった。ibus を起動しなおした直後は、半角/全角を押すまで漏れない
+- 漏れたあとの症状: 漏れた gnome-shell(約 2.8GB)は、本体のスレッドが 11 秒ごとに約 0.6 秒止まった(D-Bus でシェルのプロパティを 50ms ごとに読んで測った。`org.freedesktop.DBus.Peer.Ping` は GDBus が裏のスレッドで答えるので、これでは測れない)。止まっているあいだに届いた「離した」が待たされ、mutter の入力のスレッドがリピートを出すので、押していないのに長押しの扱いになった(4 分半で 6 回。どれも約 0.7 秒の詰まりのあとにまとめて届き、間隔は 11 秒の倍数)。セッションを立てなおした gnome-shell(88MB、RDP 接続中)では、60 秒のあいだ 0.16 秒を超える止まりはなかった。止まりの中身(ゴミ集めか)は調べていない
+- 根: RDP の入力のキーのリピートは、ホストの mutter が自分のタイマーで作る(mutter 50.1 の `meta_seat_impl_notify_key_in_impl` は、仮想の入力機器からの繰り返しの押下を捨てる。ホストのリピートを切ると、押し続けても 1 文字しか入らなかった)。そのため「離した」が遅れたり来なかったりすると、押していない文字が増える。Windows の半角/全角は「離した」を次に押すときまで送らない(walbrix の記事、Guacamole の GUACAMOLE-520 にも同じ報告。walbrix は gnome-remote-desktop にパッチを当てて回避)。そこに gnome-shell の漏れ(IBus の表示の更新のたび)が重なって固まった
+- 取り違えたこと: はじめは「Orca の端末の出力で漏れる」「日本語を入力すると漏れる」と見たが、どちらも、そのとき利用者が半角/全角を押していたのと重なっていた
+- 効かなかったこと:
+  - RDP の解像度の変更(RHEL-148314 に似た報告がある)は当てはまらなかった。このクライアントでは窓の大きさを変えても仮想モニターの解像度が変わらず、メモリも増えなかった
+  - ホストのキーリピートを全部切る(`org.gnome.desktop.peripherals.keyboard repeat false`)と、半角/全角は 1 組だけになった。ただ、RDP のクライアントは自分でリピートを送らないので、キーを押し続けても 1 文字しか入らない
+  - 半角/全角キーだけリピートさせない XKB の定義(`~/.config/xkb` に `key <HZTG> { repeat = False };` と、それを足す rules と xkb-options)は、libxkbcommon では効いた(`xkb_keymap_key_repeats` が 0)。gnome-shell もそのファイルを読んだが、リピートは止まらなかった。mutter 50.1 の `meta_seat_impl_notify_key_in_impl` はこの関数を見てからリピートを始めるので、効かない理由は分からない(調べていない)
+  - 始まったリピートは、キーリピートの設定を切っても止まらない
+- 替えたもの: fcitx5 5.1.19 と fcitx5-mozc 2.29(Ubuntu の公式パッケージ)を、sudo なしで `apt-get download` と `dpkg -x` で利用者の一時ディレクトリに展開して動かした(ibus を止め、`FCITX_ADDON_DIRS`・`LD_LIBRARY_PATH`・`XDG_DATA_DIRS` を向けた)。fcitx5 の ibusfrontend は、IBus の口をセッションのバスに出し、`~/.config/ibus/bus/` のアドレスを書き換える。gnome-shell はそこにつなぎなおし、Orca(Electron の Wayland)で Mozc の変換ができた。同じ半角/全角のリピート(1 秒に約 34 回、約 20 秒)で、流れるのはキーの入力(ProcessKeyEvent)だけで、gnome-shell は +2MB だった
+- 作り(76-desktop.sh、first-login.sh、desktop-env.sh): ibus-mozc を消し、fcitx5・fcitx5-mozc・GTK3/GTK4 の口を `--no-install-recommends` で入れる(Recommends は Qt6・KDE のライブラリ・中国語の辞書まで約 60 個。入れなければ 13 個)。IBus のユニットは `systemctl --global mask` で全員止め、ibus と同じ並びの `agent-host-fcitx5.service`(user)でセッションごとに fcitx5 を起動する。GNOME の Wayland では im-config が入力メソッドを起動しない(`/etc/profile.d/im-config_wayland.sh` が `if false` で止めている)。GNOME の入力ソースは配列だけにし、Ctrl+Space を GNOME の切り替えから外して fcitx5 に渡す。fcitx5 の profile(配列と Mozc)は、ないときだけ置く
+- 残ること: 半角/全角のリピートそのものは mutter と RDP の側なので残る。fcitx5 では漏れないが、既定の割り当て(TriggerKeys に半角/全角)では押しっぱなしのあいだ日本語と英字を行き来し続けた(fcitx5 の表示が ja と あ を繰り返した)
+- キーの割り当て(実機で確認): fcitx5 の `~/.config/fcitx5/config` で、TriggerKeys を Ctrl+Space だけにし、半角/全角を ActivateKeys(日本語にするだけ)、無変換を DeactivateKeys(英字にするだけ)にした。リピート(2 秒に 55〜70 回)のあいだ fcitx5 の状態は日本語のまま変わらなかった(fcitx5-remote で 0.2 秒ごとに読んだ)。ただ、日本語になったあとのリピートは Mozc に届き、Mozc の割り当て(MS-IME)の半角/全角(IMEOff / IMEOn)で「全角かな」と「直接入力」を行き来した。Mozc の設定(`~/.config/mozc/config1.db`。Config を protobuf にしたもの。`session_keymap` = 41 を CUSTOM、`custom_keymap_table` = 42 に表)に、MS-IME の表(google/mozc 2.29.5160.102 の `src/data/keymap/ms-ime.tsv`)から半角/全角の 4 行を外した表を入れると、繰り返さなくなった。表は `post-install/mozc-keymap.tsv`(Mozc の BSD-3 条項ライセンスを注釈に入れた。Mozc は 1 行目と `#` の行を読み飛ばす)、組み立ては `post-install/mozc-config.py`
+- 未確認: VM での構成と `just verify`・`just vm-test`、新しく入れたときに fcitx5 が自動で起動して gnome-shell がつなぐこと、just update で動いているセッションがその場で fcitx5 に替わること、候補の窓の位置、Xwayland のアプリでの入力(セッションの `XMODIFIERS` は `@im=ibus` のまま。fcitx5 の XIM は `fcitx` の名前で待つ)、fcitx5 がつなぐので Xwayland が常に起動しておくこと、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -428,6 +450,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
+- 日本語入力の fcitx5: VM での構成と `just verify`・`just vm-test`、新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力(#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
