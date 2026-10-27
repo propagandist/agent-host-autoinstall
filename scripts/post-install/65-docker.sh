@@ -61,7 +61,8 @@ apt-get install -y passt
 # --- 利用者ごとの rootless Docker ---
 setup_rootless_docker() {
     local agent_uid runtime_dir
-    # subuid/subgid は useradd が割り当てる。無ければ止める(範囲の重なりを避けるため手で決める)
+    # subuid/subgid は useradd が、ほかと重ならない範囲を 65536 個ずつ割り当てる(/etc/login.defs の SUB_UID_COUNT・SUB_GID_COUNT)。
+    # 無ければ止める(自動では足さない。重なりと個数は verify.sh が見る)
     if ! grep -q "^$AGENT_USER:" /etc/subuid || ! grep -q "^$AGENT_USER:" /etc/subgid; then
         log "$AGENT_USER の /etc/subuid か /etc/subgid が無い。usermod --add-subuids/--add-subgids で 65536 個割り当てる"
         exit 1

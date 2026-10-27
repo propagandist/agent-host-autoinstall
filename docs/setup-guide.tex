@@ -771,7 +771,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \begin{local}
 just status <ホスト>    # 置いた版と成功した版・構成・待ち受けのポート・利用者のセッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>      # 構成・利用者ごとの first-login とセッションの記録
-just verify <ホスト>    # 仕様どおりかを確かめる(全体と利用者ごと。読むだけ。sudo のパスワードを聞かれる)
+just verify <ホスト>    # 仕様どおりかを確かめる(全体と利用者ごと。sudo のパスワードを聞かれる)
 just verify-rdp <ホスト> # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
 \end{local}
 
@@ -779,6 +779,11 @@ just verify-rdp <ホスト> # 利用者ごとに、仮のパスワードで RDP 
 \code{just status} で「構成: 済み」と、利用者の RDP のポートの待ち受け、利用者ごとの「セッション: あり」が出て、
 失敗した unit がないこと。\code{just verify} の最後が「○ 項目のうち ○ 項目が通った」で、失敗した項目がないこと。
 \end{confirm}
+
+\code{just verify} は読むだけで何も変えない。例外は利用者ごとの rootless Docker で、\code{hello-world} のコンテナを動かす
+(手元になければ取得し、終わったら消す)。Docker Hub から取得できないときは「未検証」と出る(失敗ではない)。
+rootless Docker は、pasta の設定、\code{/etc/subuid}・\code{/etc/subgid} の範囲(利用者ごとに 65536 個以上で重ならない)、
+env.yaml から外した利用者の Docker が止まっていることも見る。コンテナから外への通信(\code{wget})は見ないので、受け入れテストで確かめる。
 
 構成が失敗したときは、原因を直してから \code{just update <ホスト>} で再実行する。
 スクリプトは冪等で、何度流しても同じ状態になる。

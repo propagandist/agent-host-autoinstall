@@ -40,7 +40,7 @@ sudo ss -tlnp | grep gnome-remote
 
 ## 構成の確認(1 のあとに SSH で)
 
-`just verify <ホスト>` が、下の表のうち画面を見なくてよいものの多くをまとめて確かめる。対象外は、ディスク、ネットワーク、NTP の同期先、VS Code のメニュー、`hello-world` や `wget` の実行、pnpm と `ulimit -n` の実際の値、SFTP、開発用のポート、移行、Zed の拡張機能の中身、Chrome の自動更新の許可元。✗ が出たら、該当する行のコマンドで詳しく見る。
+`just verify <ホスト>` が、下の表のうち画面を見なくてよいものの多くをまとめて確かめる。対象外は、ディスク、ネットワーク、NTP の同期先、VS Code のメニュー、コンテナからの `wget`、pnpm と `ulimit -n` の実際の値、SFTP、開発用のポート、移行、Zed の拡張機能の中身、Chrome の自動更新の許可元。✗ が出たら、該当する行のコマンドで詳しく見る。
 
 | 確認すること | コマンド | 期待する結果 |
 |---|---|---|
@@ -65,7 +65,7 @@ sudo ss -tlnp | grep gnome-remote
 | 利用者の git | `sudo -u <名前> git config --global --list` | user.name・user.email・init.defaultbranch=main |
 | inotify | `sysctl fs.inotify.max_user_watches` | 524288 |
 | 確認画面を出さない | `grep ^enabled /etc/default/apport; sudo ls /home/<名前>/.config/autostart` | enabled=0。autostart に update-notifier.desktop(Hidden=true) |
-| Docker(rootless) | `sudo -u <名前> XDG_RUNTIME_DIR=/run/user/$(id -u <名前>) docker info --format '{{.SecurityOptions}}'` と、RDP の端末で `docker run --rm hello-world` | `rootless` を含む。hello-world が動く。`systemctl is-active docker` は inactive |
+| Docker(rootless) | `sudo -u <名前> XDG_RUNTIME_DIR=/run/user/$(id -u <名前>) docker info --format '{{.SecurityOptions}}'` と、RDP の端末で `docker run --rm hello-world`。`cat /etc/subuid /etc/subgid` | `rootless` を含む。hello-world が動く(just verify も利用者ごとに動かす。取得できなければ未検証)。`systemctl is-active docker` は inactive。subuid・subgid は利用者ごとに 65536 個以上で、範囲が重ならない |
 | SFTP(利用者) | 鍵を登録した人が `sftp <名前>@<ホスト>` と `ssh <名前>@<ホスト>` | SFTP は入れる。ssh のシェルは「This service allows sftp connections only.」で入れない |
 | 開発用のポート | 手元の PC から `<ホスト>:<dev_ports のポート>` | 開発サーバーが見える(lan_cidrs の中からだけ) |
 | エディター | `code --version; nvim --version; zed --version`(選んだものだけ) | 入っている。VS Code は `apt-mark showhold` に code |
@@ -80,7 +80,7 @@ sudo ss -tlnp | grep gnome-remote
 | サービスの最小化 | `systemctl list-units --type=service --state=running`、`command -v snap orca` | cups・avahi・ModemManager・bluetooth・root の containerd・rsyslog が動いていない。snap と(読み上げの)orca がない |
 | メモリ | `swapon --show; cat /proc/cmdline` | zram がある。crashkernel がない |
 | GPU による符号化 | `vainfo --display drm --device /dev/dri/renderD128 \| grep EncSlice`、RDP でつないだあと `journalctl -b _UID=$(id -u <名前>) \| grep HWAccel` | Intel・AMD は `VAProfileH264High` に `VAEntrypointEncSlice`(か `EncSliceLP`)があり、`[HWAccel.VAAPI] Successfully initialized` が出る。NVIDIA は `lsmod \| grep nvidia` と `ldconfig -p \| grep libnvidia-encode`。VM では対象外 |
-| Docker の通信 | RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 取得できる(pasta) |
+| Docker の通信 | 利用者全員が、RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 全員が取得できる(pasta。just verify は pasta の設定までを見る) |
 | UPS(ups を書いたとき) | ホストで `upsc <name>@localhost`(netclient なら `<name>@<server>`)。UPS の電源プラグを抜いて数十秒で挿しなおす | `ups.status` が `OL`。抜くと「停電: UPS のバッテリーで動いている」、挿すと「UPS: 電源が戻った」が届く。バッテリーが少なくなるまで待つと終了し、電源が戻ると起動する(usb のとき) |
 | ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |
 | 移行 | 書き出し → 消す → 取り込み(docs/manual-steps.md の 16。just backup → 消す → just restore) | 利用者全員のログインと ~/work、本人が変えた RDP のパスワードが戻る |

@@ -100,6 +100,8 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - agent は rootless Docker。docker グループは実質 root になるので使わない。root のデーモンは止め、agent に linger を付けて `dockerd-rootless-setuptool.sh install` を agent で実行する。`DOCKER_HOST` は `~/.config/environment.d/60-docker.conf`
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
+- subuid/subgid は useradd が割り当てる。Ubuntu 26.04 の `/etc/login.defs` は `SUB_UID_COUNT 65536`(SUB_GID_COUNT も同じ)で、useradd は既存の行と重ならない範囲を取る。65-docker.sh は行がなければ止まるだけで、自動では足さない(2026-10-27、#29)
+- verify は利用者ごとに、pasta の設定(`systemctl --user show docker.service -p Environment`)と `hello-world` の実行を見る。hello-world は手元になければ取得し、終わったら消す(verify は読むだけという原則の例外)。取得できないとき(Docker Hub の回数の制限、プロキシ)は ✗ ではなく未検証にする。デーモンの取得も rootlesskit の名前空間から pasta を通るので、取得できればデーモン側の通信も確かめたことになる。コンテナからの通信(`wget`)は見ない。ほかに、passt が入っていること、`/etc/subuid`・`/etc/subgid` の範囲どうしが重ならず利用者ごとに 65536 個以上あること、外した利用者の dockerd・rootlesskit・containerd が動いていないこと(10-users.sh が user@ を止める)を見る(2026-10-27、#29。静的に書いたもので、VM ではまだ流していない)
 
 ### 専用の PC を置く理由(2026-10-25 の調査)
 
@@ -434,6 +436,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator が効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- 利用者 2 人の VM で、それぞれの rootless Docker で `docker run --rm hello-world` と `docker run --rm alpine:3 wget -qO- http://example.com` が通ること、env.yaml から外した利用者の Docker が止まること、#29 で足した verify の項目が `just vm-test` で通ること(#29)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
