@@ -187,6 +187,7 @@ pkg_pinned gh "$(pin GH_VERSION)"
 cmd_ver "Gitea CLI(tea)" "$(pin TEA_VERSION)" tea --version
 cmd_ver "uv" "$(pin UV_VERSION)" uv --version
 cmd_ver "mise" "$(pin MISE_VERSION)" mise --version
+check "git-flow が入っている" installed git-flow
 check "python が python3 を指す" test "$(readlink -f /usr/bin/python)" = "$(readlink -f /usr/bin/python3)"
 pkg_pinned orca-ide "$(pin ORCA_VERSION)"
 check "Google Chrome が入っている" installed google-chrome-stable

@@ -97,7 +97,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - SSH に入れるのは sysadmin と今の利用者だけ(`AllowUsers`)
 - ufw:SSH(22)と利用者ごとの RDP のポート(外した人の分は消す)、`dev_ports`、IP Messenger を使うときの UDP 2425 を LAN(`lan_cidrs`)だけ許可、それ以外は拒否
 - unattended-upgrades:セキュリティ更新と Google Chrome のみ、自動再起動しない
-- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`。env.yaml の `gitea_url` を tea のログインの既定の接続先にし、エージェント向けの説明にも載せる)、uv、mise、CCManager、Mermaid CLI(`mmdc`。puppeteer も版を固定し、ブラウザは Google Chrome を使う)、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、python-is-python3(`python` を python3 にする)、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、wl-clipboard、dnsutils、netcat-openbsd
+- 開発ツール:git、Node.js(LTS)、Claude Code、Codex(`@openai/codex`)、GitHub CLI(`gh`)、Gitea CLI(`tea`。env.yaml の `gitea_url` を tea のログインの既定の接続先にし、エージェント向けの説明にも載せる)、uv、mise、CCManager、Mermaid CLI(`mmdc`。puppeteer も版を固定し、ブラウザは Google Chrome を使う)、corepack(pnpm / yarn)、build-essential、python3-dev、python3-venv、python3-pip、python-is-python3(`python` を python3 にする)、pkg-config、libssl-dev、ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip、unzip、wget、rsync、git-lfs、git-flow(AVH 版)、wl-clipboard、dnsutils、netcat-openbsd
 - Docker:公式 apt リポジトリから導入し、利用者ごとの rootless Docker にする(linger で再起動後も自動で起動)。root で動く通常のデーモンは止める。利用者を docker グループに入れると実質 root になるので入れない
 - Orca:公式 .deb を導入し、利用者ごとの `~/.config/autostart/orca.desktop` で自動起動
 - Google Chrome:公式 apt リポジトリから導入し、利用者の既定のブラウザにする。最新版しか配布されないので固定せず、unattended-upgrades で自動更新する

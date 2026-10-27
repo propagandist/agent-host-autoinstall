@@ -40,12 +40,12 @@ MISE_SHA256=0d41b60745a6273a80089c86f80d8729042d2f57f87fda70aecc7d1c3ffbd3be
 #   ビルド: build-essential、python3-dev、pkg-config、libssl-dev(pip / npm のネイティブのモジュール)
 #   小物: ripgrep、fd-find、jq、tree、htop、tmux、sqlite3、shellcheck、zip/unzip、wget、rsync
 #   その他: python-is-python3(`python` を python3 にする。Windows や setup-python を前提に書かれた手順のため)、
-#           git-lfs、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
+#           git-lfs、git-flow(GitFlow のブランチ運用。AVH 版)、wl-clipboard(クリップボード)、dnsutils・netcat-openbsd(ネットワークの調査)、
 #           libnss3-tools(Chrome に CA 証明書を登録する certutil)
 apt-get install -y git curl ca-certificates gnupg xz-utils openssl \
     build-essential python3-dev python3-venv python3-pip python-is-python3 pkg-config libssl-dev \
     ripgrep fd-find jq tree htop tmux sqlite3 shellcheck zip unzip wget rsync \
-    git-lfs wl-clipboard dnsutils netcat-openbsd libnss3-tools
+    git-lfs git-flow wl-clipboard dnsutils netcat-openbsd libnss3-tools
 
 # --- GitHub CLI ---
 if [ "$(dpkg-query -W -f='${Version}' gh 2>/dev/null || true)" != "$GH_VERSION" ]; then
