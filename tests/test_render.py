@@ -490,12 +490,9 @@ class TestStage(Case):
         posts = sorted(os.listdir(os.path.join(stage, "post-install")))
         self.assertEqual(posts, sorted(os.listdir(os.path.join(REPO, "scripts", "post-install"))))
         for p in posts:
-            # スクリプトは実行できる。Mozc のキーの割り当ての表(mozc-keymap.tsv)はデータなので、読めて実行できない
-            # (git は実行できるかだけを持つので、ほかの bit は clone した人の umask で決まる)
-            if p.endswith(".tsv"):
-                self.assertEqual(mode(f"post-install/{p}") & 0o555, 0o444, p)
-            else:
-                self.assertEqual(mode(f"post-install/{p}"), 0o755, p)
+            # スクリプトは実行できる。Mozc のキーの割り当ての表(mozc-keymap.tsv)はデータ。
+            # どちらも stage.sh がそろえる(Windows の Docker では、写したファイルがすべて 777 に見える)
+            self.assertEqual(mode(f"post-install/{p}"), 0o644 if p.endswith(".tsv") else 0o755, p)
         # BUILD-INFO はホストでシェルの変数として読み込む
         r = subprocess.run(["bash", "-c", f'. "{stage}/BUILD-INFO"; printf "%s|%s" "$tool" "$env"'],
                            capture_output=True, text=True)
