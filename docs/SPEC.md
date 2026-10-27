@@ -63,6 +63,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - `sysadmin` の SSH の鍵とパスワードは、`just update` のたびに env.yaml の `sysadmin` に合わせる(手で足した鍵は消える。反映のあと入りなおせるかを確かめる)
 - 利用者ごとのヘッドレスのセッション:`gnome-headless-session@<名前>.service`(gdm3)を有効にする。ユニットのままでは立たず(DynamicUser)、gnome-shell が落ちても戻らない(on-failure)ので、drop-in で `DynamicUser=no`・`User=gdm`・`Restart=always`・`RestartSec=5` にする。GDM の自動ログインは使わない(0.2 までの見張りは外す)
 - 利用者ごとの RDP:`grdctl --headless` でポート(env.yaml の `users[].port`。ずらさない)、TLS の証明書、操作の許可を設定し、`gnome-remote-desktop-headless.service`(user)を有効にする。RDP の認証情報は、まだないときだけ env.yaml の `rdp.initial_password` を入れる(本人が変えたものは上書きしない)
+- gnome-shell のメモリの上限:user の `org.gnome.Shell@.service` に drop-in(`MemoryMax=30%`・`MemorySwapMax=512M`)を置く。漏れて膨らんだ gnome-shell は swap に逃げながら応答しなくなり、systemd-oomd も動かないまま約 40 分固まった(#21、docs/notes.md)。上限で落とせば、ヘッドレスのセッションが立ちなおる(Orca の端末は別の単位なので残る)
 - スリープ無効化:`systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target`
 - 利用者のホームのフォルダー名(デスクトップ、ダウンロードなど)は英語名(Desktop、Downloads など)にする
 - 利用者の GNOME 設定(セッションを立てる前に一度だけ適用。画面ロックの無効化は毎回):

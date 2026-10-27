@@ -38,6 +38,20 @@ RestartSec=5
 EOF
 systemctl daemon-reload
 
+# --- gnome-shell のメモリの上限 ---
+# 漏れて膨らんだ gnome-shell は、zram と swap に逃げながら応答しなくなり、OOM killer に落とされるまで約 40 分固まった。
+# systemd-oomd は圧迫が 50% を 20 秒続かないと動かず、ゆっくり進む漏れでは動かなかった(実機。docs/notes.md、#21)。
+# 上限で止めれば、セッションが終わって立ちなおる(上の Restart=always。Orca の端末は別の単位なので残る。
+# 起動の途中でなければ拡張機能は止められない。カーネルの OOM で落ちたときに実機で確認。上限で落ちるのは確かめていない)。
+# ふだんの gnome-shell は 1GB に届かない
+install -d -m 755 /etc/systemd/user/org.gnome.Shell@.service.d
+cat >/etc/systemd/user/org.gnome.Shell@.service.d/50-agent-host.conf <<'EOF'
+# agent-host-autoinstall(20-sessions.sh)が置いた設定。漏れて膨らんだときに固まらず、すぐ立ちなおるように
+[Service]
+MemoryMax=30%
+MemorySwapMax=512M
+EOF
+
 # --- 利用者ごとの RDP ---
 setup_rdp() {
     local uid cert_dir have

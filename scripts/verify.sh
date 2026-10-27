@@ -120,6 +120,9 @@ check "0.2 までのセッションの見張りがない" test ! -e /etc/systemd
 hl_dropin=/etc/systemd/system/gnome-headless-session@.service.d/50-agent-host.conf
 check "ヘッドレスのセッションを静的な gdm で動かす(drop-in)" bash -c "grep -qx 'DynamicUser=no' $hl_dropin && grep -qx 'User=gdm' $hl_dropin"
 check "ヘッドレスのセッションは落ちても立ちなおす(Restart=always)" grep -qx 'Restart=always' "$hl_dropin"
+# 漏れて膨らんだ gnome-shell は固まり続けた(docs/notes.md、#21)。上限で止めて立ちなおさせる
+shell_dropin=/etc/systemd/user/org.gnome.Shell@.service.d/50-agent-host.conf
+check "gnome-shell のメモリに上限がある(drop-in)" bash -c "grep -qx 'MemoryMax=30%' $shell_dropin && grep -qx 'MemorySwapMax=512M' $shell_dropin"
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
 
 section "SSH と ufw"
@@ -388,6 +391,9 @@ user_checks() {
     check "Mozc の割り当てが独自の表で、半角/全角がない" bash -c \
         "grep -aq \$'status\\tkey\\tcommand' '$AGENT_HOME/.config/mozc/config1.db' && ! grep -aq 'Hankaku/Zenkaku' '$AGENT_HOME/.config/mozc/config1.db'"
     check "fcitx5 が動いている" as_agent systemctl --user is-active agent-host-fcitx5.service
+    local shell_max
+    shell_max="$(as_agent systemctl --user show org.gnome.Shell@ubuntu.service -p MemoryMax --value 2>/dev/null || true)"
+    if [[ "$shell_max" =~ ^[0-9]+$ ]]; then ok "gnome-shell のメモリの上限が効いている($((shell_max / 1048576))MB)"; else ng "gnome-shell のメモリの上限が効いている" "MemoryMax=${shell_max:-?}"; fi
     check "ibus-daemon が動いていない" bash -c "! pgrep -u '$AGENT_USER' -x ibus-daemon >/dev/null"
 
     if selected "${AH_EDITORS:-}" vscode; then
