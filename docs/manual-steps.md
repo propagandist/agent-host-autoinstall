@@ -78,7 +78,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 ```
 just status <ホスト>   # 構成・待ち受けているポート・利用者ごとのセッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>     # 構成・最後の just update・利用者ごとの first-login とセッションの記録
-just verify <ホスト>   # 仕様どおりかを確かめる(全体と利用者ごと。✗ の行を直す。何も変えない)
+just verify <ホスト>   # 仕様どおりかを確かめる(全体と利用者ごと。✗ の行を直す。hello-world を動かすほかは何も変えない)
 just verify-rdp <ホスト>   # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
 ```
 

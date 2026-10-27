@@ -16,7 +16,10 @@
 ### 追加
 - Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)
 
+- `just verify` が利用者ごとの rootless Docker で `hello-world` を動かす(手元になければ取得し、終わったら消す。取得できなければ未検証)。pasta の設定(passt と drop-in)、`/etc/subuid`・`/etc/subgid` の範囲(利用者ごとに 65536 個以上で、重ならない)、env.yaml から外した利用者の Docker が止まっていることも見る(#29)
+
 ### 修正
+- 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
 

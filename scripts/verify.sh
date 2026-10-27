@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ホストが仕様どおりに構成されているかを、機械的に確かめる(読むだけで、何も変えない)。
+# 例外は利用者ごとの rootless Docker で hello-world を動かすこと(手元になければ取得し、終わったら消して戻す)。
 # 固定した版は、このホストの /opt/agent-host/post-install/ に書いてある値と比べる(入れた版と、入れるはずの版が合っているか)。
 # env.yaml の選択(editors・agents・clouds など)は /opt/agent-host/env.sh から、利用者ごとの値は users/<名前>.env から読む。
 # 利用者(env.yaml の users)ごとの検査は、1 人ずつ「利用者 <名前>」の節に出る。
@@ -86,6 +87,8 @@ as_agent() {
         DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" "$@")
 }
 gset() { as_agent gsettings get "$@" 2>/dev/null || true; }
+# 利用者の rootless Docker に聞く(取得が止まっても verify が止まらないよう、2 分で打ち切る)
+docker_as() { as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" timeout 120 docker "$@"; }
 
 section "構成"
 check "構成が完了している(/var/lib/agent-host/provisioned)" test -f /var/lib/agent-host/provisioned
@@ -206,6 +209,19 @@ pkg_pinned docker-buildx-plugin "$(pin BUILDX_VERSION)"
 pkg_pinned docker-compose-plugin "$(pin COMPOSE_VERSION)"
 eq "root の Docker は止めている" "$(systemctl is-active docker.service 2>/dev/null || true)" inactive
 check "root の Docker のソケットがない" test ! -e /var/run/docker.sock
+check "passt(rootless Docker の通信の中継 pasta)が入っている" installed passt
+# subuid/subgid: 利用者ごとに 65536 個以上あり、ファイルの中の範囲どうしが重ならない(useradd が割り当てる。65-docker.sh)
+for f in /etc/subuid /etc/subgid; do
+    bad="$(awk -F: -v users="$AH_USERS" '
+        BEGIN { n = split(users, u, " "); for (i = 1; i <= n; i++) want[u[i]] = 1 }
+        NF >= 3 { m++; name[m] = $1; lo[m] = $2; hi[m] = $2 + $3; if (($1 in want) && $3 >= 65536) enough[$1] = 1 }
+        END {
+            for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++)
+                if (lo[i] < hi[j] && lo[j] < hi[i]) printf "%s と %s が重なる ", name[i], name[j]
+            for (x in want) if (!(x in enough)) printf "%s の行がないか 65536 個に足りない ", x
+        }' "$f" 2>&1 || true)"
+    eq "$f の範囲が利用者ごとに 65536 個以上で、重ならない" "${bad% }" ""
+done
 
 section "GPU(RDP の画面の符号化)"
 check "vainfo が入っている" installed vainfo
@@ -358,9 +374,23 @@ user_checks() {
     # Docker(rootless)
     check "Docker(rootless)が動いている" as_agent systemctl --user is-active docker.service
     check "Docker の掃除のタイマー" as_agent systemctl --user is-active docker-prune.timer
-    local dinfo
-    dinfo="$(as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" docker info --format '{{.SecurityOptions}}' 2>&1 || true)"
+    if as_agent systemctl --user show docker.service -p Environment 2>/dev/null | grep -q 'DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta'; then
+        ok "Docker の通信を pasta で中継する(drop-in が効いている)"
+    else
+        ng "Docker の通信を pasta で中継する(drop-in が効いている)" "docker.service の Environment に DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta がない"
+    fi
+    local dinfo had_image=0
+    dinfo="$(docker_as info --format '{{.SecurityOptions}}' 2>&1 || true)"
     if [[ "$dinfo" == *rootless* ]]; then ok "docker が rootless で応える"; else ng "docker が rootless で応える" "$dinfo"; fi
+    # コンテナが動く。hello-world が手元になければ取得し(デーモンの取得も pasta を通る)、取得できなければ未検証とする。
+    # 取得したものは終わったら消して、利用者のイメージを変えない
+    docker_as image inspect hello-world >/dev/null 2>&1 && had_image=1
+    if [ "$had_image" = 1 ] || docker_as pull -q hello-world >/dev/null 2>&1; then
+        check "コンテナが動く(hello-world)" docker_as run --rm --pull never hello-world
+        [ "$had_image" = 1 ] || docker_as image rm hello-world >/dev/null 2>&1 || true
+    else
+        printf '  - コンテナが動くかは未検証(hello-world を取得できない。docker login・プロキシ・Docker Hub の回数の制限を確かめる)\n'
+    fi
 
     # 日本語入力
     local sources bus_file engines
@@ -453,6 +483,7 @@ if [ -n "$removed" ]; then
         eq "$u は期限切れ(鍵の SSH も拒む)" "$(getent shadow "$u" | cut -d: -f8)" 1
         check "$u は linger なし" test ! -e "/var/lib/systemd/linger/$u"
         check "$u のセッションが動いていない" bash -c "! systemctl is-active --quiet gnome-headless-session@$u.service"
+        check "$u の rootless Docker が動いていない" bash -c "! pgrep -u $u -x 'dockerd|rootlesskit|containerd' >/dev/null"
         check "$u の RDP のポートを ufw で開けていない" bash -c "! ufw status | grep -q 'agent-host-rdp:$u'"
     done
 fi
