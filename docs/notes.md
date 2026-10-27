@@ -423,6 +423,13 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Chrome は自動更新されるので、puppeteer が想定する版とずれていく。mmdc が使うのはページの描画と PDF・スクリーンショットだけで、CDP の互換は広いが、ずれたときに動くかは未確認。動かなくなったら、puppeteer をそのときの Chrome に合う版に上げる(MERMAID_CLI_VERSION と同じく 60-devtools.sh の先頭)
 - 未確認: 構成(root)の経路での導入と `just verify`(VM)、プロキシ・独自の CA の下での `npm install`、Chrome と puppeteer の版がずれたときの動作
 
+### git-flow(2026-10-27 追加、#33)
+
+- このリポジトリは GitFlow(git-flow AVH)で運用するが、構成したホストに `git flow` がなく、#28 の feature finish を手の merge で代えた。利用者には sudo がないので、構成で入れる
+- Ubuntu 26.04 の universe の `git-flow` 1.12.3-3build1(AVH 版。Homepage は petervanderdoes/gitflow)を 60-devtools.sh の apt で入れる。依存は `git | git-core` だけで、`apt-get install -s git-flow` で新しく入るのは git-flow だけ(2026-10-27、このホストの apt で確認)。上流の開発は止まっているので、ほかの apt の小物と同じく版は固定しない
+- 確かめたこと(2026-10-27、sudo なしで `apt-get download` した .deb を利用者の一時ディレクトリに展開して): `git flow version` は「1.12.3 (AVH Edition)」。試しのリポジトリで `git flow init -d`、`feature start`、`feature finish` が通った。コミットが 1 つだけの feature は、既定では fast-forward で develop に入る(merge コミットを残すなら `git flow feature finish --no-ff`)。git flow の設定(`gitflow.*`)はリポジトリごとなので、clone や worktree のあとに一度 `git flow init -d` が要る
+- 未確認: VM での構成(root の apt の経路)と `just verify`
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -442,6 +449,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
 - Mermaid CLI: 構成(root)の経路での導入と `just verify`、プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
+- git-flow: VM での構成と `just verify`(#33)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
