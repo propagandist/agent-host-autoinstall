@@ -743,7 +743,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \endhead
 \code{05-proxy-ca.sh} & HTTP プロキシと独自の CA 証明書(/etc/environment、apt、Chrome のポリシー) \\
 \code{10-users.sh} & 利用者(\code{users})を作る(sudo なし、パスワードなし、ホームは 700。グループ \code{agent-host-users})。env.yaml から外した利用者は、ユーザーとホームを残したまま期限切れにし、セッション・linger・ユーザーのサービスを止める。\code{sysadmin} の SSH の鍵とパスワードを env.yaml に合わせる \\
-\code{20-sessions.sh} & GDM の自動ログインと 0.2 までの見張りをやめる。ヘッドレスのセッションのユニットに drop-in(\code{DynamicUser=no}・\code{User=gdm}・\code{Restart=always})を置く。gnome-shell のユニットにメモリの上限(\code{MemoryMax=30\%}・\code{MemorySwapMax=512M})を置き、膨らんだら固まらずに立ちなおらせる。利用者ごとに linger と RDP(\code{grdctl --headless}。ポートは \code{users[].port}、TLS の証明書、認証情報はまだないときだけ仮の値)を設定する \\
+\code{20-sessions.sh} & GDM の自動ログインと 0.2 までの見張りをやめる。ヘッドレスのセッションのユニットに drop-in(\code{DynamicUser=no}・\code{User=gdm}・\code{Restart=always})を置く。gnome-shell のユニットにメモリの上限(\texttt{MemoryMax=30\%}・\code{MemorySwapMax=512M})を置き、膨らんだら固まらずに立ちなおらせる。利用者ごとに linger と RDP(\code{grdctl --headless}。ポートは \code{users[].port}、TLS の証明書、認証情報はまだないときだけ仮の値)を設定する \\
 \code{30-power.sh} & スリープ・休止を無効にする \\
 \code{35-system.sh} & 時刻同期(chrony)、inotify と開けるファイルの数の上限、apport(クラッシュ報告)の無効化 \\
 \code{36-minimize.sh} & 要らないサービスを止める(印刷、avahi、ModemManager、Bluetooth、利用状況の送信、ファイルの索引作りなど)。snap・snapd と kdump、使わないパッケージ(画面の読み上げ、印刷のドライバー、AD・LDAP、VPN・モデム、Bluetooth、報告など)を消す。zram(とスワップの sysctl)、電源のプロファイル、GRUB の待ち \\
