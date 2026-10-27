@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 開発に使う道具を入れる。Node.js・Codex・CCManager・Claude Code・GitHub CLI・uv・mise はバージョンを固定する。
+# 開発に使う道具を入れる。Node.js・Codex・CCManager・Mermaid CLI・Claude Code・GitHub CLI・uv・mise はバージョンを固定する。
 # 利用者には sudo がないので、エージェントが要るものはここで入れておくか、mise / Docker で済ませる。
 set -euo pipefail
 # shellcheck source=../lib/common.sh
@@ -14,6 +14,10 @@ NODE_SHA256=6c172a9ab6718f7b801fb5a7bd486af2ee5e32758086a04b84fcce2aa77095e6
 CODEX_VERSION=0.164.0
 # CCManager: Orca が使えないときに端末で使う予備の TUI(npm)
 CCMANAGER_VERSION=4.4.9
+# Mermaid CLI(mmdc): Mermaid の図を SVG・PNG・PDF に描き出す(npm)。puppeteer は peerDependencies なので、
+# npm_global では入れたときの最新になる。版を書いて /opt に入れる。ブラウザは 75-chrome.sh の Google Chrome を使う
+MERMAID_CLI_VERSION=12.0.0
+PUPPETEER_VERSION=25.16.0
 # Claude Code: 公式 apt リポジトリから入れ、apt-mark hold で固定する
 # (パッケージマネージャー経由の導入では Claude Code は自動更新しない。公式ドキュメントで確認済み)
 CLAUDE_CODE_VERSION=2.1.308-1
@@ -99,6 +103,30 @@ EOF
     fi
 }
 for_each_user codex_config
+
+# --- Mermaid CLI(mmdc) ---
+# chrome-headless-shell は取らず(PUPPETEER_SKIP_DOWNLOAD)、Google Chrome を使う。Chrome は SUID の sandbox を
+# 同梱するので、--no-sandbox なしで動く(docs/notes.md)。途中で失敗しても半端なものを残さないよう、.part に入れてから置き換える
+mmdc_dir="/opt/mermaid-cli-$MERMAID_CLI_VERSION"
+if [ ! -x "$mmdc_dir/node_modules/.bin/mmdc" ] ||
+    [ "$("$node_dir/bin/node" -p "require('$mmdc_dir/node_modules/puppeteer/package.json').version" 2>/dev/null || true)" != "$PUPPETEER_VERSION" ]; then
+    rm -rf "$mmdc_dir.part"
+    PUPPETEER_SKIP_DOWNLOAD=1 npm install --prefix "$mmdc_dir.part" --omit=dev --no-fund --no-audit \
+        "@mermaid-js/mermaid-cli@$MERMAID_CLI_VERSION" "puppeteer@$PUPPETEER_VERSION"
+    rm -rf "$mmdc_dir"
+    mv "$mmdc_dir.part" "$mmdc_dir"
+fi
+# PUPPETEER_EXECUTABLE_PATH は全体の環境変数にしない(エージェントのほかの puppeteer のプロジェクトに効かせない)
+cat >/usr/local/bin/mmdc.part <<EOF
+#!/bin/sh
+# agent-host-autoinstall が置いた(60-devtools.sh)。Mermaid CLI を Google Chrome で動かす
+: "\${PUPPETEER_EXECUTABLE_PATH:=/usr/bin/google-chrome-stable}"
+export PUPPETEER_EXECUTABLE_PATH
+exec $mmdc_dir/node_modules/.bin/mmdc "\$@"
+EOF
+chmod 755 /usr/local/bin/mmdc.part
+mv -f /usr/local/bin/mmdc.part /usr/local/bin/mmdc
+log "Mermaid CLI $MERMAID_CLI_VERSION(puppeteer $PUPPETEER_VERSION)を入れた"
 
 # --- Claude Code ---
 keyring=/etc/apt/keyrings/claude-code.gpg

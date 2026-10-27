@@ -176,6 +176,10 @@ cmd_ver "Node.js" "v$(pin NODE_VERSION)" node --version
 pkg_pinned claude-code "$(pin CLAUDE_CODE_VERSION)"
 cmd_ver "Codex" "$(pin CODEX_VERSION)" codex --version
 cmd_ver "CCManager" "$(pin CCMANAGER_VERSION)" ccmanager --version
+cmd_ver "Mermaid CLI(mmdc)" "$(pin MERMAID_CLI_VERSION)" mmdc --version
+eq "puppeteer(Mermaid CLI が使う) $(pin PUPPETEER_VERSION)" \
+    "$(node -p "require('/opt/mermaid-cli-$(pin MERMAID_CLI_VERSION)/node_modules/puppeteer/package.json').version" 2>/dev/null || true)" \
+    "$(pin PUPPETEER_VERSION)"
 pkg_pinned gh "$(pin GH_VERSION)"
 cmd_ver "Gitea CLI(tea)" "$(pin TEA_VERSION)" tea --version
 cmd_ver "uv" "$(pin UV_VERSION)" uv --version

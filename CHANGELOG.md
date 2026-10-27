@@ -10,6 +10,12 @@
 
 ## [未リリース]
 
+### env.yaml の変更
+- なし
+
+### 追加
+- Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)
+
 ### 修正
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した

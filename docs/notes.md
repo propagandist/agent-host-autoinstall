@@ -411,6 +411,16 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 
 - `examples/fleet/.sops.yaml` の `encrypted_regex` が `initial_password`(v0.3.0 で `rdp.password` から名前を変えた)に一致せず、ひな形どおりに暗号化しても RDP の仮のパスワードが平文で残った。#15 で名前を変えたときの取りこぼし。正規表現に足し、ひな形の秘密の値のキーが一致することを tests/test_render.py で確かめる。確かめたのは正規表現とキーの突き合わせまでで、sops は実行していない
 
+### Mermaid CLI(2026-10-27 追加、#28)
+
+- `@mermaid-js/mermaid-cli`(`mmdc`)12.0.0 を既定で入れる。engines は `node >=22.13.0`(Node.js 24.22.1 で足りる)。puppeteer は dependencies ではなく peerDependencies(`^25.0.0`)なので、`npm_global`(`npm install -g`)では入れたときの最新の 25.x になる。puppeteer 25.16.0 も書いて、`/opt/mermaid-cli-<版>` に `npm install --prefix` で入れる(npm レジストリ、2026-10-26)。mermaid などの推移的な依存は、ほかの npm の道具と同じく入れたときの範囲内の最新になる
+- ブラウザは 75-chrome.sh の Google Chrome を使い、puppeteer の chrome-headless-shell は取らない(`PUPPETEER_SKIP_DOWNLOAD=1`)。構成のときの取得が要らず、Chrome は SUID の sandbox(`/opt/google/chrome/chrome-sandbox`)を同梱するので、Ubuntu の非特権 user namespace の制限(`kernel.apparmor_restrict_unprivileged_userns=1`)の下でも `--no-sandbox` が要らない
+- `PUPPETEER_EXECUTABLE_PATH` は全体の環境変数にせず、`/usr/local/bin/mmdc` のラッパーの中だけで、未設定なら `/usr/bin/google-chrome-stable` にする(エージェントのほかの puppeteer のプロジェクトに効かせない)
+- npm 11.19.1 は puppeteer の postinstall について「install scripts not yet covered by allowScripts」と警告を出す。`PUPPETEER_SKIP_DOWNLOAD=1` なので、走っても何も取りに行かない
+- 確かめたこと(2026-10-27、このリポジトリの v0.3.1 で構成したホストの利用者で。root の構成の経路ではなく、同じコマンドを利用者の一時ディレクトリに入れた): 上の `npm install` で入り、ラッパーで日本語のラベルを含む図を SVG・PNG・PDF に描き出せた。PNG の日本語は文字化けせず、sandbox のエラーも出なかった。Chrome のポリシー(`/etc/opt/chrome/policies/managed/agent-host.json`)の下でも headless で起動した。2 回目は入れなおさない(`.bin/mmdc` と puppeteer の版で判断)。Chrome は 156.0.8078.47 で、puppeteer 25.16.0 が想定する版(`PUPPETEER_REVISIONS.chrome`)と同じだった
+- Chrome は自動更新されるので、puppeteer が想定する版とずれていく。mmdc が使うのはページの描画と PDF・スクリーンショットだけで、CDP の互換は広いが、ずれたときに動くかは未確認。動かなくなったら、puppeteer をそのときの Chrome に合う版に上げる(MERMAID_CLI_VERSION と同じく 60-devtools.sh の先頭)
+- 未確認: 構成(root)の経路での導入と `just verify`(VM)、プロキシ・独自の CA の下での `npm install`、Chrome と puppeteer の版がずれたときの動作
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -428,6 +438,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
+- Mermaid CLI: 構成(root)の経路での導入と `just verify`、プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
