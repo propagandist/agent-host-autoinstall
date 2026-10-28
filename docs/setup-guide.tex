@@ -235,7 +235,7 @@ RDP で接続できる状態に戻ることを目指す。
   \item エージェントのログインにブラウザが要る(Claude Code は Chrome でログインする。GitHub やクラウドの SSO も)。
         Orca の文書でも、ログインは作業する側で行い、ノート PC のログインは引き継がれない
   \item RDP なら、Windows に最初からあるリモート デスクトップ接続でつながり、手元に何も入れなくてよい。
-        手元の Orca から作業する側につなぐ方法(Remote Orca Servers)はベータで、手元にも Orca が要る
+        手元の Orca から作業する側につなぐ方法(Remote Orca Servers)はベータで、手元にも Orca が要る(使う場合は \ref{sec:remote-orca} 節)
   \item エージェントが Chrome で画面を確かめる作業も、人が VS Code やファイルを触って手を入れる作業も、同じデスクトップでできる
   \item そのかわり、パスワードなしで立てるセッション・空パスワードのキーリング・画面のロックなし、という妥協がいる(\ref{sec:caution} 節)
 \end{itemize}
@@ -814,6 +814,7 @@ env.yaml から外した利用者の Docker が止まっていることも見る
   \item (選んだ場合)クラウドの CLI にログインする
   \item 通知が届くことを確かめる
   \item (使う場合)スマホからの操作(Remote Control、Orca Mobile)
+  \item (使う場合)手元の Orca からつなぐ(Remote Orca Server)
 \end{checklist}
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
@@ -980,6 +981,34 @@ Orca Relay(ベータ) & Orca のサーバーが中継する。モバイル回線
 \end{enumerate}
 1 台を複数の人で使うとき、6768 番を待ち受けられるのは 1 人だけで、2 人目以降の Orca は別のポートにずれる見込み
 (Orca の CLI の説明から。デスクトップの Orca で確かめていない)。LAN でつなぐなら、ずれた先のポートも \code{dev_ports} に足す。
+
+\subsection{手元の Orca からつなぐ(Remote Orca Server、ベータ)}\label{sec:remote-orca}
+手元の PC の Orca を画面にして、このホストの Orca を操作する(Orca の機能。Orca ではベータ)。
+プロジェクト・worktree・端末・エージェントのログインはホストに置いたままで、手元の PC が眠っても、つながりが切れても、作業は続く。
+手元の PC にも Orca が要る。手順は Orca の公式の文書(Remote Orca Servers、2026-10-28 に読んだもの)から書いた。
+LAN の IP を選び、\code{dev_ports} に 6768 を足した状態で、手元の Orca からつながることを確かめた。
+\begin{caution}
+リンクを持つ人はエージェントを丸ごと操作できる。リンクはパスワードと同じに扱う。
+許可は手元の PC ごとに出るので、使わなくなった PC はホストの Orca の Shared Server Access で取り消す。
+新しいリンクを作ると、まだ使っていないリンクは無効になる。ポートをインターネットに直接開けない(LAN の外からは VPN か Tailscale など)。
+\end{caution}
+LAN からつなぐなら、Orca が待ち受けるポートを env.yaml の \code{dev_ports} に足して \code{just update}(\code{lan_cidrs} からだけ開く)。
+ポートは Orca Mobile と同じ 6768(リンクの中の接続先が \code{ws://<LAN の IP>:6768} だった)。2 人目以降の利用者でポートがずれるかどうかは、Orca Mobile と同じに扱う。
+\begin{enumerate}
+  \item ホストで(RDP で入る): Orca の Settings → Remote Orca Servers → Advertise this app as a server で \textbf{New Link}。
+        Connection address に LAN の IP か Tailscale のアドレスを選び(127.0.0.1 は選ばない)、\textbf{Generate Access Link}。
+        Pair another Orca client の下に出るリンクをコピーする
+  \item 手元の PC で: Orca の Settings → Remote Orca Servers → \textbf{Add Server}。名前を付けてリンクを貼り、\textbf{Add Server}。
+        Disconnected と出たら \textbf{Connect}
+  \item プロジェクトを全部ホストで動かすなら、手元の Orca の Advanced → Active Server でホストを選ぶ
+\end{enumerate}
+\begin{itemize}
+  \item ログイン: エージェントはホストのログインを使う。手元のログインは引き継がれない(この章のログインで足りる)
+  \item 版: ホストの Orca は 1.4.237 に固定して hold している。手元の Orca と版が違うと、非互換のプロトコルと出て切れることがある。
+        そのときは手元の Orca をホストの版に合わせるか、ホストの版を上げる(\ref{sec:versions} 節。未確認)
+  \item このホストで使わないもの: \code{orca serve}(デスクトップの Orca がすでに公開しているので、重ねて起動しない。Orca の文書の注意)。
+        Orca の SSH worktrees(利用者の SSH は SFTP 専用で、ポート転送も止めているので使えない)
+\end{itemize}
 
 \subsection{ファイルのやり取り}
 env.yaml の \code{users[].ssh_authorized_keys} に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。
@@ -1395,6 +1424,7 @@ scripts/local/build-guide.sh     # build/setup-guide/setup-guide.pdf
   \item 実機でのヘッドレスのセッションと RDP、電源が戻ったときの起動(BIOS)、LAN の外からの到達(テスト 7)
   \item TPM のある機械での RDP の認証情報の置き場所(TPM に入ると移行で移らない見込み)
   \item 2 人目以降の Orca Mobile のポート
+  \item Remote Orca Server の 2 人目以降のポートと、版が違うときにつながるか
   \item 0.2 から上げたホストで、\code{agent} の RDP が新しい仮の値で入れること
   \item 電源のプロファイル performance、RDP の extend モード
   \item 実際のプロキシ・TLS を検査するプロキシの下での動作、独自の CA の証明書を使う Gitea への接続
