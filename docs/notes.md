@@ -495,7 +495,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
   - 手元の PC の `cmdkey /list` に TERMSRV の項目がなかった。チェックを入れて接続しても、資格情報が保存されていない
   - 保存を止める設定ではなかった: `HKLM\SYSTEM\CurrentControlSet\Control\Lsa` の `DisableDomainCreds` が 0、リモート デスクトップの `DisablePasswordSaving` のポリシー(HKLM・HKCU)はなし
   - 手で保存すると使われた: 手元の PowerShell で `cmdkey /add:TERMSRV/<ホスト> /user:<ユーザー名> /pass` で保存してからつなぐと、資格情報の画面が出ずにつながった(接続ファイルは使わず、mstsc に接続先を打ち込んだ)。止まっているのはチェック欄からの保存のほう。チェック欄で保存されない理由は未確認。手順書にはこの `cmdkey` を回避策として書いた
-- 別に見つけたこと: `just rdp` は `docs/agent-host.rdp.example` の `username:s:agent` をそのまま写すので、`rdp.username` が agent でない利用者には、違うユーザー名が初めから入る
+- 別に見つけたこと: `just rdp` は `docs/agent-host.rdp.example` の `username:s:agent` をそのまま写していたので、`rdp.username` が agent でない利用者には、違うユーザー名が初めから入った。3 つ目の引数でユーザー名を渡すようにした(省くとユーザー名の行を消す)。PIN の件とは関係がない(試験は接続ファイルを使わずに行った)
 
 ## 確認できていないこと
 

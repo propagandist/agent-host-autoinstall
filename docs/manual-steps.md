@@ -112,7 +112,7 @@ systemctl --user restart gnome-remote-desktop-headless.service
 ## 5. RDP でつなぐ
 
 ```
-just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用。ポートはその人の port)
+just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用。ポートとユーザーはその人の port と rdp.username)
 ```
 
 接続先は `<ホスト>:<その人の port>`。ユーザーは env.yaml の `rdp.username`、パスワードは最初は `rdp.initial_password`(上の 4 で変える)。RDP のクライアントは何でもよい(Windows の mstsc、Linux の Remmina・FreeRDP、macOS の Windows App など)。`just rdp` の接続ファイルは mstsc 向けで、次の設定になっている(ほかのクライアントでも同じにするとよい)。

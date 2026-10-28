@@ -819,9 +819,9 @@ env.yaml から外した利用者の Docker が止まっていることも見る
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
 \begin{local}
-just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
+just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
 \end{local}
-接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。ユーザーとパスワードは、その人の \code{rdp.username} と
+接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。\code{just rdp} の \code{<ユーザー>} はその人の \code{rdp.username}(省くと、接続ファイルにユーザー名を書かない)。ユーザーとパスワードは、その人の \code{rdp.username} と
 \code{rdp.initial_password}(仮の値)。RDP のクライアントは何でもよい
 (Windows のリモート デスクトップ接続(mstsc)、Linux の Remmina や FreeRDP、macOS の Windows App など)。
 \code{just rdp} が作る接続ファイルは mstsc 向けで、Windows キーを常にホストへ送り、クリップボードを共有し、
@@ -1411,7 +1411,7 @@ unset PW
 \end{local}
 
 \subsection{RDP の接続ファイル}
-\code{docs/agent-host.rdp.example} をコピーし、\code{full address} を \code{<ホスト>:<その人の port>} に直す(改行は CRLF のまま)。
+\code{docs/agent-host.rdp.example} をコピーし、\code{full address} を \code{<ホスト>:<その人の port>} に、\code{username} をその人の \code{rdp.username} に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
 リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。

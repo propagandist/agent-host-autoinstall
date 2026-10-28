@@ -51,10 +51,12 @@ release-check:
     just guide
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
 
-# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートは env.yaml の users の port)
-rdp host port="3389":
+# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートとユーザーは env.yaml の users の port と rdp.username。
+# ユーザーを省くと、接続ファイルにユーザー名を書かない)
+rdp host port="3389" user="":
+    case '{{user}}' in *[!A-Za-z0-9._@-]*) echo "ユーザー名に使えない文字がある: {{user}}" >&2; exit 2 ;; esac
     mkdir -p build
-    sed -e 's/\r$//' -e 's/^full address:s:.*/full address:s:{{host}}:{{port}}/' -e 's/$/\r/' docs/agent-host.rdp.example > build/{{host}}-{{port}}.rdp
+    sed -e 's/\r$//' -e 's/^full address:s:.*/full address:s:{{host}}:{{port}}/' -e '{{ if user == "" { "/^username:s:/d" } else { "s/^username:s:.*/username:s:" + user + "/" } }}' -e 's/$/\r/' docs/agent-host.rdp.example > build/{{host}}-{{port}}.rdp
     @echo "作成した: build/{{host}}-{{port}}.rdp(ダブルクリックで接続)"
 
 # sysadmin で SSH する(AGENT_HOST_SSH_OPTS でオプションを足せる)
