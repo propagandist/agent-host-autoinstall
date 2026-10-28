@@ -25,7 +25,7 @@ build/                      # 手元の作業の出力(ISO、一時ファイル 
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
   stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
-  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: 実行ごとの build/.run.XXXXXX に env.yaml を写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VirtualBox での通しの試験)
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: 実行ごとの build/.run.XXXXXX に env.yaml を写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VM(VirtualBox か QEMU/KVM)での通しの試験)
   render-autoinstall.py     # stage.sh から呼ぶ。env.yaml を重ねて検査し(知らないキーはエラー)、autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
@@ -46,6 +46,7 @@ scripts/
     62-agents.sh            # env.yaml の agents で選んだ追加のエージェント
     63-clouds.sh            # env.yaml の clouds で選んだクラウドの CLI(AWS・Google Cloud・Azure)
     65-docker.sh            # Docker(固定・hold)と利用者ごとの rootless Docker
+    66-vm.sh                # env.yaml の vm を選んだら QEMU/KVM と UEFI のファームウェアを入れ、利用者を kvm に入れる(vm-test のため)
     70-orca.sh
     72-editors.sh           # env.yaml の editors で選んだエディター
     75-chrome.sh            # Google Chrome を入れ、利用者の既定のブラウザにする
@@ -124,8 +125,8 @@ GitFlow(git-flow AVH)で運用する。
 
 ## 検証
 
-- autoinstall の動作確認は、まず仮想マシンで行う。KVM/QEMU(virt-manager 等)を基本とし、KVM が使えない Windows では VirtualBox で代える(UEFI で作る)
+- autoinstall の動作確認は、まず仮想マシンで行う。KVM/QEMU を基本とし(エージェントのホストでは env.yaml の `vm` を選んで `just vm-test`)、KVM が使えない Windows では VirtualBox で代える(UEFI で作る)
 - 利用者ごとのヘッドレスのセッションと RDP は、仮想マシン(2 人以上の env)でも確認してから実機で最終確認する
-- 受け入れテストは `docs/acceptance-test.md` に沿って行う。機械で確かめられるものは `just test`(env.yaml の検査)、`just verify`(ホスト)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)
+- 受け入れテストは `docs/acceptance-test.md` に沿って行う。機械で確かめられるものは `just test`(env.yaml の検査)、`just verify`(ホスト)、`just verify-rdp`、`just vm-test`(VM に入れなおしからの通し。VirtualBox か QEMU/KVM)
 - 確かめる項目を増やしたら(post-install に設定を足したら)、`scripts/verify.sh` にも足す。env.yaml の項目を足したら `tests/test_render.py` と、render-autoinstall.py の `UPDATE_SCOPE`(just update で反映されるか)と文書の表にも足す
 - 利用者のホームの中は root で書かない(`write_agent_file`・`ini_set --as-agent`・`agent_run` を使う。利用者ごとに回すのは `for_each_user`・`run_per_user`・`write_users_file`)。利用者が置いたリンクを root がたどると、ホームの外を書き換えられる

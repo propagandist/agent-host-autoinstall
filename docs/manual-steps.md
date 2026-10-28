@@ -26,6 +26,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    - `proxy` と `ca_certs` は、HTTP プロキシや独自の CA 証明書がある環境だけ書く
    - `editors` は入れたいエディター(vscode / neovim / zed)。VS Code は拡張機能も入り(足すなら `vscode_extensions`)、表示が日本語になる。Zed の拡張機能(足すなら `zed_extensions`)は Zed を初めて起動したときに入る
    - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
+   - `vm` は、エージェントがそのホストで `just vm-test` を回すときだけ `true`(QEMU/KVM を入れ、利用者を kvm に入れる。VM 1 台でメモリ 4GB ほど)
    - `gitea_url` はGitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
    - `users` は利用者(1 人以上)。1 人ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを持つ。`port` は人に固定し(例 3389、3390)、`rdp.initial_password` は初回だけの仮のパスワード(本人が最初の RDP で変える。下の 4)。`ssh_authorized_keys` は SFTP でその人のホームに入る公開鍵
    - `dev_ports` は手元の PC から開発サーバーを見るときのポート(利用者全員で共有する。`users` の `port` と重ねない)
@@ -284,6 +285,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 | `users` | 反映する | 足した人は作ってセッションを立て、外した人はログインとセッションを止める(上の 3)。`rdp.initial_password` は、その人に RDP の認証情報がまだないときだけ入る(変えたパスワードは上書きしない) |
 | `desktop_color` | 反映する(セッション) | セッションが動いていればその場で、そうでなければ次にセッションが立つときに。Dock も、入っているエディターが変わると入れなおす |
 | `editors`・`agents`・`clouds`・`vscode_extensions`・`zed_extensions` | 足すだけ | 外しても消さない(消すときは手で)。Zed の拡張機能は次に Zed を起動したときに入る |
+| `vm` | 反映する | `true` で QEMU/KVM を入れて利用者を kvm に入れ、`false` で kvm から外す(入れた道具は消さない)。kvm のグループは次のログインから効く |
 | `lan_cidrs`・`dev_ports` | 足すだけ | ufw の許可は外しても消えない(下の注意) |
 | `proxy`・`ca_certs`・`ntp_servers`・`gitea_url`・`notify`・`ups` | 反映する | 利用者の環境変数(プロキシ、Gitea の URL、クラウドの CLI の設定など)は、セッションが動いていれば次にセッションが立つときに効く |
 

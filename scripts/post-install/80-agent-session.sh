@@ -192,6 +192,9 @@ if [ -n "${AH_CLOUDS:-}" ]; then
     done
     agent_notes="$agent_notes"$'\n'"- クラウドの CLI: $clouds_cmds。ログイン(SSO・デバイスコード)は人がブラウザで行うもので、認証が切れているとエージェントからは更新できない"
 fi
+if [ "${AH_VM:-0}" = 1 ]; then
+    agent_notes="$agent_notes"$'\n'"- VM を動かせる(QEMU/KVM と UEFI のファームウェア。kvm のグループに入っている)。agent-host-autoinstall の \`just vm-test\` は QEMU で回る。kvm のグループが効いていないセッションでは \`sg kvm -c '...'\` で使う"
+fi
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
     if [ ! -f "$notes" ]; then
         printf '%s\n' "$agent_notes" | write_agent_file 644 "$notes"

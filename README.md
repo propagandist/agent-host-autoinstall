@@ -53,7 +53,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
 - 手元の PC: [just](https://just.systems/) と、次のどちらか
   - Docker(Linux の道具を Docker の Ubuntu の中で動かす。Windows では Git Bash と Docker Desktop)
   - Linux なら `xorriso`・`python3-yaml`・`shellcheck`(`just test` には `git`・`zstd` も)
-  - ほかに、手順書の PDF(`just guide`)は Docker、`just verify-rdp` は FreeRDP(なければ Docker)、`just vm-test` は VirtualBox
+  - ほかに、手順書の PDF(`just guide`)は Docker、`just verify-rdp` は FreeRDP(なければ Docker)、`just vm-test` は VirtualBox か QEMU/KVM(エージェントのホストでは `env.yaml` の `vm`)
 - (任意)UPS。NUT(Network UPS Tools)で見て、バッテリーが少なくなったら正しく終了し、電源が戻ったら起動する(`env.yaml` の `ups`)
 - 8GB 以上の USB メモリと、ISO をそのまま書き込む道具(Windows なら Rufus の DD イメージのモード、Linux なら `dd` など)
 
@@ -115,7 +115,7 @@ just rdp <ホスト> <ポート> <ユーザー>   # その利用者の RDP の�
 - Ubuntu Desktop 26.04 LTS の autoinstall(subiquity)と、ISO の作り直しに xorriso
 - 構成のスクリプトは Bash、`env.yaml` の検査と変換は Python
 - 手元の作業は [just](https://just.systems/)。Linux の道具は Docker の中でも動く
-- 検証は Python の unittest(`env.yaml` の検査と、ホストに置くもの・移行・通知などの試験)、Bash の検査スクリプト(ホストの構成)、FreeRDP(RDP の認証)、VirtualBox(入れなおしからの通し)
+- 検証は Python の unittest(`env.yaml` の検査と、ホストに置くもの・移行・通知などの試験)、Bash の検査スクリプト(ホストの構成)、FreeRDP(RDP の認証)、VirtualBox か QEMU/KVM(入れなおしからの通し)
 - GDM のヘッドレスのセッション(`gnome-headless-session@`)、GNOME Remote Desktop の headless(`grdctl --headless`)、systemd のサービスとタイマー、ufw、rootless Docker
 - 秘密情報の管理(2台目から)は SOPS と age
 - 手順書は LuaLaTeX(Docker の TeX Live)、リリースは GitHub Actions
