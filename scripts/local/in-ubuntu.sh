@@ -27,5 +27,9 @@ fi
 command -v docker >/dev/null || { echo "$need がなく、Docker もない。どちらかを用意する" >&2; exit 1; }
 root="$(pwd -W 2>/dev/null || pwd)"  # Git Bash では Windows の形のパスにする
 args="$(printf '%q ' "$@")"
-MSYS_NO_PATHCONV=1 exec docker run --rm -i -v "$root:/repo" -w /repo ubuntu:26.04 bash -c \
+# 手元が Linux なら、コンテナから手元の 127.0.0.1(試験用の VM のポートの転送先)が見えるよう、手元のネットワークを使う。
+# Linux の Docker には host.docker.internal がない(rootless Docker で確認。Docker Desktop にはある)
+net=()
+[ "$(uname -s)" = Linux ] && net=(--network host)
+MSYS_NO_PATHCONV=1 exec docker run --rm -i "${net[@]}" -v "$root:/repo" -w /repo ubuntu:26.04 bash -c \
     "apt-get update -qq >/dev/null && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pkgs >/dev/null && $args"
