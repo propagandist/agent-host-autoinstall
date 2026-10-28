@@ -95,7 +95,7 @@ just rdp <ホスト> <ポート>   # その利用者の RDP の接続ファイ�
 - **版を固定したソフトには、セキュリティ更新が自動では入りません。** apt で hold したもの(Claude Code、Docker、GitHub CLI、Orca、VS Code、Google Cloud CLI、Azure CLI)、/opt に置いたもの(Node.js、Gitea CLI、uv、mise、Zed、AWS CLI、Antigravity CLI)、npm で入れたツール、VS Code の拡張機能は、利用者が版を上げて反映します(手順は手順書の「運用」)。OS のセキュリティ更新と Google Chrome は自動で入ります
 - **ほかのソフトとサービスの規約・ライセンスは、利用者が同意するものです。** このリポジトリはそれらを再配布せず、インストールのときに各社の配布元から取得します(Google Chrome、VS Code とその拡張機能、各エージェント、クラウドの CLI など)。契約が要るものもあります(GitHub Copilot など)
 - **止められない通信があります。** 利用状況の送信は止めていますが、すべてではありません。たとえば Orca の更新の確認は止める手段がありません
-- **秘密情報が入るファイルがあります。** 作った ISO と USB、`env.yaml`、移行の書き出し、手元の `build/` の一時ファイル、ホストの `/opt/agent-host/env.sh`(と更新の前の一式の `/opt/agent-host.prev/env.sh`)、`/etc/agent-host/notify.env`(Slack の Webhook の URL)、`/etc/nut/`(UPS のパスワード)です。IP Messenger の通知は暗号化されないので、本文に秘密を入れないでください
+- **秘密情報が入るファイルがあります。** 作った ISO と USB、`env.yaml`、移行の書き出し、手元の `build/` の一時ファイル、ホストの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも)、`/etc/agent-host/notify.env`(Slack の Webhook の URL)、`/etc/nut/`(UPS のパスワード)です。IP Messenger の通知は暗号化されないので、本文に秘密を入れないでください
 - **実機ではまだ確かめていない点があります**([docs/notes.md](docs/notes.md) の「確認できていないこと」)
 
 ### 文書

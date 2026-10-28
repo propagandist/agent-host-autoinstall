@@ -2,9 +2,12 @@
 # 値だけを暗号化するので、キーと暗号化しない値は差分で読める。
 # 復号できる人(age の公開鍵)を足したり外したりしたら、sops updatekeys で全ファイルに反映する(tool/docs/fleet.md)
 creation_rules:
-  - path_regex: (^|/)(common|hosts/[^/]+)\.yaml$
+  # Windows の sops はパスを \ で区切って照らすので、区切りに / と \ の両方を許す(#34)
+  - path_regex: (^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$
     encrypted_regex: ^(password_hash|password|initial_password|slack_webhook_url)$
-    # 作業する人ごとの age の公開鍵(age-keygen で作る)。カンマで区切る
+    # 作業する人ごとの age の公開鍵(age-keygen で作る)。カンマで区切る。
+    # 最後の 1 つは回復用(秘密鍵はパスワード管理の共有の保管庫にだけ置き、普段は使わない。tool/docs/fleet.md の 10)
     age: >-
       age1CHANGE_ME_operator1,
-      age1CHANGE_ME_operator2
+      age1CHANGE_ME_operator2,
+      age1CHANGE_ME_recovery

@@ -75,7 +75,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 ### SSH・日本語入力・Chrome(2026-10-23 追加)
 - SSH: sysadmin で鍵認証により接続できる。パスワード認証・root ログインは無効(VirtualBox で確認済み)。agent は SSH 鍵を持たない
 - 日本語入力: locale ja_JP.UTF-8 と keyboard jp の指定で、インストーラーが ibus-mozc・language-pack-ja・Noto CJK を入れ、agent の入力ソースは `[('xkb', 'jp'), ('ibus', 'mozc-jp')]` になる(VirtualBox で確認済み)。RDP 越しに Ctrl+Space で切り替えて日本語を打てる(VirtualBox + 101 キーボード + mstsc で確認済み)
-- キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
+- キーボード配列は env.yaml の `keyboard_layout` で決める(検証は 101 キーボードで行った)。first-login が入力ソースを `[('xkb', <配列>), ('ibus', 'mozc-on')]` にし、切り替えに Ctrl+Space を足す(0.3 のあとで日本語入力を fcitx5 に替え、入力ソースは配列だけにした。下の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)。Mozc の ibus エンジンの配列は `default`(システムの配列に従う)
 - インストーラーが入れる `mozc-jp` は、切り替えた直後が直接入力で、ひらがなにするには半角/全角キーが要る。101 キーボードでは切り替えはできても日本語を打てなかった。`mozc-on`(切り替えた時点でひらがな)にして打てた(確認済み)
 - 入力ソースに Mozc が 2 つ並んでいた(`[('xkb', 'us'), ('ibus', 'mozc-on'), ('ibus', 'mozc-jp')]`。v0.3.0 の release ブランチの VM で、Ctrl+Space の切り替えに Mozc が 2 つ出た)。Ubuntu の gnome-settings-daemon(50.0-1ubuntu1)のパッチ keyboard-Use-ibus-sources-from-locale は、gsd-keyboard が利用者ごとに初めて動くとき(`~/.local/share/gnome-settings-daemon/input-sources-converted` がないとき)、ロケールの入力メソッド(ja_JP なら `mozc-jp`)を、入っているものを見ずに末尾に足す。first-login.sh がセッションの前にこの目印を置き、desktop-env.sh がすでに足された `mozc-jp` を外すようにした(bob で確認。新しく入れたときの確認は release の vm-test)。0.2 までの agent でも同じことが起きていたはず(未確認)
 - 動いている VM の配列を `localectl set-x11-keymap` で変えようとしたら、sudo でも "Access denied" になった。`/etc/default/keyboard` を直接書き換えて代えた(原因は未調査)
@@ -100,6 +100,8 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - agent は rootless Docker。docker グループは実質 root になるので使わない。root のデーモンは止め、agent に linger を付けて `dockerd-rootless-setuptool.sh install` を agent で実行する。`DOCKER_HOST` は `~/.config/environment.d/60-docker.conf`
 - Ubuntu 24.04 以降は特権のないユーザー名前空間を AppArmor で制限しているが、deb で入れた rootlesskit のプロファイルは apparmor パッケージに含まれる(Docker の公式文書)
 - 26.04 で上の手順が通り、hello-world が動くことを VirtualBox の新規インストールで確認済み。1024 未満のポートを待ち受けられないなど rootless の制限がある
+- subuid/subgid は useradd が割り当てる。Ubuntu 26.04 の `/etc/login.defs` は `SUB_UID_COUNT 65536`(SUB_GID_COUNT も同じ)で、useradd は既存の行と重ならない範囲を取る。65-docker.sh は行がなければ止まるだけで、自動では足さない(2026-10-27、#29)
+- verify は利用者ごとに、pasta の設定(`systemctl --user show docker.service -p Environment`)と `hello-world` の実行を見る。hello-world は手元になければ取得し、終わったら消す(verify は読むだけという原則の例外)。取得できないとき(Docker Hub の回数の制限、プロキシ)は ✗ ではなく未検証にする。デーモンの取得も rootlesskit の名前空間から pasta を通るので、取得できればデーモン側の通信も確かめたことになる。コンテナからの通信(`wget`)は見ない。ほかに、passt が入っていること、`/etc/subuid`・`/etc/subgid` の範囲どうしが重ならず利用者ごとに 65536 個以上あること、外した利用者の dockerd・rootlesskit・containerd が動いていないこと(10-users.sh が user@ を止める)を見る(2026-10-27、#29。静的に書いたもので、VM ではまだ流していない)
 
 ### 専用の PC を置く理由(2026-10-25 の調査)
 
@@ -424,6 +426,61 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 
 - `examples/fleet/.sops.yaml` の `encrypted_regex` が `initial_password`(v0.3.0 で `rdp.password` から名前を変えた)に一致せず、ひな形どおりに暗号化しても RDP の仮のパスワードが平文で残った。#15 で名前を変えたときの取りこぼし。正規表現に足し、ひな形の秘密の値のキーが一致することを tests/test_render.py で確かめる。確かめたのは正規表現とキーの突き合わせまでで、sops は実行していない
 
+### Mermaid CLI(2026-10-27 追加、#28)
+
+- `@mermaid-js/mermaid-cli`(`mmdc`)12.0.0 を既定で入れる。engines は `node >=22.13.0`(Node.js 24.22.1 で足りる)。puppeteer は dependencies ではなく peerDependencies(`^25.0.0`)なので、`npm_global`(`npm install -g`)では入れたときの最新の 25.x になる。puppeteer 25.16.0 も書いて、`/opt/mermaid-cli-<版>` に `npm install --prefix` で入れる(npm レジストリ、2026-10-26)。mermaid などの推移的な依存は、ほかの npm の道具と同じく入れたときの範囲内の最新になる
+- ブラウザは 75-chrome.sh の Google Chrome を使い、puppeteer の chrome-headless-shell は取らない(`PUPPETEER_SKIP_DOWNLOAD=1`)。構成のときの取得が要らず、Chrome は SUID の sandbox(`/opt/google/chrome/chrome-sandbox`)を同梱するので、Ubuntu の非特権 user namespace の制限(`kernel.apparmor_restrict_unprivileged_userns=1`)の下でも `--no-sandbox` が要らない
+- `PUPPETEER_EXECUTABLE_PATH` は全体の環境変数にせず、`/usr/local/bin/mmdc` のラッパーの中だけで、未設定なら `/usr/bin/google-chrome-stable` にする(エージェントのほかの puppeteer のプロジェクトに効かせない)
+- npm 11.19.1 は puppeteer の postinstall について「install scripts not yet covered by allowScripts」と警告を出す。`PUPPETEER_SKIP_DOWNLOAD=1` なので、走っても何も取りに行かない
+- 確かめたこと(2026-10-27、このリポジトリの v0.3.1 で構成したホストの利用者で。root の構成の経路ではなく、同じコマンドを利用者の一時ディレクトリに入れた): 上の `npm install` で入り、ラッパーで日本語のラベルを含む図を SVG・PNG・PDF に描き出せた。PNG の日本語は文字化けせず、sandbox のエラーも出なかった。Chrome のポリシー(`/etc/opt/chrome/policies/managed/agent-host.json`)の下でも headless で起動した。2 回目は入れなおさない(`.bin/mmdc` と puppeteer の版で判断)。Chrome は 156.0.8078.47 で、puppeteer 25.16.0 が想定する版(`PUPPETEER_REVISIONS.chrome`)と同じだった
+- Chrome は自動更新されるので、puppeteer が想定する版とずれていく。mmdc が使うのはページの描画と PDF・スクリーンショットだけで、CDP の互換は広いが、ずれたときに動くかは未確認。動かなくなったら、puppeteer をそのときの Chrome に合う版に上げる(MERMAID_CLI_VERSION と同じく 60-devtools.sh の先頭)
+- 未確認: 構成(root)の経路での導入と `just verify`(VM)、プロキシ・独自の CA の下での `npm install`、Chrome と puppeteer の版がずれたときの動作
+
+### git-flow(2026-10-27 追加、#33)
+
+- このリポジトリは GitFlow(git-flow AVH)で運用するが、構成したホストに `git flow` がなく、#28 の feature finish を手の merge で代えた。利用者には sudo がないので、構成で入れる
+- Ubuntu 26.04 の universe の `git-flow` 1.12.3-3build1(AVH 版。Homepage は petervanderdoes/gitflow)を 60-devtools.sh の apt で入れる。依存は `git | git-core` だけで、`apt-get install -s git-flow` で新しく入るのは git-flow だけ(2026-10-27、このホストの apt で確認)。上流の開発は止まっているので、ほかの apt の小物と同じく版は固定しない
+- 確かめたこと(2026-10-27、sudo なしで `apt-get download` した .deb を利用者の一時ディレクトリに展開して): `git flow version` は「1.12.3 (AVH Edition)」。試しのリポジトリで `git flow init -d`、`feature start`、`feature finish` が通った。コミットが 1 つだけの feature は、既定では fast-forward で develop に入る(merge コミットを残すなら `git flow feature finish --no-ff`)。git flow の設定(`gitflow.*`)はリポジトリごとなので、clone や worktree のあとに一度 `git flow init -d` が要る
+- 未確認: VM での構成(root の apt の経路)と `just verify`
+
+### 構成リポジトリの鍵をなくしたときの回復(2026-10-28、Windows の構成リポジトリで確認、#34)
+
+- 構成リポジトリで、`.sops.yaml` の受け手の age の鍵が 1 つだけで、その秘密鍵がどこにもなく、誰も復号できなくなった。sysadmin の SSH の鍵も 1 つだけで、その秘密鍵が手元になく、`just update` が `Permission denied (publickey)` で止まった。どちらも 1 本だけにしていたことが原因なので、docs/fleet.md の 3 で回復用の鍵を足すことにし、戻し方を 10 に書いた
+- 戻したこと: 暗号化した値を `CHANGE_ME` にして(`sops:` の節を消し、`ENC[...]` を置き換える)新しい鍵で暗号化しなおし、`sops edit` で値を入れ直した。暗号化していない値とコメントは残った。SSH は、利用者として RDP で入り、`su - sysadmin` で `~/.ssh/authorized_keys` に鍵を足してから `just update` した
+- sops 3.13.3(Windows、Scoop)は、`SOPS_AGE_KEY_FILE` を渡しても、既定の置き場所(`%AppData%\sops\age\keys.txt`)の鍵も読む。関係のない鍵だけを `SOPS_AGE_KEY_FILE` に渡しても、手元の鍵で復号できてしまった。`APPDATA` と `XDG_CONFIG_HOME` を空のディレクトリに向けると、渡した鍵だけを使った(関係のない鍵では失敗し、受け手の鍵では通った)。これを `just check-age-key`(ひな形の justfile)にした。macOS の既定の置き場所(`~/Library/Application Support`)でも効くかは未確認
+- sops の MAC は、暗号化していない値も含めたファイル全体にかかる。暗号化したファイルの、暗号化していない値(`git_user_name`)をエディターで直接書き換えると、`MAC mismatch` で復号できなくなった
+- Windows の sops は、規則と照らすパスを `\` で区切る。ひな形の `path_regex` が `/` だけを見ていたので、`hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できなかった(#34)。`[/\\]` にすると暗号化と復号が通った(同じ PC で確認)。Linux・macOS では `/` だけなので、今までどおり当たる見込み(試験で `/` と `\` の両方の形を確かめる)
+- `with-env.sh` は、暗号化していないファイルをそのまま写していたので、暗号化に失敗したことに `just check` で気づけなかった。`encrypted_regex` と同じ名前の値が空でなければ止め、行の番号だけを出す(値は出さない)ようにした。sops がないときも、`sops: command not found` ではなく、入れ方の案内を出す
+- 道具のレシピは `tool/` で動くので、`AGENT_HOST_SSH_OPTS` の `-i` に相対パスを渡すと `tool/` から探す。絶対パスにすると、`build/` に書き出した回復用の鍵で `just status` が通った(Windows の PowerShell から、区切りを `/` にして)
+- Windows で: age は Scoop の main バケットになく、winget の `FiloSottile.age`(1.3.2)で入れた。winget が足した PATH は、開いていたターミナルには効かない。`sops edit` は `EDITOR` がなく vim・nano・vi も見つからないと `no editor available` で止まり、`code --wait` で開けた
+- 確かめていないこと: Linux・macOS での `check-age-key` と、sops の `path_regex` の照らし方
+
+### 半角/全角の押しっぱなしで gnome-shell が漏れて固まる(2026-10-27、実機で確認、#36・#21)
+
+実機(AMD Renoir、RAM 約 15GB、v0.3.1。gnome-shell 50.1、mutter 50.1、gnome-remote-desktop 50.2、ibus 1.5.34~rc2-1、ibus-mozc 2.29.5160.102)で、Orca でエージェントを動かしていると画面が操作できなくなった。
+
+- 起きたこと: 利用者の `org.gnome.Shell@ubuntu.service` が、起動から 3 時間 6 分のあいだに最大 10.8GB(swap 7.3GB)になり、応答しなくなって(at-spi の「unresponsive」)、カーネルの OOM killer に落とされた。同じ日に 2 回(2 回目は最大 11.6GB、swap 8.2GB)。応答しなくなってから落ちるまで、1 回目は約 40 分、2 回目は約 20 分。2 回目の gnome-shell では、膨らんだのは `[heap]`(malloc)で、Xwayland などほかのプロセスではなかった(1 回目は記録がない)
+- systemd-oomd は止めなかった。user@ の設定は、圧迫が 50% を 20 秒続いたら止める(`ManagedOOMMemoryPressure=kill`)で、swap の量では見ない(`oomctl` の Swap Monitored CGroups が空)。18:44 の `oomctl` では、この利用者の user@ は Memory Pressure Monitored CGroups に入っていたが、21 時台には外れていた(ユニットの設定は変わらない)。いつ・なぜ外れたのか、落ちた 2 回の時点で見られていたのかは分からない(調べていない)
+- 原因: RDP(Windows の mstsc、日本語キーボード)の半角/全角キーが、IBus に「離す → 押す」の順で届く(keyval 0xFF2A `Zenkaku_Hankaku`、keycode 41。dbus-monitor で IBus のバスを盗み聞きして確認)。ホストは押されたままと受け取り、キーリピート(既定の delay 500ms、interval 30ms)で 1 秒に 22〜34 回押し続ける。ほかのキー(Shift など)を押すまで止まらない。そのたびに IBus の Mozc が入力モードを切り替え、入力モードの表示の更新(`UpdateProperty`)が gnome-shell に流れ、流れているあいだに gnome-shell が漏れた。同じくらい流れても、漏れの速さは時間帯で 1 桁以上違った(約 8900 回/分で +430MB/分のときと、約 8300 回/分で 25 秒に +6MB のとき。理由は調べていない)。1 回の更新は IBus のバスに 3 通(engine の signal と panel への 2 つ)流れるので、バスの通の数(1 分に UpdateProperty 26670、PropertyUpdated 17767)の約 3 分の 1 が更新の回数。ibus-daemon の CPU は 40〜50%
+- 確かめたこと: ibus を止める(`systemctl --user stop org.freedesktop.IBus.session.GNOME.service`)と、漏れが止まった(止める直前の gnome-shell の CPU は 118%。止めたあとの CPU は記録がない)。ibus を起動しなおした直後は、半角/全角を押すまで漏れない
+- 漏れたあとの症状: 漏れた gnome-shell(約 2.8GB)は、本体のスレッドが 11 秒ごとに約 0.6 秒止まった(D-Bus でシェルのプロパティを 50ms ごとに読んで測った。`org.freedesktop.DBus.Peer.Ping` は GDBus が裏のスレッドで答えるので、これでは測れない)。止まっているあいだに届いた「離した」が待たされ、mutter の入力のスレッドがリピートを出すので、押していないのに長押しの扱いになった(4 分半で、「離した」が約 0.6〜1.0 秒遅れてまとめて届いたのが 6 回で、どれも 11 秒の倍数の時刻。押していない文字が増えたのは、そのうちの 4 回)。セッションを立てなおした gnome-shell(88MB、RDP 接続中)では、60 秒のあいだ 0.16 秒を超える止まりはなかった(その場で見ただけで、記録は残していない)。漏れと止まり、止まりと長押しは、周期が合うことから見た相関で、同じ時間に測って突き合わせてはいない。「離した」がどこで待たされるかと、止まりの中身(ゴミ集めか)は調べていない
+- 根: RDP の入力のキーのリピートは、ホストの mutter が自分のタイマーで作る(mutter 50.1 の `meta_seat_impl_notify_key_in_impl` は、仮想の入力機器からの繰り返しの押下を捨てる。ホストのリピートを切ると、押し続けても 1 文字しか入らなかった)。そのため「離した」が遅れたり来なかったりすると、押していない文字が増える。ホストに届く半角/全角は「離す → 押す」の順で、物理的に離したときには何も届かない(Windows がそう送るのか、途中で変わるのかは区別していない。walbrix の記事は、Windows の RDP では「release-only → press → release」で届くと書き、gnome-remote-desktop にパッチを当てて回避している。GNOME/gnome-remote-desktop#234。ブラウザの Apache Guacamole にも、半角/全角の keyup と keydown がそろわない報告がある。GUACAMOLE-1004)。そこに gnome-shell の漏れ(IBus の表示の更新のたび)が重なって固まった
+- 取り違えたこと: はじめは「Orca の端末の出力で漏れる」「日本語を入力すると漏れる」と見たが、どちらも、そのとき利用者が半角/全角を押していたのと重なっていた
+- 効かなかったこと:
+  - RDP の解像度の変更(RHEL-148314 に似た報告がある)は当てはまらなかった。このクライアントでは窓の大きさを変えても仮想モニターの解像度が変わらず、メモリも増えなかった
+  - ホストのキーリピートを全部切る(`org.gnome.desktop.peripherals.keyboard repeat false`)と、半角/全角は 1 組だけになった。ただ、RDP のクライアントは自分でリピートを送らないので、キーを押し続けても 1 文字しか入らない
+  - 半角/全角キーだけリピートさせない XKB の定義(`~/.config/xkb` に `key <HZTG> { repeat = False };` と、それを足す rules と xkb-options)は、libxkbcommon では効いた(`xkb_keymap_key_repeats` が 0)。gnome-shell もそのファイルを読んだが、リピートは止まらなかった。mutter 50.1 の `meta_seat_impl_notify_key_in_impl` はこの関数を見てからリピートを始めるので、効かない理由は分からない(調べていない)
+  - 始まったリピートは、キーリピートの設定を切っても止まらない
+- 替えたもの: fcitx5 5.1.19 と fcitx5-mozc 2.29(Ubuntu の公式パッケージ)を、sudo なしで `apt-get download` と `dpkg -x` で利用者の一時ディレクトリに展開して動かした(ibus を止め、`FCITX_ADDON_DIRS`・`LD_LIBRARY_PATH`・`XDG_DATA_DIRS` を向けた)。fcitx5 の ibusfrontend は、IBus の口をセッションのバスに出し、`~/.config/ibus/bus/` のアドレスを書き換える。gnome-shell はそこにつなぎなおし、Orca(Electron の Wayland)で Mozc の変換ができた。同じ半角/全角のリピート(1 秒に約 34 回、約 20 秒)で、流れるのはキーの入力(ProcessKeyEvent)だけで、gnome-shell は +2MB だった
+- 作り(76-desktop.sh、first-login.sh、desktop-env.sh): ibus-mozc を消し、fcitx5・fcitx5-mozc・GTK3/GTK4 の口を `--no-install-recommends` で入れる(Recommends は Qt6・KDE のライブラリ・中国語の辞書まで約 60 個。入れなければ 13 個)。IBus のユニットは `systemctl --global mask` で全員止め、ibus と同じ並びの `agent-host-fcitx5.service`(user)でセッションごとに fcitx5 を起動する。GNOME の Wayland では im-config が入力メソッドを起動しない(`/etc/profile.d/im-config_wayland.sh` が `if false` で止めている)。GNOME の入力ソースは配列だけにし、Ctrl+Space を GNOME の切り替えから外して fcitx5 に渡す。fcitx5 の profile(配列と Mozc)は、ないときだけ置く
+- 残ること: 半角/全角のリピートそのものは mutter と RDP の側なので残る。fcitx5 では漏れないが、既定の割り当て(TriggerKeys に半角/全角)では押しっぱなしのあいだ日本語と英字を行き来し続けた(fcitx5 の表示が ja と あ を繰り返した)
+- キーの割り当て(実機で確認): fcitx5 の `~/.config/fcitx5/config` で、TriggerKeys を Ctrl+Space だけにし、半角/全角を ActivateKeys(日本語にするだけ)、無変換を DeactivateKeys(英字にするだけ)にした。リピート(2 秒に 55〜70 回)のあいだ fcitx5 の状態は日本語のまま変わらなかった(fcitx5-remote で 0.2 秒ごとに読んだ)。ただ、日本語になったあとのリピートは Mozc に届き、Mozc の割り当て(MS-IME)の半角/全角(IMEOff / IMEOn)で「全角かな」と「直接入力」を行き来した。Mozc の設定(`~/.config/mozc/config1.db`。Config を protobuf にしたもの。`session_keymap` = 41 を CUSTOM、`custom_keymap_table` = 42 に表)に、MS-IME の表(google/mozc 2.29.5160.102 の `src/data/keymap/ms-ime.tsv`)から半角/全角の 4 行を外した表を入れると、繰り返さなくなった。表は `post-install/mozc-keymap.tsv`(Mozc の BSD-3 条項ライセンスを注釈に入れた。Mozc は 1 行目と `#` の行を読み飛ばす)、組み立ては `post-install/mozc-config.py`
+- 守り(20-sessions.sh): user の `org.gnome.Shell@.service` に `MemoryMax=30%`・`MemorySwapMax=512M` の drop-in を置き、膨らんだら固まる前に落として立ちなおらせる。ユニットの `OnFailure` の `org.gnome.Shell-disable-extensions.service` は、起動の途中の印(`$XDG_RUNTIME_DIR/gnome-shell-disable-extensions`)があるときだけ拡張機能を止めるので、OOM の 2 回(18:40、19:49)とログアウトで立てなおしたとき(21:16)には動かなかった(journal の「unmet condition」)。OOM のあと、ヘッドレスのセッションは数秒で立ちなおり、Orca の端末(エージェント)は残った。上限で落ちるとき(memory.max の OOM)の動きは確かめていない
+- 2026-10-28、hotfix/0.3.2 で、Windows の VirtualBox の VM(メモリ 4GB、2 人の env)で `just vm-test` を流した。入れなおしから RDP の待ち受けまでと電源を切ったあとの戻りは人手なしで通ったが、sudo のパスワードを入れ違えて verify とセッションを落とす試験が動かなかった。同じ VM で `AGENT_HOST_VM_REUSE=1` でやりなおし、すべて通った(verify 213 項目、2 回とも)。gnome-shell のメモリの上限は 1167MB(4GB の 30%)で効いていた。verify で、新しく入れたときに利用者ごとの agent-host-fcitx5.service が動き、ibus-daemon が動いていないこと、入力ソースと fcitx5・Mozc の設定を確かめた
+- 同じ VM に RDP で入って打つと、押していない文字が重複して入った。gnome-shell は漏れておらず(1 分で 819MB から 791MB。ピーク 941MB で上限に当たっていない。`memory.events` の max・oom は 0。PSS 584MB のうち anon 356MB、shmem 196MB)、起動しなおしもなかった。VM は CPU 1 つで load average が 2〜3 あり、「離した」が遅れて mutter がリピートを足したと見ているが、VM の中で遅れを測ってはいない(推測)。同じときの実機(CPU 6 つ、load average 0.5)では、gnome-shell の止まりは 60 秒で最大 31ms(784 回のうち 200ms を超えたのは 0)で、利用者も重複は起きていないと確かめた。入力の確かめは実機を基準にする
+- Xwayland のアプリの入力: `XMODIFIERS=@im=ibus` は gnome-session が自分で入れている(`/usr/bin/gnome-session` に文字列がある)。ibus のパッケージの `/etc/xdg/Xwayland-session.d/10-ibus-x11` が Xwayland が立つたびに ibus-x11 を起動し、fcitx5 は「Failed to open xim, retrying」を出す。Orca は Wayland で動くので当たらない。X11 のアプリで入力できるかは確かめていない
+- 未確認: 新しく入れたときに gnome-shell が fcitx5 につなぐこと(RDP の画面での入力)、just update で動いているセッションがその場で fcitx5 に替わること、候補の窓の位置、Xwayland のアプリでの入力(上)、fcitx5 がつなぐので Xwayland が常に起動しておくこと、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -437,10 +494,14 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 実際の UPS での終了、出力の停止、復電での起動(VM では NUT の dummy-ups で、通知と終了と起動しなおしまで確かめた)
 - 実機の GPU で RDP の画面を符号化すること(Intel の full 版の VA-API、AMD の Mesa、NVIDIA のドライバーと NVENC。Secure Boot のときの NVIDIA)
 - 利用者ごとのヘッドレスのセッションで: TPM のある機械で RDP の認証情報がどこに入るか(TPM に入るとホームの credentials.ini がなく、移行で移らない)、ヘッドレスでも GPU で符号化されるか、Clipboard Indicator が効くか(段 0 の 7)、2 人目以降の Orca Mobile のポート(段 0 の 9)、0.2 のホストから just update で上げたときの移り変わり(seat0 のセッションを終わらせてヘッドレスに移る)
+- 利用者 2 人の VM で、それぞれの rootless Docker で `docker run --rm hello-world` と `docker run --rm alpine:3 wget -qO- http://example.com` が通ること、env.yaml から外した利用者の Docker が止まること、#29 で足した verify の項目が `just vm-test` で通ること(#29)
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
+- Mermaid CLI: 構成(root)の経路での導入と `just verify`、プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
+- git-flow: VM での構成と `just verify`(#33)
+- 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
@@ -449,6 +510,6 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Codex の認証情報は `~/.codex/auth.json` に平文で保存される。利用者のホームは 700 にしている(sysadmin は読める)
 - Orca は .deb 版なら自分では更新を適用しない(通知は出る)。apt-mark hold で固定している。上げるときは 70-orca.sh の版と SHA256 を直す
 - バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
-- build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh`(root のみ読める)には秘密情報が入る
+- build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも。どれも root のみ読める)には秘密情報が入る。ほかに秘密情報が入るファイルは README の「利用上の注意」にまとめている
 - デスクトップ共有とリモートログインを両方有効にすると、デスクトップ共有が 3390 番に移る。リモートログインは有効にしない
 - いちばん崩れやすいのは受け入れテスト4(再起動後、何もせずに RDP がつながるか)。ここを最優先で検証する

@@ -10,8 +10,41 @@
 
 ## [未リリース]
 
+### env.yaml の変更
+- なし
+
 ### 追加
+- Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)
+- git-flow(AVH 版、Ubuntu の apt)を既定で入れる。エージェントが `git flow feature start` / `finish` で GitFlow のブランチ運用を行える(#33)
+- `just verify` が利用者ごとの rootless Docker で `hello-world` を動かす(手元になければ取得し、終わったら消す。取得できなければ未検証)。pasta の設定(passt と drop-in)、`/etc/subuid`・`/etc/subgid` の範囲(利用者ごとに 65536 個以上で、重ならない)、env.yaml から外した利用者の Docker が止まっていることも見る(#29)
+- 構成リポジトリのひな形に `just check-age-key <鍵>` を足した。その age の鍵だけで、暗号化したすべてのファイルを復号できるかを確かめる(sops は `SOPS_AGE_KEY_FILE` を渡しても手元の `keys.txt` も読むので、そのままでは確かめにならない)
+- 構成リポジトリのひな形の `with-env.sh` が、暗号化していないファイルに秘密の値(`encrypted_regex` と同じ名前で、空でない値)があると止まる(値は出さず、行の番号だけを出す)。sops がないときは入れ方の案内を出す(#34)
+- docs/fleet.md: 回復用の age の鍵と SSH の鍵を足すこと(3)、Windows での sops・age の入れ方と `sops edit` の `EDITOR`(3)、暗号化していない値も sops を通して変えること(3)、足した人の鍵の確かめ方(8)、鍵やパスワードをなくしたときの戻し方(10)を書いた。手順書の「複数台を管理する」にも要点を足した
 - 手順書に、手元の PC の Orca からホストの Orca につなぐ手順(Remote Orca Server、ベータ)を足した。公式の文書から書き、LAN の IP で 6768 を足してつながることを確かめた。2 人目以降のポートと、版が違うときは未確認(#37)
+
+### 修正
+- 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
+- README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
+- docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
+- 手順書の「ファイルのやり取り(SFTP)」に、つなぐ人が手元の PC で鍵を作る手順(`ssh-keygen -t ed25519`)と、公開鍵を env.yaml に書いて反映するまでの流れを足した(#38)
+- 構成リポジトリのひな形の `.sops.yaml` の `path_regex` が `/` 区切りだけを見ていて、Windows の sops では `hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できず、RDP の仮のパスワードが平文で残った。`/` と `\` の両方を許す。Windows でひな形から構成リポジトリを作っていたら、`.sops.yaml` の `path_regex` を `(^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$` にして `hosts/*.yaml` を暗号化し、平文で履歴に入った仮のパスワードは、まだ変えていない人に変えてもらう(#34)
+
+## [0.3.2] - 2026-10-27 — 実機で固まるのを直す版
+
+### env.yaml の変更
+- なし
+
+### 修正
+- gnome-shell のメモリに上限(物理メモリの 30%、swap 512MB)を付けた。漏れて膨らむと、swap に逃げながら応答しなくなり、systemd-oomd も動かないまま 20〜40 分続いてから OOM で落ちた。上限で落とせばセッションがすぐ立ちなおる(Orca の端末とエージェントは残る)(#36)
+- 日本語入力を IBus の Mozc から fcitx5 の Mozc に替えた。RDP の半角/全角キーは押しっぱなしで届いてリピートし続ける。IBus の Mozc では、そのたびに gnome-shell がメモリを漏らし、実機で 10GB を超えて応答しなくなり、OOM で落ちた。fcitx5 なら漏れない(実機で確認)。ibus-mozc を消し、IBus のデーモンを mask し、user の `agent-host-fcitx5.service` で fcitx5 を起動する。入力ソースは配列だけにし、Ctrl+Space は fcitx5 の切り替えに渡す。半角/全角キーは日本語にするだけ、無変換キーは英字にするだけにし、Mozc の割り当て(MS-IME)からは半角/全角を外す(押しっぱなしで届いても、切り替えを繰り返さない)。fcitx5 と Mozc の設定は、利用者のホームにないときだけ置く。just update で上げたホストでは、動いているセッションはその場で fcitx5 に替わり、入力ソースとキーの割り当ても直る(セッションが動いていなければ、次にセッションが立つとき)(#36・#21)
+
+### 確認した環境
+- 実機(AMD Renoir、RAM 約 15GB、v0.3.1 で構成したホスト)で、原因を確かめた。IBus の Mozc では、RDP の半角/全角の押しっぱなしで gnome-shell が漏れて固まり、OOM で落ちた(同じ日に 2 回)。漏れた gnome-shell は 11 秒ごとに約 0.6 秒止まり、立てなおすと止まらなくなった
+- 同じ実機で、sudo なしで展開した fcitx5 5.1.19 と fcitx5-mozc 2.29 を動かし、同じ押しっぱなしで漏れないこと、日本語を変換できること、半角/全角で日本語のまま止まり、無変換で英字に戻ることを確かめた(このリポジトリの post-install を root で動かしたのではない)
+- `just test`(Docker の中)と shellcheck、`just release-check`(手元の PC と実機)
+- VirtualBox の VM(Windows、メモリ 4GB、CPU 1、利用者 2 人の env)で `just vm-test`。入れなおしから 2 人の RDP が待ち受けるまでと、電源を切ったあとの戻りは人手なしで通った。sudo のパスワードの入れ違いで検査が動かなかったので、同じ VM で `AGENT_HOST_VM_REUSE=1` でやりなおし、`just verify`(213 項目)・`just verify-rdp`(2 人)、電源を切ったあと、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くことが通った
+- VM(CPU 1)の RDP では、押していない文字が重複して入ることがあった。gnome-shell は漏れていなかったので CPU の不足と見ている(測ってはいない)。実機では起きていない
+- 未確認: just update で上げたときにその場で fcitx5 に替わること、gnome-shell がメモリの上限で落ちたときに立ちなおること
 
 ## [0.3.1] - 2026-10-25 — 構成リポジトリのひな形を直す版
 

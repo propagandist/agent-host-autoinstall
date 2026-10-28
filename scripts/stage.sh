@@ -40,8 +40,10 @@ cp -a "$repo/scripts/provision.sh" "$repo/scripts/setup-provision.sh" "$repo/scr
     "$repo/scripts/lib" "$repo/scripts/post-install" "$repo/scripts/first-login" \
     "$repo/scripts/systemd" "$repo/scripts/notify" "$repo/scripts/migrate" "$stage/"
 find "$stage" -name '__pycache__' -prune -exec rm -rf {} +
-find "$stage" -type f \( -name '*.sh' -o -path '*/notify/*' -o -path '*/migrate/*' \) \
+find "$stage" -type f \( -name '*.sh' -o -name '*.py' -o -path '*/notify/*' -o -path '*/migrate/*' \) \
     -exec chmod 755 {} +
+# データ(Mozc のキーの割り当ての表)。Windows の Docker では、写したファイルがすべて 777 に見える
+find "$stage" -type f -name '*.tsv' -exec chmod 644 {} +
 chmod 600 "$stage/env.sh" "$stage/sysadmin_authorized_keys" "$stage"/users/*
 chmod 700 "$stage/users"
 

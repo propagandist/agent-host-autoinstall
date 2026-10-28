@@ -78,7 +78,7 @@ env.yaml は複数のファイルに分けて重ねられる(`just check-env com
 ```
 just status <ホスト>   # 構成・待ち受けているポート・利用者ごとのセッション・ディスク・メモリ・失敗した unit
 just logs <ホスト>     # 構成・最後の just update・利用者ごとの first-login とセッションの記録
-just verify <ホスト>   # 仕様どおりかを確かめる(全体と利用者ごと。✗ の行を直す。何も変えない)
+just verify <ホスト>   # 仕様どおりかを確かめる(全体と利用者ごと。✗ の行を直す。hello-world を動かすほかは何も変えない)
 just verify-rdp <ホスト>   # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
 ```
 
@@ -124,7 +124,7 @@ just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る
 
 使い勝手:
 
-- 日本語入力は Ctrl+Space(半角/全角キーは RDP では押しっぱなしで届き、使えない。#21)、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+- 日本語入力(fcitx5 の Mozc)は Ctrl+Space で切り替え。半角/全角キーは日本語にするだけ、無変換キーは英字にするだけ(半角/全角は RDP では押しっぱなしで届くので、切り替えには使わない。#21)、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
 - 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
 - PDF は Atril で開く(Files でダブルクリック)
@@ -249,6 +249,14 @@ Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリング�
 ## 14. ファイルのやり取り(SFTP)
 
 env.yaml の `users` の `ssh_authorized_keys` に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。作業の置き場所は `/home/<名前>/work`。
+
+鍵は SFTP でつなぐ人が手元の PC で作る。Windows の PowerShell、macOS、Linux で同じコマンドを使う。
+
+```sh
+ssh-keygen -t ed25519 -C "<自分を見分ける名前>"
+```
+
+保存先は既定のままでよい(`~/.ssh/id_ed25519`。Windows では `C:\Users\<名前>\.ssh\id_ed25519`)。パスフレーズは付けるのを勧める。`id_ed25519` は秘密鍵で、手元から出さない。`id_ed25519.pub` の 1 行を管理者に渡し、管理者が env.yaml のその人の `ssh_authorized_keys` に書いて `just update <ホスト>` で反映する。
 
 Windows では [WinSCP](https://winscp.net/) を使う。
 

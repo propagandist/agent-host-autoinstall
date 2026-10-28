@@ -24,6 +24,12 @@ check host:
 check-all:
     for f in hosts/*.yaml; do just check "$(basename "$f" .yaml)"; done
 
+# age の鍵のファイル 1 つだけで、暗号化したすべてのファイルを復号できるかを確かめる(回復用の鍵や、足した人の鍵の確認に)。
+# sops は SOPS_AGE_KEY_FILE を渡しても手元の keys.txt も読むので、既定の置き場所を空のディレクトリに向けて、渡した鍵だけを使わせる
+check-age-key keyfile:
+    mkdir -p build/.nokeys
+    rc=0; for f in common.yaml hosts/*.yaml; do grep -q '^sops:' "$f" || continue; if env -u SOPS_AGE_KEY APPDATA="$PWD/build/.nokeys" XDG_CONFIG_HOME="$PWD/build/.nokeys" SOPS_AGE_KEY_FILE="{{keyfile}}" sops --decrypt "$f" >/dev/null 2>&1; then echo "復号できる: $f"; else echo "復号できない: $f"; rc=1; fi; done; exit $rc
+
 # インストール用の ISO を build/<ホスト>.iso に作る(秘密情報が入る。USB に書き込んだら消す)
 iso host:
     scripts/with-env.sh {{host}} just -f {{tool}} iso build/{{host}}.iso

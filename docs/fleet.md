@@ -40,6 +40,11 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
 
 要るもの(作業する人の手元): just、Git Bash(Windows)、Docker Desktop、[sops](https://github.com/getsops/sops)、[age](https://github.com/FiloSottile/age)。
 
+Windows では、sops は Scoop(`scoop install sops`)で、age は winget(`winget install FiloSottile.age`。Scoop の main バケットにはない)で入れる。
+winget が足した PATH は、新しく開いたターミナルから効く。sops は age を内蔵しているので、age の CLI は鍵を作るときだけ使う。
+`sops edit` は環境変数 `EDITOR` のエディターで開き、なければ vim・nano・vi を探して、見つからないと `no editor available` で止まる。
+VS Code なら `EDITOR` を `code --wait` にする(編集して保存し、タブを閉じると、sops が暗号化しなおして書き戻す)。
+
 1. 非公開の Git リポジトリ(自前の Gitea、GitHub の private など)に、非公開の空のリポジトリを作る
 2. ひな形をコピーし、道具を submodule で足して、使う版に固定する
    ```
@@ -54,14 +59,20 @@ env.yaml は、前から順に重ねて使う(道具の `render-autoinstall.py`)
    ```
    age-keygen -o ~/.config/sops/age/keys.txt     # Windows では %AppData%\sops\age\keys.txt
    ```
-   表示された公開鍵(`age1…`)を `.sops.yaml` の `age:` に並べる
+   表示された公開鍵(`age1…`)を `.sops.yaml` の `age:` に並べる。あわせて回復用の鍵を 1 つ作り、その公開鍵も並べる。
+   回復用の秘密鍵は、パスワード管理の、管理する人だけが見られる共有の保管庫にだけ置き、普段は使わない。
+   受け手が作業する人の鍵 1 つだけだと、その鍵をなくしたときに誰も復号できなくなる(10 を見る)。
+   sysadmin の SSH の鍵(`sysadmin.ssh_authorized_keys`)も同じく、回復用の鍵を 1 つ足しておく
 4. `common.yaml` に全台で共通の値を、`hosts/<ホスト>.yaml` にホストだけの値を書き、秘密情報を暗号化する
    ```
    sops --encrypt --in-place common.yaml
    sops --encrypt --in-place hosts/agent-host-01.yaml   # ホストのファイルに秘密情報を書いたときだけ
    just check agent-host-01
    ```
-   暗号化したファイルは `sops common.yaml` で開くと、復号して編集し、保存するときに暗号化しなおす
+   暗号化したファイルは `sops edit common.yaml` で開くと、復号して編集し、保存するときに暗号化しなおす。
+   暗号化していない値(SSH の公開鍵など)も、エディターで直接書き換えない。sops はファイル全体の改ざん検知の値(MAC)を
+   持っているので、直接書き換えると `MAC mismatch` で復号できなくなる(`sops edit` か `sops set` で変える)。
+   暗号化していないファイルに秘密の値が残っていると、`just check` などは止まる(暗号化に失敗したまま気づかずにコミットしないように)
 5. コミットして push する
 
 ## 4. ホストを足す
@@ -159,6 +170,12 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    sops updatekeys common.yaml
    for f in hosts/*.yaml; do grep -q '^sops:' "$f" && sops updatekeys "$f"; done
    ```
+3. 新しい人が、自分の鍵だけで復号できるかを確かめる。sops は `SOPS_AGE_KEY_FILE` を渡しても手元の `keys.txt` も読むので、
+   ほかの鍵を持っている人が `sops --decrypt` を試しても確かめにならない。`just check-age-key` は、渡した鍵だけを使わせる
+   ```
+   just check-age-key ~/.config/sops/age/keys.txt     # Windows では "$env:APPDATA\sops\age\keys.txt"
+   ```
+4. SSH の公開鍵を `sysadmin.ssh_authorized_keys` に足して `just update` する(いま入れる人が行う)
 
 減る:
 1. `.sops.yaml` から公開鍵を外し、上と同じように `sops updatekeys` する
@@ -168,6 +185,9 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替え、`just update`
    - UPS の監視用のパスワード(netclient のとき): NUT サーバーの側で替えて `ups.password` を替え、`just update`
    - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `users[].ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
+   - 回復用の鍵(その人が共有の保管庫を見られたとき): age と SSH の回復用の鍵を作りなおし、`.sops.yaml` と `sysadmin.ssh_authorized_keys` の古いものと入れ替えて、`sops updatekeys` と `just update`
+
+PC をなくした・盗まれたときは、その PC の鍵が漏れたものとして「減る」と同じことをする。壊れただけなら、鍵を外すだけでよい。
 
 ## 9. 記録の決まり
 
@@ -175,3 +195,74 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
 - **ホストの情報(facts/)**: `just facts` が書く。入れたとき、入れなおしたとき、道具の版を上げたときに更新してコミットする
 - **ホストの記録(docs/hosts/)**: 受け入れテストの結果(日付、道具の版、行った人)と、変更の理由・手でしたこと
 - **コミット**: env.yaml の変更、submodule の更新、台帳と記録は、それぞれ何のための変更か分かるメッセージにする
+
+## 10. 鍵やパスワードをなくしたとき
+
+どの鍵も 2 本以上(作業する人の鍵と回復用の鍵)にしておけば、1 本なくしても下の 10.1・10.3 で戻せる。
+回復用の鍵は、使うときだけパスワード管理から `build/`(Git に入らない)に書き出し、終わったら消す。
+年に 1 回ほど、回復用の鍵で実際に復号とログインができるかを試す(`just check-age-key build/<回復用の鍵>` と、
+`ssh -i build/<回復用の SSH の鍵> -o IdentitiesOnly=yes sysadmin@<ホスト> true`)。
+
+| 症状 | 手順 |
+|---|---|
+| `sops: command not found`、`no editor available` | 3 の「要るもの」 |
+| `Failed to get the data key required to decrypt the SOPS file.` | 10.1(受け手の鍵が手元にない) |
+| 受け手の鍵が 1 つも残っていない | 10.2 |
+| `MAC mismatch` | 暗号化したファイルを sops を通さずに書き換えた。コミットしていなければ `git checkout -- <ファイル>` で戻し、`sops edit` でやりなおす |
+| `Permission denied (publickey)`(sysadmin に入れない) | 10.3 |
+| sysadmin のパスワードが分からない | 10.4 |
+
+### 10.1 自分の age の鍵がない
+
+1. 新しい鍵を作る(3 の 3)。`.sops.yaml` の `age:` で、なくした鍵の公開鍵を新しい公開鍵に置き換える
+2. 復号できる鍵で `sops updatekeys` する(8 の 2)。ほかに作業する人がいなければ回復用の鍵を使う
+   ```
+   SOPS_AGE_KEY_FILE=build/age-recovery.txt sops updatekeys -y common.yaml
+   for f in hosts/*.yaml; do grep -q '^sops:' "$f" && SOPS_AGE_KEY_FILE=build/age-recovery.txt sops updatekeys -y "$f"; done
+   rm build/age-recovery.txt
+   just check-age-key ~/.config/sops/age/keys.txt     # 新しい自分の鍵で復号できること
+   ```
+3. なくした PC が人の手に渡ったかもしれないなら、その鍵で読めた秘密を替える(8 の「減る」の 2)
+
+### 10.2 受け手の鍵が 1 つも残っていない
+
+暗号化した値は誰にも復号できない。新しい鍵で暗号化しなおし、値を入れ直す。暗号化していない値とコメントはそのまま残る。
+
+1. 作業する人の鍵と回復用の鍵を作りなおし、`.sops.yaml` の `age:` をその公開鍵だけにする
+2. 暗号化した値を `CHANGE_ME` にして、新しい鍵で暗号化しなおす(`sops:` の節はファイルの最後にある)
+   ```
+   for f in common.yaml hosts/*.yaml; do
+       grep -q '^sops:' "$f" || continue
+       sed -i -e '/^sops:/,$d' -e 's/ENC\[[^]]*\]/CHANGE_ME/g' "$f"
+       sops --encrypt --in-place "$f"
+   done
+   ```
+3. `sops edit <ファイル>` で `CHANGE_ME` を本当の値に替える
+   - `sysadmin.password_hash`: いまのホストの sysadmin のパスワードから作る(`openssl passwd -6`)。`just update` は
+     ホストのパスワードをこの値に置き換えるので、違うパスワードにすると、ホストのパスワードも変わる
+   - `users[].rdp.initial_password`: RDP の認証情報がまだない利用者にだけ入る(本人が変えた値は上書きしない)ので、新しい値でよい
+   - `notify.slack_webhook_url`、`ups.password`: 元の値を入れるか、作りなおす
+4. `CHANGE_ME` が残っていないことを確かめてから(`sops --decrypt <ファイル> | grep CHANGE_ME`)、`just check-all` する。
+   残したまま `just update` や `just iso` をすると、それがそのままパスワードになる
+
+### 10.3 sysadmin に SSH で入れない
+
+sysadmin の `~/.ssh/authorized_keys` は、`just update` のたびに `sysadmin.ssh_authorized_keys` に置き換わる。
+手でホストに鍵を足しても、env.yaml に書いていなければ次の `just update` で消える。先に、この PC の公開鍵を env.yaml に足しておく。
+
+1. 回復用の SSH の鍵があれば、それで `just update` する。道具のレシピは `tool/` で動くので、鍵は絶対パスで渡す
+   (`AGENT_HOST_SSH_OPTS` は空白で分けるので、パスに空白があると使えない)
+   ```
+   export AGENT_HOST_SSH_OPTS="-i $PWD/build/recovery_ed25519 -o IdentitiesOnly=yes"
+   just update agent-host-01
+   unset AGENT_HOST_SSH_OPTS; rm build/recovery_ed25519
+   ```
+   PowerShell では `$env:AGENT_HOST_SSH_OPTS = "-i $($PWD.Path -replace '\\', '/')/build/recovery_ed25519 -o IdentitiesOnly=yes"`
+2. 回復用の鍵もなければ、利用者として RDP で入り(コンソールに入れるならコンソールで)、`su - sysadmin` で
+   `~/.ssh/authorized_keys` にこの PC の公開鍵を足す。sysadmin のパスワードが要る。そのあと `just update` で env.yaml に合わせる
+3. RDP にもコンソールにも入れなければ、入れなおす(7)。書き出し(`just backup`)にも SSH が要るので、ホームのデータは移せない
+
+### 10.4 sysadmin のパスワードが分からない
+
+`just update` も sudo を使うので、`sysadmin.password_hash` を替えてもホストには入らない。構成では sysadmin のほかに sudo できる人を
+作らないので、入れなおす(7)。sysadmin のパスワードは、パスワード管理の共有の保管庫に置いておく。

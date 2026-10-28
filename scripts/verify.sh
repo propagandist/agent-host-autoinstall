@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # ホストが仕様どおりに構成されているかを、機械的に確かめる(読むだけで、何も変えない)。
+# 例外は利用者ごとの rootless Docker で hello-world を動かすこと(手元になければ取得し、終わったら消して戻す)。
 # 固定した版は、このホストの /opt/agent-host/post-install/ に書いてある値と比べる(入れた版と、入れるはずの版が合っているか)。
 # env.yaml の選択(editors・agents・clouds など)は /opt/agent-host/env.sh から、利用者ごとの値は users/<名前>.env から読む。
 # 利用者(env.yaml の users)ごとの検査は、1 人ずつ「利用者 <名前>」の節に出る。
@@ -86,6 +87,8 @@ as_agent() {
         DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus" "$@")
 }
 gset() { as_agent gsettings get "$@" 2>/dev/null || true; }
+# 利用者の rootless Docker に聞く(取得が止まっても verify が止まらないよう、2 分で打ち切る)
+docker_as() { as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" timeout 120 docker "$@"; }
 
 section "構成"
 check "構成が完了している(/var/lib/agent-host/provisioned)" test -f /var/lib/agent-host/provisioned
@@ -120,6 +123,9 @@ check "0.2 までのセッションの見張りがない" test ! -e /etc/systemd
 hl_dropin=/etc/systemd/system/gnome-headless-session@.service.d/50-agent-host.conf
 check "ヘッドレスのセッションを静的な gdm で動かす(drop-in)" bash -c "grep -qx 'DynamicUser=no' $hl_dropin && grep -qx 'User=gdm' $hl_dropin"
 check "ヘッドレスのセッションは落ちても立ちなおす(Restart=always)" grep -qx 'Restart=always' "$hl_dropin"
+# 漏れて膨らんだ gnome-shell は応答しないまま続いた(docs/notes.md、#36)。上限で止めて立ちなおさせる
+shell_dropin=/etc/systemd/user/org.gnome.Shell@.service.d/50-agent-host.conf
+check "gnome-shell のメモリに上限がある(drop-in)" bash -c "grep -qx 'MemoryMax=30%' $shell_dropin && grep -qx 'MemorySwapMax=512M' $shell_dropin"
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
 
 section "SSH と ufw"
@@ -176,10 +182,15 @@ cmd_ver "Node.js" "v$(pin NODE_VERSION)" node --version
 pkg_pinned claude-code "$(pin CLAUDE_CODE_VERSION)"
 cmd_ver "Codex" "$(pin CODEX_VERSION)" codex --version
 cmd_ver "CCManager" "$(pin CCMANAGER_VERSION)" ccmanager --version
+cmd_ver "Mermaid CLI(mmdc)" "$(pin MERMAID_CLI_VERSION)" mmdc --version
+eq "puppeteer(Mermaid CLI が使う) $(pin PUPPETEER_VERSION)" \
+    "$(node -p "require('/opt/mermaid-cli-$(pin MERMAID_CLI_VERSION)/node_modules/puppeteer/package.json').version" 2>/dev/null || true)" \
+    "$(pin PUPPETEER_VERSION)"
 pkg_pinned gh "$(pin GH_VERSION)"
 cmd_ver "Gitea CLI(tea)" "$(pin TEA_VERSION)" tea --version
 cmd_ver "uv" "$(pin UV_VERSION)" uv --version
 cmd_ver "mise" "$(pin MISE_VERSION)" mise --version
+check "git-flow が入っている" installed git-flow
 check "python が python3 を指す" test "$(readlink -f /usr/bin/python)" = "$(readlink -f /usr/bin/python3)"
 pkg_pinned orca-ide "$(pin ORCA_VERSION)"
 check "Google Chrome が入っている" installed google-chrome-stable
@@ -202,6 +213,19 @@ pkg_pinned docker-buildx-plugin "$(pin BUILDX_VERSION)"
 pkg_pinned docker-compose-plugin "$(pin COMPOSE_VERSION)"
 eq "root の Docker は止めている" "$(systemctl is-active docker.service 2>/dev/null || true)" inactive
 check "root の Docker のソケットがない" test ! -e /var/run/docker.sock
+check "passt(rootless Docker の通信の中継 pasta)が入っている" installed passt
+# subuid/subgid: 利用者ごとに 65536 個以上あり、ファイルの中の範囲どうしが重ならない(useradd が割り当てる。65-docker.sh)
+for f in /etc/subuid /etc/subgid; do
+    bad="$(awk -F: -v users="$AH_USERS" '
+        BEGIN { n = split(users, u, " "); for (i = 1; i <= n; i++) want[u[i]] = 1 }
+        NF >= 3 { m++; name[m] = $1; lo[m] = $2; hi[m] = $2 + $3; if (($1 in want) && $3 >= 65536) enough[$1] = 1 }
+        END {
+            for (i = 1; i <= m; i++) for (j = i + 1; j <= m; j++)
+                if (lo[i] < hi[j] && lo[j] < hi[i]) printf "%s と %s が重なる ", name[i], name[j]
+            for (x in want) if (!(x in enough)) printf "%s の行がないか 65536 個に足りない ", x
+        }' "$f" 2>&1 || true)"
+    eq "$f の範囲が利用者ごとに 65536 個以上で、重ならない" "${bad% }" ""
+done
 
 section "GPU(RDP の画面の符号化)"
 check "vainfo が入っている" installed vainfo
@@ -241,9 +265,15 @@ case "$gpu_vendor" in
 esac
 
 section "日本語"
-for pkg in ibus-mozc language-pack-ja language-pack-gnome-ja fonts-noto-cjk; do
+for pkg in fcitx5 fcitx5-mozc mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk; do
     check "$pkg が入っている" installed "$pkg"
 done
+# IBus の Mozc は、RDP の半角/全角の押しっぱなしで gnome-shell を漏らす(docs/notes.md)。日本語入力は fcitx5
+check "ibus-mozc がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' ibus-mozc 2>/dev/null | grep -q '^ii'"
+eq "IBus のデーモンを立てない(user のユニットを mask)" \
+    "$(systemctl --global is-enabled org.freedesktop.IBus.session.GNOME.service 2>/dev/null || true)" masked
+eq "セッションが立つたびに fcitx5 を起動する" \
+    "$(systemctl --global is-enabled agent-host-fcitx5.service 2>/dev/null || true)" enabled
 
 if selected "${AH_EDITORS:-}" vscode; then
     section "VS Code"
@@ -354,24 +384,52 @@ user_checks() {
     # Docker(rootless)
     check "Docker(rootless)が動いている" as_agent systemctl --user is-active docker.service
     check "Docker の掃除のタイマー" as_agent systemctl --user is-active docker-prune.timer
-    local dinfo
-    dinfo="$(as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" docker info --format '{{.SecurityOptions}}' 2>&1 || true)"
-    if [[ "$dinfo" == *rootless* ]]; then ok "docker が rootless で応える"; else ng "docker が rootless で応える" "$dinfo"; fi
-
-    # 日本語入力
-    local sources bus_file engines
-    sources="$(gset org.gnome.desktop.input-sources sources)"
-    if [[ "$sources" == *"('ibus', 'mozc-on')"* ]]; then ok "入力ソースに Mozc がある"; else ng "入力ソースに Mozc がある" "$sources"; fi
-    if [[ "$sources" != *"('ibus', 'mozc-jp')"* ]]; then ok "入力ソースの Mozc は 1 つ"; else ng "入力ソースの Mozc は 1 つ" "$sources"; fi
-    # IBus のアドレスは ~/.config/ibus/bus/ にある(新しいものが今のセッション)
-    # shellcheck disable=SC2012  # ファイル名は 16 進と英数字だけ
-    bus_file="$(ls -t "$AGENT_HOME"/.config/ibus/bus/* 2>/dev/null | head -1 || true)"
-    if [ -n "$bus_file" ]; then
-        engines="$(as_agent bash -c ". '$bus_file'; export IBUS_ADDRESS; ibus list-engine" 2>/dev/null || true)"
-        if grep -q 'mozc-on' <<<"$engines"; then ok "IBus が Mozc を使える"; else ng "IBus が Mozc を使える" "list-engine に mozc-on がない"; fi
+    if as_agent systemctl --user show docker.service -p Environment 2>/dev/null | grep -q 'DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta'; then
+        ok "Docker の通信を pasta で中継する(drop-in が効いている)"
     else
-        ng "IBus が Mozc を使える" "IBus が動いていない(~/.config/ibus/bus/ がない)"
+        ng "Docker の通信を pasta で中継する(drop-in が効いている)" "docker.service の Environment に DOCKERD_ROOTLESS_ROOTLESSKIT_NET=pasta がない"
     fi
+    local dinfo had_image=0
+    dinfo="$(docker_as info --format '{{.SecurityOptions}}' 2>&1 || true)"
+    if [[ "$dinfo" == *rootless* ]]; then ok "docker が rootless で応える"; else ng "docker が rootless で応える" "$dinfo"; fi
+    # コンテナが動く。hello-world が手元になければ取得し(デーモンの取得も pasta を通る)、取得できなければ未検証とする。
+    # 取得したものは終わったら消して、利用者のイメージを変えない
+    docker_as image inspect hello-world >/dev/null 2>&1 && had_image=1
+    if [ "$had_image" = 1 ] || docker_as pull -q hello-world >/dev/null 2>&1; then
+        check "コンテナが動く(hello-world)" docker_as run --rm --pull never hello-world
+        [ "$had_image" = 1 ] || docker_as image rm hello-world >/dev/null 2>&1 || true
+    else
+        printf '  - コンテナが動くかは未検証(hello-world を取得できない。docker login・プロキシ・Docker Hub の回数の制限を確かめる)\n'
+    fi
+
+    # 日本語入力(fcitx5 と Mozc。GNOME の入力ソースは配列だけで、切り替えは fcitx5 の Ctrl+Space)
+    local sources
+    sources="$(gset org.gnome.desktop.input-sources sources)"
+    if [[ "$sources" == "[('xkb', "* && "$sources" != *"('ibus', "* ]]; then
+        ok "入力ソースは配列だけ(IBus がない)"
+    else
+        ng "入力ソースは配列だけ(IBus がない)" "$sources"
+    fi
+    if [[ "$(gset org.gnome.desktop.wm.keybindings switch-input-source)" != *"'<Control>space'"* ]]; then
+        ok "Ctrl+Space を GNOME が取らない(fcitx5 の切り替えに使う)"
+    else
+        ng "Ctrl+Space を GNOME が取らない(fcitx5 の切り替えに使う)" "$(gset org.gnome.desktop.wm.keybindings switch-input-source)"
+    fi
+    check "fcitx5 の設定に Mozc がある" grep -qx 'Name=mozc' "$AGENT_HOME/.config/fcitx5/profile"
+    # RDP の半角/全角は押しっぱなしで届く(#21)。何度押されても同じになる「日本語にする」だけにし、Mozc からは外す
+    # shellcheck disable=SC2016  # awk の式
+    local in_section='/^\[/{f=0} f && $0==k{ok=1} END{exit !ok}'
+    check "半角/全角は fcitx5 で日本語にするだけ(ActivateKeys)" awk -v k=0=Zenkaku_Hankaku \
+        "/^\\[Hotkey\\/ActivateKeys\\]/{f=1;next} $in_section" "$AGENT_HOME/.config/fcitx5/config"
+    check "無変換で英字に戻す(DeactivateKeys)" awk -v k=0=Muhenkan \
+        "/^\\[Hotkey\\/DeactivateKeys\\]/{f=1;next} $in_section" "$AGENT_HOME/.config/fcitx5/config"
+    check "Mozc の割り当てが独自の表で、半角/全角がない" bash -c \
+        "grep -aq \$'status\\tkey\\tcommand' '$AGENT_HOME/.config/mozc/config1.db' && ! grep -aq 'Hankaku/Zenkaku' '$AGENT_HOME/.config/mozc/config1.db'"
+    check "fcitx5 が動いている" as_agent systemctl --user is-active agent-host-fcitx5.service
+    local shell_max
+    shell_max="$(as_agent systemctl --user show org.gnome.Shell@ubuntu.service -p MemoryMax --value 2>/dev/null || true)"
+    if [[ "$shell_max" =~ ^[0-9]+$ ]]; then ok "gnome-shell のメモリの上限が効いている($((shell_max / 1048576))MB)"; else ng "gnome-shell のメモリの上限が効いている" "MemoryMax=${shell_max:-?}"; fi
+    check "ibus-daemon が動いていない" bash -c "! pgrep -u '$AGENT_USER' -x ibus-daemon >/dev/null"
 
     if selected "${AH_EDITORS:-}" vscode; then
         check "表示を日本語にする設定(argv.json)" grep -q '"locale": *"ja"' "$AGENT_HOME/.vscode/argv.json"
@@ -449,6 +507,7 @@ if [ -n "$removed" ]; then
         eq "$u は期限切れ(鍵の SSH も拒む)" "$(getent shadow "$u" | cut -d: -f8)" 1
         check "$u は linger なし" test ! -e "/var/lib/systemd/linger/$u"
         check "$u のセッションが動いていない" bash -c "! systemctl is-active --quiet gnome-headless-session@$u.service"
+        check "$u の rootless Docker が動いていない" bash -c "! pgrep -u $u -x 'dockerd|rootlesskit|containerd' >/dev/null"
         check "$u の RDP のポートを ufw で開けていない" bash -c "! ufw status | grep -q 'agent-host-rdp:$u'"
     done
 fi

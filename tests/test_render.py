@@ -297,6 +297,19 @@ class TestFleetExample(unittest.TestCase):
             with self.subTest(key=k):
                 self.assertNotRegex(k, pattern)
 
+    def test_path_regex_matches_windows_paths(self):
+        """Windows の sops はパスを \\ で区切って照らすので、hosts\\<ホスト>.yaml にも規則が当たること(#34)"""
+        import re
+        with open(os.path.join(REPO, "examples", "fleet", ".sops.yaml"), encoding="utf-8") as f:
+            pattern = re.compile(yaml.safe_load(f)["creation_rules"][0]["path_regex"])
+        for path in ("common.yaml", "hosts/agent-host-01.yaml", "hosts\\agent-host-01.yaml",
+                     "/repo/hosts/agent-host-01.yaml", "C:\\repo\\hosts\\agent-host-01.yaml", "C:\\repo\\common.yaml"):
+            with self.subTest(path=path):
+                self.assertRegex(path, pattern)
+        for path in ("hosts/sub/x.yaml", "hosts\\sub\\x.yaml", "facts/agent-host-01.yaml", "mycommon.yaml"):
+            with self.subTest(path=path):
+                self.assertNotRegex(path, pattern)
+
 
 class TestRejected(Case):
     def test_unknown_key(self):
@@ -490,7 +503,9 @@ class TestStage(Case):
         posts = sorted(os.listdir(os.path.join(stage, "post-install")))
         self.assertEqual(posts, sorted(os.listdir(os.path.join(REPO, "scripts", "post-install"))))
         for p in posts:
-            self.assertEqual(mode(f"post-install/{p}"), 0o755, p)
+            # スクリプトは実行できる。Mozc のキーの割り当ての表(mozc-keymap.tsv)はデータ。
+            # どちらも stage.sh がそろえる(Windows の Docker では、写したファイルがすべて 777 に見える)
+            self.assertEqual(mode(f"post-install/{p}"), 0o644 if p.endswith(".tsv") else 0o755, p)
         # BUILD-INFO はホストでシェルの変数として読み込む
         r = subprocess.run(["bash", "-c", f'. "{stage}/BUILD-INFO"; printf "%s|%s" "$tool" "$env"'],
                            capture_output=True, text=True)
