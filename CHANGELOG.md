@@ -23,7 +23,7 @@
 - 実機(AMD Renoir、RAM 約 15GB、v0.3.1 で構成したホスト)で、原因を確かめた。IBus の Mozc では、RDP の半角/全角の押しっぱなしで gnome-shell が漏れて固まり、OOM で落ちた(同じ日に 2 回)。漏れた gnome-shell は 11 秒ごとに約 0.6 秒止まり、立てなおすと止まらなくなった
 - 同じ実機で、sudo なしで展開した fcitx5 5.1.19 と fcitx5-mozc 2.29 を動かし、同じ押しっぱなしで漏れないこと、日本語を変換できること、半角/全角で日本語のまま止まり、無変換で英字に戻ることを確かめた(このリポジトリの post-install を root で動かしたのではない)
 - `just test`(Docker の中)と shellcheck、`just release-check`(手元の PC と実機)
-- Windows の VirtualBox の VM(2 人の env)で `just vm-test` が通った(入れなおしから RDP の待ち受けまで人手なし、`just verify`・`just verify-rdp`、電源を切ったあと、1 人目の gnome-shell が落ちたあと)
+- VirtualBox の VM(Windows、メモリ 4GB、CPU 1、利用者 2 人の env)で `just vm-test`。入れなおしから 2 人の RDP が待ち受けるまでと、電源を切ったあとの戻りは人手なしで通った。sudo のパスワードの入れ違いで検査が動かなかったので、同じ VM で `AGENT_HOST_VM_REUSE=1` でやりなおし、`just verify`(213 項目)・`just verify-rdp`(2 人)、電源を切ったあと、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くことが通った
 - 未確認: just update で上げたときにその場で fcitx5 に替わること、gnome-shell がメモリの上限で落ちたときに立ちなおること
 
 ## [0.3.1] - 2026-10-25 — 構成リポジトリのひな形を直す版
