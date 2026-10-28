@@ -112,13 +112,14 @@ systemctl --user restart gnome-remote-desktop-headless.service
 ## 5. RDP でつなぐ
 
 ```
-just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用。ポートはその人の port)
+just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用。ポートとユーザーはその人の port と rdp.username)
 ```
 
 接続先は `<ホスト>:<その人の port>`。ユーザーは env.yaml の `rdp.username`、パスワードは最初は `rdp.initial_password`(上の 4 で変える)。RDP のクライアントは何でもよい(Windows の mstsc、Linux の Remmina・FreeRDP、macOS の Windows App など)。`just rdp` の接続ファイルは mstsc 向けで、次の設定になっている(ほかのクライアントでも同じにするとよい)。
 
 - Windows キーを常にホストへ送る(Super+Space などが使える)。クリップボードを共有する。色は 24 ビット(同じ 26.04 で mstsc の 32 ビットは遅いという報告があって 24 にした。ただし mstsc が既定で使うグラフィックス パイプラインでは、ホストが 32 ビットで送るので、ホストの負荷は変わらない)。回線の自動検出を有効にする(VPN のように遅延の大きい回線で、ホストが送る量を絞りすぎない)
 - 初回の証明書の警告で、mstsc なら「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない
+- mstsc の資格情報の画面で PIN や指紋を求められたら、それは手元の Windows のサインイン(Windows Hello)で、ホストのものではない。「その他」→「別のアカウントを使用する」を選び、`rdp.username` とパスワードを入れる。「このアカウントを記憶する」を選んでも保存されず、次の接続でまた聞かれることがある(原因は未確認。docs/notes.md)。そのときは手元の PowerShell で `cmdkey /add:TERMSRV/<ホスト> /user:<rdp.username> /pass` を実行してパスワードを入れておくと、次から聞かれない(`<ホスト>` は接続先の `:` より前。消すときは `cmdkey /delete:TERMSRV/<ホスト>`)
 - **Claude Code や Codex などのサブスクリプションは個人の契約なので、ログインを複数の人で共有しない(規約に反するおそれがある)。1 台を複数の人で使うときは、人ごとに `users` を分け、それぞれが自分のホームで自分のアカウントにログインする。ほかの人の RDP の接続先(port)には入らない。sysadmin(root)は全員のホームを読める**
 - 1 台で動かせる人数の目安: 何もしていないセッションで 1 人あたり 0.5〜1GB(エージェントとビルドの分は別。VirtualBox で測った)
 

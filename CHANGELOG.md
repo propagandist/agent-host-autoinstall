@@ -28,6 +28,10 @@
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
 - 手順書の「ファイルのやり取り(SFTP)」に、つなぐ人が手元の PC で鍵を作る手順(`ssh-keygen -t ed25519`)と、公開鍵を env.yaml に書いて反映するまでの流れを足した(#38)
 - 構成リポジトリのひな形の `.sops.yaml` の `path_regex` が `/` 区切りだけを見ていて、Windows の sops では `hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できず、RDP の仮のパスワードが平文で残った。`/` と `\` の両方を許す。Windows でひな形から構成リポジトリを作っていたら、`.sops.yaml` の `path_regex` を `(^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$` にして `hosts/*.yaml` を暗号化し、平文で履歴に入った仮のパスワードは、まだ変えていない人に変えてもらう(#34)
+- `just rdp` が、どの利用者の接続ファイルにもユーザー名 `agent` を入れていた。3 つ目の引数で `rdp.username` を渡す(省くとユーザー名を書かない)
+
+### 文書
+- Windows のリモート デスクトップ接続(mstsc)で、手元の Windows Hello の PIN や指紋を求められたときの対処(「その他」→「別のアカウントを使用する」)と、「このアカウントを記憶する」で保存されないときに `cmdkey` で保存する方法を、手順書に書いた
 
 ## [0.3.2] - 2026-10-27 — 実機で固まるのを直す版
 

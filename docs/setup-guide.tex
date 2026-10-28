@@ -819,14 +819,18 @@ env.yaml から外した利用者の Docker が止まっていることも見る
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
 \begin{local}
-just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
+just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
 \end{local}
-接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。ユーザーとパスワードは、その人の \code{rdp.username} と
+接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。\code{just rdp} の \code{<ユーザー>} はその人の \code{rdp.username}(省くと、接続ファイルにユーザー名を書かない)。ユーザーとパスワードは、その人の \code{rdp.username} と
 \code{rdp.initial_password}(仮の値)。RDP のクライアントは何でもよい
 (Windows のリモート デスクトップ接続(mstsc)、Linux の Remmina や FreeRDP、macOS の Windows App など)。
 \code{just rdp} が作る接続ファイルは mstsc 向けで、Windows キーを常にホストへ送り、クリップボードを共有し、
 色を 24 ビットにし(同じ 26.04 で mstsc の 32 ビットは遅いという報告がある。ただしグラフィックス パイプラインではホストが 32 ビットで送るので、ホストの負荷は変わらない)、回線の自動検出を有効にする(遅延の大きい回線で、ホストが送る量を絞りすぎない)。ほかのクライアントでも、同じ設定にするとよい。
 初回は証明書の警告が出る(自己署名のため)。mstsc では「このコンピューターへの接続について今後確認しない」を選ぶと、次から出ない。
+mstsc の資格情報の画面で PIN や指紋を求められたら、それは手元の Windows のサインイン(Windows Hello)で、ホストのものではない。
+「その他」→「別のアカウントを使用する」を選び、\code{rdp.username} とパスワードを入れる。「このアカウントを記憶する」を選んでも保存されず、次の接続でまた聞かれることがある(原因は未確認)。そのときは手元の PowerShell で
+\code{cmdkey /add:TERMSRV/<ホスト> /user:<rdp.username> /pass} を実行してパスワードを入れておくと、次から聞かれない
+(\code{<ホスト>} は接続先の \code{:} より前。消すときは \code{cmdkey /delete:TERMSRV/<ホスト>})。
 
 \begin{caution}
 \textbf{最初の RDP で、自分の RDP のパスワードを変える。}env.yaml の仮の値は、ISO や構成リポジトリを扱う人が知っている。
@@ -1262,6 +1266,7 @@ age の受け手と sysadmin の SSH の鍵には、回復用の鍵を 1 つず�
 \midrule
 \endhead
 RDP がつながらない & 接続先のポートがその人の \code{port} か。\code{just status} で待ち受けとセッションを見る。\code{just logs} でその人の first-login とセッションの記録を見る。起動の直後は RDP が待ち受けるまで 1 分ほどかかる(その前につなぐと mstsc は「内部エラー」を出すことがある)。同じ Windows から同じホストの 2 人目につなぐと mstsc が「既に進行中のコンソール セッション」と止めることがある(127.0.0.1 につないだとき。VM で確認) \\
+RDP で PIN や指紋を求められる & 手元の Windows Hello のサインインを求めている。「その他」→「別のアカウントを使用する」で、\code{rdp.username} とパスワードを入れる。記憶させても保存されないときは、\code{cmdkey /add:TERMSRV/<ホスト> /user:<rdp.username> /pass} で保存する(\ref{sec:rdp} 節) \\
 RDP のパスワードを忘れた & \ref{sec:rdp} 節の手順で、管理者が仮の値に戻す \\
 セッションが落ちた & systemd がその人のセッションだけを 15 秒ほどで立てなおす(ほかの人は続く)。\code{just logs} で確かめる \\
 構成サービスが失敗した & \code{just logs} で止まったスクリプトを見て、直して \code{just update} で再実行する \\
@@ -1406,7 +1411,7 @@ unset PW
 \end{local}
 
 \subsection{RDP の接続ファイル}
-\code{docs/agent-host.rdp.example} をコピーし、\code{full address} を \code{<ホスト>:<その人の port>} に直す(改行は CRLF のまま)。
+\code{docs/agent-host.rdp.example} をコピーし、\code{full address} を \code{<ホスト>:<その人の port>} に、\code{username} をその人の \code{rdp.username} に直す(改行は CRLF のまま)。
 
 \subsection{手順書の PDF}
 リリースした版の PDF は、GitHub の Releases に付いている。手元で作るときは \code{just guide}(Docker が要る)。

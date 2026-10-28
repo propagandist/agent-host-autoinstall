@@ -65,9 +65,9 @@ logs target:
 ssh target:
     just -f {{tool}} ssh {{target}}
 
-# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートは hosts/<ホスト>.yaml の users の port)
-rdp target port="3389":
-    just -f {{tool}} rdp {{target}} {{port}}
+# 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートとユーザーは hosts/<ホスト>.yaml の users の port と rdp.username)
+rdp target port="3389" user="":
+    just -f {{tool}} rdp {{target}} {{port}} '{{user}}'
     mkdir -p build && mv -f tool/build/{{target}}-{{port}}.rdp build/
     @echo "移した: build/{{target}}-{{port}}.rdp"
 
