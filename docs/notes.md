@@ -11,6 +11,7 @@
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
 - v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの項目。v0.3.0 で 190 項目あまり)、`just verify-rdp`、`just vm-test`(VM に入れなおしからの通し。VirtualBox か QEMU/KVM)で機械的に確かめている
 - v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
+- 2026-10-28 から、エージェントのホスト(env.yaml の `vm`)の QEMU/KVM(qemu-system-x86 10.2.1、OVMF 2025.11、q35、virtio のディスク、CPU 2、メモリ 4GB)でも `just vm-test` を回す
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
 ## 設計で決めたこと
@@ -434,14 +435,15 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - npm 11.19.1 は puppeteer の postinstall について「install scripts not yet covered by allowScripts」と警告を出す。`PUPPETEER_SKIP_DOWNLOAD=1` なので、走っても何も取りに行かない
 - 確かめたこと(2026-10-27、このリポジトリの v0.3.1 で構成したホストの利用者で。root の構成の経路ではなく、同じコマンドを利用者の一時ディレクトリに入れた): 上の `npm install` で入り、ラッパーで日本語のラベルを含む図を SVG・PNG・PDF に描き出せた。PNG の日本語は文字化けせず、sandbox のエラーも出なかった。Chrome のポリシー(`/etc/opt/chrome/policies/managed/agent-host.json`)の下でも headless で起動した。2 回目は入れなおさない(`.bin/mmdc` と puppeteer の版で判断)。Chrome は 156.0.8078.47 で、puppeteer 25.16.0 が想定する版(`PUPPETEER_REVISIONS.chrome`)と同じだった
 - Chrome は自動更新されるので、puppeteer が想定する版とずれていく。mmdc が使うのはページの描画と PDF・スクリーンショットだけで、CDP の互換は広いが、ずれたときに動くかは未確認。動かなくなったら、puppeteer をそのときの Chrome に合う版に上げる(MERMAID_CLI_VERSION と同じく 60-devtools.sh の先頭)
-- 未確認: 構成(root)の経路での導入と `just verify`(VM)、プロキシ・独自の CA の下での `npm install`、Chrome と puppeteer の版がずれたときの動作
+- 2026-10-28、QEMU/KVM の VM(下の「エージェントのホストで vm-test を回す」)で: 構成の経路で入り、`just verify` の Mermaid CLI 12.0.0・puppeteer 25.16.0 が通った。利用者 2 人(alice・bob)で日本語のラベルを含む図を SVG・PNG・PDF に描き出せ、sandbox のエラーはなかった。PNG は目で見て文字化けなし。VM に 2 回目の just update をしても、`/opt/mermaid-cli-12.0.0` の inode と更新時刻は変わらなかった(構成の記録の「入れた」は毎回出る)
+- 未確認: PDF の日本語の目視、プロキシ・独自の CA の下での `npm install`、Chrome と puppeteer の版がずれたときの動作
 
 ### git-flow(2026-10-27 追加、#33)
 
 - このリポジトリは GitFlow(git-flow AVH)で運用するが、構成したホストに `git flow` がなく、#28 の feature finish を手の merge で代えた。利用者には sudo がないので、構成で入れる
 - Ubuntu 26.04 の universe の `git-flow` 1.12.3-3build1(AVH 版。Homepage は petervanderdoes/gitflow)を 60-devtools.sh の apt で入れる。依存は `git | git-core` だけで、`apt-get install -s git-flow` で新しく入るのは git-flow だけ(2026-10-27、このホストの apt で確認)。上流の開発は止まっているので、ほかの apt の小物と同じく版は固定しない
 - 確かめたこと(2026-10-27、sudo なしで `apt-get download` した .deb を利用者の一時ディレクトリに展開して): `git flow version` は「1.12.3 (AVH Edition)」。試しのリポジトリで `git flow init -d`、`feature start`、`feature finish` が通った。コミットが 1 つだけの feature は、既定では fast-forward で develop に入る(merge コミットを残すなら `git flow feature finish --no-ff`)。git flow の設定(`gitflow.*`)はリポジトリごとなので、clone や worktree のあとに一度 `git flow init -d` が要る
-- 未確認: VM での構成(root の apt の経路)と `just verify`
+- 2026-10-28、QEMU/KVM の VM で: 構成の apt の経路で入り、`just verify` の「git-flow が入っている」が通った。利用者 2 人で `git flow version` が 1.12.3 (AVH Edition)、試しのリポジトリで `git flow init -d`・`feature start`・`feature finish` が通った
 
 ### エージェントのホストで vm-test を回す(2026-10-28、#35)
 
@@ -452,7 +454,9 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 確かめたこと(sudo なしで `apt-get download` した qemu-system-x86・ovmf-generic などを利用者の一時ディレクトリに展開して。KVM が使えないので TCG で): 上の引数で QEMU が `-daemonize` して pid を書き、SSH と RDP の転送を 127.0.0.1 で待ち受けた。OVMF は virtio のディスク(Boot0003 "UEFI Misc Device")を先に、DVD(Boot0002)を後に試した。プロセスの名前(`/proc/<pid>/comm`)は `qemu-system-x86`
 - 2026-10-28、core に `vm: true` で just update したあと: 利用者は kvm に入ったが(`/etc/group`)、動いているセッションには効かず、`sg` がなかった。26.04 では `sg`・`newgrp` が `util-linux-extra`(2.41.3。util-linux の newgrp で、`sg <グループ> [[-c] <コマンド>]` の形も受け付ける)に分かれていて、Desktop の既定では入っていない(`login` は 1:4.16.0-2+really2.41.3)。66-vm.sh で一緒に入れる
 - QEMU の user モードのネットワークも 10.0.2.0/24 なので、試験用の env.yaml の `lan_cidrs` は VirtualBox と同じでよい
-- 未確認: KVM での自動インストールが virtio のディスク(vda)と q35 の UEFI で通るか、インストーラーの再起動のあとにディスクから起動するか、kvm に入れたあと `sg kvm` で実行しなおして動くか、関数に寄せた VirtualBox の版(Windows で回しなおすまで)
+- 1 回目の vm-test では、入れた直後の verify-rdp だけが接続で止まった。FreeRDP は Docker(in-ubuntu.sh)の中で動き、手元の 127.0.0.1 を `host.docker.internal` で見ていたが、Linux の rootless Docker(29.9.2)にはこの名前がない(`--add-host host.docker.internal:host-gateway` でも手元の 127.0.0.1 の転送には届かなかった)。`--network host` では届いたので、手元が Linux なら in-ubuntu.sh が `--network host` で動かし、rdp-auth.sh は名前が引けるときだけ置き換える。`vm-test.sh` には実行の権限がなく(Windows の Git Bash では要らない)、Linux の just からは 126 で止まったので付けた
+- 2026-10-28、core(QEMU/KVM。CPU 2、メモリ 4GB、利用者 2 人の env)で `just vm-test`(道具 ae54f66)が 9 項目すべて通った。ISO から起動して利用者 2 人の RDP が待ち受け、`just verify` が終わるまで約 26 分(VirtualBox の CPU 1 では 47〜67 分)。`just verify` は入れた直後・電源を切ったあとともに 210 項目、verify-rdp は 2 人とも 3 回、alice の gnome-shell を落とすと alice だけ新しいセッション(4 → 17)になり bob の gnome-shell は続いた。UEFI は空の virtio のディスクを飛ばして DVD から起動し、インストーラーの再起動のあとはディスクから起動した。動いている利用者のセッションでは `sg kvm` で実行しなおして動いた(環境変数も引き継いだ)
+- 未確認: 関数に寄せた VirtualBox の版(Windows で回しなおすまで)
 
 ### 構成リポジトリの鍵をなくしたときの回復(2026-10-28、Windows の構成リポジトリで確認、#34)
 
@@ -526,9 +530,8 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
-- Mermaid CLI: 構成(root)の経路での導入と `just verify`、プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
-- git-flow: VM での構成と `just verify`(#33)
-- vm-test の QEMU/KVM の版での通し(上の「エージェントのホストで vm-test を回す」)と、関数に寄せた VirtualBox の版の回しなおし(#35)
+- Mermaid CLI: プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
+- vm-test: 関数に寄せた VirtualBox の版の回しなおし(#35)
 - 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
