@@ -481,6 +481,22 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Xwayland のアプリの入力: `XMODIFIERS=@im=ibus` は gnome-session が自分で入れている(`/usr/bin/gnome-session` に文字列がある)。ibus のパッケージの `/etc/xdg/Xwayland-session.d/10-ibus-x11` が Xwayland が立つたびに ibus-x11 を起動し、fcitx5 は「Failed to open xim, retrying」を出す。Orca は Wayland で動くので当たらない。X11 のアプリで入力できるかは確かめていない
 - 未確認: 新しく入れたときに gnome-shell が fcitx5 につなぐこと(RDP の画面での入力)、just update で動いているセッションがその場で fcitx5 に替わること、候補の窓の位置、Xwayland のアプリでの入力(上)、fcitx5 がつなぐので Xwayland が常に起動しておくこと、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
 
+### mstsc の資格情報の画面の PIN と指紋(2026-10-27)
+
+- 実際のホストに Windows のリモート デスクトップ接続(mstsc)でつないだとき、資格情報の画面で PIN を求められ、指紋認証も聞かれた。ホストの RDP は NLA(CredSSP)で認証し、PIN も指紋も設定していない。指紋も出たので、手元の Windows Hello のサインインが並んだものと判断した(Hello の PIN と生体認証は手元の PC のサインインで、ホストには送れない)
+- 調べたこと(Microsoft Q&A の利用者どうしのやりとり。公式の文書ではない): NLA のとき mstsc は手元の資格情報の画面(CredUI)を出し、CredSSP が手元の資格情報プロバイダーを全部並べるので、Windows Hello for Business の PIN が先に出る。組織の Entra ID に参加した PC で多い。相手が Windows でない、または PIN を受け付けない RDP サーバーでは、「その他」(More choices)から別のアカウントとパスワードを選ぶしかない、というのが採用された回答
+- mstsc の側で PIN を出さないようにする方法は、決め手がなかった。上のやりとりでは、次のどれも効いた人と効かなかった人がいる:「ローカル デバイスとリソース」の「スマート カードまたは Windows Hello for Business」と「WebAuthn」を外す、ユーザー名の前に `.\` を付ける、`DisableSmartCardNode`(PassportForWork のポリシー)。`ExcludeCredentialProviders` で Hello のプロバイダーを外すと、PC 自体にサインインできなくなる
+- 接続ファイルに `enablecredsspsupport:i:0` を書くと NLA を使わなくなるが、gnome-remote-desktop は NLA しか受け付けないという報告がある(Red Hat Bugzilla 2189376)ので、手順書には書かない(試していない)
+- 手順書には「その他」→「別のアカウントを使用する」で `rdp.username` とパスワードを入れる対処を書いた。このホストでこの対処で入れるかは未確認。日本語の Windows の表示の文言も未確認(英語は More choices / Use a different account)
+- 「このアカウントを記憶する」を選んでも、次の接続でまた聞かれた。原因は未確認
+  - Credential Guard(有効だと CredSSP は保存した資格情報を使えない。Microsoft の文書 Considerations and known issues)を疑ったが、手元の PC で `Win32_DeviceGuard` の `SecurityServicesRunning` が 0 で、動いていなかった。これは原因ではない
+  - 次の候補(未確認): ホストの NLA は NTLM で、Kerberos でホストの身元を確かめられないため、Windows は既定では保存したパスワードを送らない。そのときは「資格情報が機能しませんでした」「リモート コンピューターの ID が完全には確認されていないため、保存された資格情報の使用を許可していません」という趣旨の表示が出るという報告がある。手元の PC のグループ ポリシー「NTLM のみのサーバー認証で保存された資格情報の委任を許可する」に `TERMSRV/<ホスト>` を足すと使えるという(管理者の権限が要り、組織の PC では組織のポリシーが優先される)
+  - ただし、手元の PC では 2 回目の接続でこの表示は出ず、資格情報の画面がそのまま出た。この候補にも当てはまらない
+  - 手元の PC の `cmdkey /list` に TERMSRV の項目がなかった。チェックを入れて接続しても、資格情報が保存されていない
+  - 保存を止める設定ではなかった: `HKLM\SYSTEM\CurrentControlSet\Control\Lsa` の `DisableDomainCreds` が 0、リモート デスクトップの `DisablePasswordSaving` のポリシー(HKLM・HKCU)はなし
+  - 手で保存すると使われた: 手元の PowerShell で `cmdkey /add:TERMSRV/<ホスト> /user:<ユーザー名> /pass` で保存してからつなぐと、資格情報の画面が出ずにつながった(接続ファイルは使わず、mstsc に接続先を打ち込んだ)。止まっているのはチェック欄からの保存のほう。チェック欄で保存されない理由は未確認。手順書にはこの `cmdkey` を回避策として書いた
+- 別に見つけたこと: `just rdp` は `docs/agent-host.rdp.example` の `username:s:agent` をそのまま写すので、`rdp.username` が agent でない利用者には、違うユーザー名が初めから入る
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
