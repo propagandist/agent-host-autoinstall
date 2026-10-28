@@ -25,12 +25,18 @@
 - 手順書に、手元の PC の Orca からホストの Orca につなぐ手順(Remote Orca Server、ベータ)を足した。公式の文書から書き、LAN の IP で 6768 を足してつながることを確かめた。2 人目以降のポートと、版が違うときは未確認(#37)
 
 ### 修正
+- Linux の手元で `just verify-rdp` が試験用の VM につながらなかった(Docker の中の FreeRDP が `host.docker.internal` を引けない)。手元が Linux なら Docker を `--network host` で動かす。`vm-test.sh` に実行の権限がなく Linux の just から動かなかったので付けた(#35)
 - 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
 - 手順書の「ファイルのやり取り(SFTP)」に、つなぐ人が手元の PC で鍵を作る手順(`ssh-keygen -t ed25519`)と、公開鍵を env.yaml に書いて反映するまでの流れを足した(#38)
 - 構成リポジトリのひな形の `.sops.yaml` の `path_regex` が `/` 区切りだけを見ていて、Windows の sops では `hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できず、RDP の仮のパスワードが平文で残った。`/` と `\` の両方を許す。Windows でひな形から構成リポジトリを作っていたら、`.sops.yaml` の `path_regex` を `(^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$` にして `hosts/*.yaml` を暗号化し、平文で履歴に入った仮のパスワードは、まだ変えていない人に変えてもらう(#34)
 - `just rdp` が、どの利用者の接続ファイルにもユーザー名 `agent` を入れていた。3 つ目の引数で `rdp.username` を渡す(省くとユーザー名を書かない)
+
+### 確認した環境
+- エージェントのホスト(core)の QEMU/KVM の VM(CPU 2、メモリ 4GB、利用者 2 人の env)で `just vm-test`(ae54f66)の 9 項目がすべて通った。入れなおしから 2 人の RDP が待ち受けるまで人手なし、`just verify`(210 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くこと
+- 同じ VM の利用者 2 人で、`mmdc` の SVG・PNG・PDF(PNG の日本語は目視で文字化けなし)と、`git flow` の init・feature start・finish。2 回目の just update で Mermaid CLI を入れなおさないこと
+- 未確認: 関数に寄せた vm-test の VirtualBox の版、PDF の日本語の目視
 
 ### 文書
 - Windows のリモート デスクトップ接続(mstsc)で、手元の Windows Hello の PIN や指紋を求められたときの対処(「その他」→「別のアカウントを使用する」)と、「このアカウントを記憶する」で保存されないときに `cmdkey` で保存する方法を、手順書に書いた
