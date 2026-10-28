@@ -430,6 +430,18 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 確かめたこと(2026-10-27、sudo なしで `apt-get download` した .deb を利用者の一時ディレクトリに展開して): `git flow version` は「1.12.3 (AVH Edition)」。試しのリポジトリで `git flow init -d`、`feature start`、`feature finish` が通った。コミットが 1 つだけの feature は、既定では fast-forward で develop に入る(merge コミットを残すなら `git flow feature finish --no-ff`)。git flow の設定(`gitflow.*`)はリポジトリごとなので、clone や worktree のあとに一度 `git flow init -d` が要る
 - 未確認: VM での構成(root の apt の経路)と `just verify`
 
+### 構成リポジトリの鍵をなくしたときの回復(2026-10-28、Windows の構成リポジトリで確認、#34)
+
+- 構成リポジトリで、`.sops.yaml` の受け手の age の鍵が 1 つだけで、その秘密鍵がどこにもなく、誰も復号できなくなった。sysadmin の SSH の鍵も 1 つだけで、その秘密鍵が手元になく、`just update` が `Permission denied (publickey)` で止まった。どちらも 1 本だけにしていたことが原因なので、docs/fleet.md の 3 で回復用の鍵を足すことにし、戻し方を 10 に書いた
+- 戻したこと: 暗号化した値を `CHANGE_ME` にして(`sops:` の節を消し、`ENC[...]` を置き換える)新しい鍵で暗号化しなおし、`sops edit` で値を入れ直した。暗号化していない値とコメントは残った。SSH は、利用者として RDP で入り、`su - sysadmin` で `~/.ssh/authorized_keys` に鍵を足してから `just update` した
+- sops 3.13.3(Windows、Scoop)は、`SOPS_AGE_KEY_FILE` を渡しても、既定の置き場所(`%AppData%\sops\age\keys.txt`)の鍵も読む。関係のない鍵だけを `SOPS_AGE_KEY_FILE` に渡しても、手元の鍵で復号できてしまった。`APPDATA` と `XDG_CONFIG_HOME` を空のディレクトリに向けると、渡した鍵だけを使った(関係のない鍵では失敗し、受け手の鍵では通った)。これを `just check-age-key`(ひな形の justfile)にした。macOS の既定の置き場所(`~/Library/Application Support`)でも効くかは未確認
+- sops の MAC は、暗号化していない値も含めたファイル全体にかかる。暗号化したファイルの、暗号化していない値(`git_user_name`)をエディターで直接書き換えると、`MAC mismatch` で復号できなくなった
+- Windows の sops は、規則と照らすパスを `\` で区切る。ひな形の `path_regex` が `/` だけを見ていたので、`hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できなかった(#34)。`[/\\]` にすると暗号化と復号が通った(同じ PC で確認)。Linux・macOS では `/` だけなので、今までどおり当たる見込み(試験で `/` と `\` の両方の形を確かめる)
+- `with-env.sh` は、暗号化していないファイルをそのまま写していたので、暗号化に失敗したことに `just check` で気づけなかった。`encrypted_regex` と同じ名前の値が空でなければ止め、行の番号だけを出す(値は出さない)ようにした。sops がないときも、`sops: command not found` ではなく、入れ方の案内を出す
+- 道具のレシピは `tool/` で動くので、`AGENT_HOST_SSH_OPTS` の `-i` に相対パスを渡すと `tool/` から探す。絶対パスにすると、`build/` に書き出した回復用の鍵で `just status` が通った(Windows の PowerShell から、区切りを `/` にして)
+- Windows で: age は Scoop の main バケットになく、winget の `FiloSottile.age`(1.3.2)で入れた。winget が足した PATH は、開いていたターミナルには効かない。`sops edit` は `EDITOR` がなく vim・nano・vi も見つからないと `no editor available` で止まり、`code --wait` で開けた
+- 確かめていないこと: Linux・macOS での `check-age-key` と、sops の `path_regex` の照らし方
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。

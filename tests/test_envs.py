@@ -88,6 +88,36 @@ class TestFleetWithEnv(unittest.TestCase):
         self.assertNotEqual(out_a.splitlines()[-1], out_b.splitlines()[-1])
         self.assertEqual(os.listdir(os.path.join(self.fleet, "build", ".dec")), [])
 
+    def run_with(self, common, path=None):
+        with open(os.path.join(self.fleet, "common.yaml"), "w") as f:
+            f.write(common)
+        env = dict(os.environ, PATH=path) if path else None
+        return subprocess.run(["bash", self.with_env, "agent-host-01", "true"], cwd=self.fleet, env=env,
+                              capture_output=True, text=True, timeout=30)
+
+    def test_plain_secret_stops(self):
+        """暗号化していないファイルに秘密の値があれば止め、値は画面に出さない(#34)"""
+        for common in ('sysadmin:\n  password_hash: "$6$plainhash"\n',
+                       "users:\n  - name: a\n    rdp:\n      initial_password: plainhash\n"):
+            with self.subTest(common=common):
+                r = self.run_with(common)
+                self.assertNotEqual(r.returncode, 0)
+                self.assertIn("暗号化していない秘密の値", r.stderr)
+                self.assertNotIn("plainhash", r.stderr + r.stdout)
+
+    def test_empty_secret_passes(self):
+        """値が空なら秘密ではないので通す(使わない Webhook や UPS のパスワード)"""
+        r = self.run_with("notify:\n  slack_webhook_url: \"\"\nups:\n  password: ''\n# password: x\n")
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    def test_no_sops(self):
+        """暗号化したファイルがあるのに sops がなければ、そう言って止まる"""
+        if subprocess.run(["bash", "-c", "PATH=/usr/bin:/bin command -v sops"], capture_output=True).returncode == 0:
+            self.skipTest("/usr/bin に sops がある")
+        r = self.run_with("sysadmin:\n  password_hash: ENC[x]\nsops:\n  age: []\n", path="/usr/bin:/bin")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("sops がない", r.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
