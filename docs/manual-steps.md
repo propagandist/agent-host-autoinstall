@@ -204,7 +204,7 @@ agent-notify approval テスト "通知のテストです"
 
 Slack と IP Messenger の両方に届くことを確かめる(done は Slack だけ)。IP Messenger の受け取り側の PC は、UDP 2425 番の受信を許可しておく。
 
-## 13. スマホからの操作(Claude Code の Remote Control、Orca Mobile)
+## 13. スマホや手元の PC の Orca からの操作
 
 ### Claude Code の Remote Control
 
@@ -229,6 +229,22 @@ Orca のワークツリーやターミナルの出力をスマホで見て、コ
 2. スマホの Orca Mobile の「Pair Desktop」で QR コードを読む
 
 Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリングの操作で LAN にも開く。一度つないだ端末があれば、次の起動からは最初から LAN にも開く(v1.4.237 のソース。このホストでは未確認)。1 台を複数の人で使うと、2 人目以降の Orca は 6768 が使われているので別のポートに移る見込み(Orca の CLI の serve の説明から。未確認)。LAN でつなぐなら、その人の Orca の画面に出るポートも `dev_ports` に足す。
+
+### 手元の Orca からつなぐ(Remote Orca Server、ベータ)
+
+手元の PC の Orca を画面にして、このホストの Orca を操作する(Orca の機能。Orca ではベータ)。プロジェクト・worktree・端末・エージェントのログインはホストに置いたままで、手元の PC が眠っても、つながりが切れても、作業は続く。手元の PC にも Orca が要る。手順は Orca の公式の文書(Remote Orca Servers、2026-10-28 に読んだもの)から書いた。LAN の IP を選び、`dev_ports` に 6768 を足した状態で、手元の Orca からつながることを確かめた(2026-10-28)。
+
+**リンクを持つ人はエージェントを丸ごと操作できる。** リンクはパスワードと同じに扱う。許可は手元の PC ごとに出るので、使わなくなった PC はホストの Orca の Shared Server Access で取り消す。新しいリンクを作ると、まだ使っていないリンクは無効になる。ポートをインターネットに直接開けない(LAN の外からは VPN か Tailscale などを使う)。
+
+このホストでの準備: LAN からつなぐなら、Orca が待ち受けるポートを env.yaml の `dev_ports` に足して `just update`(`lan_cidrs` からだけ開く)。ポートは Orca Mobile と同じ 6768(リンクの中の接続先が `ws://<LAN の IP>:6768` だった)。リンク(`orca://pair?code=…`)には、つなぐための秘密の値が入っている。2 人目以降の利用者でポートがずれるかどうかは、上の Orca Mobile と同じに扱う。
+
+1. ホストで(RDP で入る): Orca の Settings → Remote Orca Servers → Advertise this app as a server で **New Link** を押す。Connection address に LAN の IP か Tailscale のアドレスを選び(127.0.0.1 は選ばない)、**Generate Access Link** を押す。Pair another Orca client の下に出るリンクをコピーする
+2. 手元の PC で: Orca の Settings → Remote Orca Servers → **Add Server**。名前を付けてリンクを貼り、**Add Server** を押す。Disconnected と出たら **Connect** を押す
+3. プロジェクトを全部ホストで動かすなら、手元の Orca の Advanced → Active Server でホストを選ぶ
+
+- ログイン: エージェントはホストのログインを使う。手元のログインは引き継がれない(6〜11 のログインで足りる)
+- 版: ホストの Orca は 1.4.237 に固定して hold している。手元の Orca と版が違うと、非互換のプロトコルと出て切れることがある。そのときは手元の Orca をホストの版に合わせるか、ホストの版を上げる(15。未確認)
+- このホストで使わないもの: `orca serve`(デスクトップの Orca がすでに公開しているので、重ねて起動しない。Orca の文書の注意)。Orca の SSH worktrees(利用者の SSH は SFTP 専用で、ポート転送も止めているので使えない)
 
 ## 14. ファイルのやり取り(SFTP)
 

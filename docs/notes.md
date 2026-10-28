@@ -111,7 +111,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - **クラウドの VM**: Orca は SSH の先や VPS でも動く(Orca の文書の Ways to run)。費用は比べていない。LAN の資源には VPN が要る。このリポジトリの autoinstall は物理の PC に USB から入れる前提で、クラウドの VM のイメージでは試していない
 - **Orca の想定**(Orca の文書の Remote Orca Servers、v1.4.237 のソースの docs): Remote Orca Server では、作業する側がプロジェクト・worktree・端末・タブ・エージェントのアカウントとセッションを持ち、クライアントは画面になる。クライアントのノート PC が眠っても、つながりが切れても、エージェントは動き続ける。ログインは作業する側で行い、ノート PC のログインは引き継がれない。Remote Orca Servers はベータで、Tailscale か信頼できる LAN の中で使うことを勧めている。画面のない Linux では `orca-ide serve` で同じことができる
 - この構成は、その「作業する側」を、OS の自動ログイン・キーリング・RDP・セッションの見張り・UPS まで含めて人手なしで保つもの。画面のない `orca serve` ではなくデスクトップと RDP にしたのは、ログインにブラウザが要るため(Claude Code は Chrome でログインした。受け入れテスト 2)、手元に何も入れずに Windows のリモート デスクトップ接続でつなげるため、人が同じデスクトップで手を入れられるため
-- 未確認: このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと(LAN なら env.yaml の dev_ports に 6768 を足すことになるはず)
+- 未確認: このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと(LAN なら env.yaml の dev_ports に 6768 を足すことになるはず)。公式の文書から手順を手順書に書き、LAN の IP で 6768 を足してつながることを確かめた(下の「Remote Orca Server」)
 
 ### Orca を選んだ理由(2026-10-24 の調査)
 
@@ -278,6 +278,19 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 - このリポジトリでは対応のための設定を足さない。LAN で使うなら env.yaml の `dev_ports` に 6768 を足せば `lan_cidrs` からだけ開く。Relay はポートを開けずに使える
 - スマホから agent のターミナルにコマンドを送れるので、スマホの管理(画面のロック、無くしたときにペアリングを外す)を手順に書いた
 
+### Remote Orca Server(2026-10-28 調査、公式の文書)
+
+- 読んだもの: Orca の文書の Remote Orca Servers(onorca.dev/docs/remote-servers)と SSH worktrees(onorca.dev/docs/ssh)
+- 確かめたこと(2026-10-28): Connection address に LAN の IP を選び、env.yaml の dev_ports に 6768 を足した状態で、手元の Orca からホストの Orca につながった。リンクは `orca://pair?code=<base64 の JSON>` で、JSON は `v: 2`、`endpoint: ws://<LAN の IP>:6768`、`deviceToken`、`publicKeyB64`、`pairedDeviceId`、`scope: runtime`、`hostDescriptor` を持つ。Orca Mobile と同じ 6768 の待ち受けを使っている。`deviceToken` が秘密の値なので、リンクは人に見せない。VM か実機か、手元の Orca の版、何人目の利用者かは記録していない
+- 手元の Orca が画面になり、プロジェクト・worktree・端末・エージェントのログインはホストに残る。手元が眠っても、切れても作業は続く。Orca ではベータ
+- ホスト側: Settings → Remote Orca Servers → Advertise this app as a server → New Link → Connection address(LAN の IP か Tailscale のアドレス。127.0.0.1 は選ばない)→ Generate Access Link → Pair another Orca client の下のリンクをコピー。手元側: Settings → Remote Orca Servers → Add Server → 名前とリンク → Add Server →(Disconnected なら)Connect。全部ホストで動かすなら Advanced → Active Server
+- ログインはホストのものを使い、手元のログインは引き継がれない
+- リンクを持つ人はエージェントを丸ごと操作できる。許可は手元の PC ごとで、Shared Server Access で取り消す。新しいリンクを作ると、まだ使っていないリンクは無効になる。ポートをインターネットに直接開けないよう書かれている
+- 版が違うと、非互換のプロトコルとして切れることがある(文書の記述)。ホストは 1.4.237 に固定・hold しているので、手元をそろえるか、ホストを上げる。実際に版が違うとつながらないかは未確認
+- 待ち受けるポート: 6768(リンクの endpoint で確かめた)。LAN からなら dev_ports に足す。2 人目以降でずれるかは Orca Mobile と同じく未確認(段 0 の 9)
+- 使わないもの: `orca serve` はデスクトップアプリが公開しているときに同じ構成で重ねて起動しない(文書の注意)。SSH worktrees は、利用者の SSH が SFTP 専用でポート転送も止めているので使えない(40-ssh-ufw.sh の `ForceCommand internal-sftp`、`AllowTcpForwarding no`)
+- このリポジトリでは設定を足さない(手順書に手順を書いただけ。verify.sh も変えない)
+
 ### レビューの指摘への対応(2026-10-25、VirtualBox で確認)
 
 - #1: agent のホームの中は、すべて agent の権限(`agent_run` = runuser)で書く。write_agent_file は同じディレクトリの一時ファイルから `mv -T` で置き換える(末端のリンクは置き換わるだけで、途中のディレクトリのリンクは agent の権限で止まる)。tests/test_agent_home.py で、末端と途中のディレクトリのリンクでホームの外が変わらないことを確かめる(Docker の中)。動いている VM に just update して verify が通った
@@ -427,7 +440,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - rootless Docker のコンテナの中でメモリが詰まったとき、systemd-oomd がほかのコンテナも一緒に止めるか(Orca の端末は 1 つずつ止まることを VM で確かめた)
 - 利用者が複数のとき、長く強いメモリの圧迫で、メモリを使っていない側の利用者の単位を systemd-oomd が止めることがあるか(VM の 2 人では、使った側だけが止まった)
 - UPS の netclient を実際の NUT サーバーにつなぐこと。USB の HID の UPS を GNOME の upower も見て、電池が少ないときに GNOME が別の動作をしないか
-- このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐこと
+- このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
