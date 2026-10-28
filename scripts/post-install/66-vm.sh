@@ -19,8 +19,10 @@ drop_kvm() {
 if [ "${AH_VM:-0}" = 1 ]; then
     # 版は固定しない(ほかの Ubuntu の apt の道具と同じ。unattended-upgrades で更新する)。画面を出さないので、
     # 推奨(GUI・SPICE など)は入れない。26.04 の ovmf は ovmf-generic などをまとめた移行用のパッケージなので、
-    # UEFI のファームウェア(/usr/share/OVMF/OVMF_CODE_4M.fd・OVMF_VARS_4M.fd)は ovmf-generic で入れる
-    apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf-generic
+    # UEFI のファームウェア(/usr/share/OVMF/OVMF_CODE_4M.fd・OVMF_VARS_4M.fd)は ovmf-generic で入れる。
+    # 26.04 では sg(newgrp)が util-linux-extra に分かれていて、既定では入っていない。kvm に入れたあと、
+    # 動いているセッションで kvm を使う(vm-test が sg kvm で実行しなおす)ために入れる
+    apt-get install -y --no-install-recommends qemu-system-x86 qemu-utils ovmf-generic util-linux-extra
     add_kvm() {
         if ! in_kvm "$AGENT_USER"; then
             usermod -a -G kvm "$AGENT_USER"
