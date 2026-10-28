@@ -11,9 +11,11 @@
 ## [未リリース]
 
 ### env.yaml の変更
-- なし
+- `vm` を足した(true か false)。書かなければ今までどおり(false)
 
 ### 追加
+- env.yaml の `vm` を `true` にすると、QEMU/KVM と UEFI のファームウェアを入れ、利用者全員を kvm に入れる(66-vm.sh)。エージェントがそのホストで `just vm-test` を回せる。`false` に戻すと kvm から外す。`just verify` も見る(#35)
+- `just vm-test` が QEMU/KVM でも動く。VBoxManage があれば VirtualBox、なくて QEMU と `/dev/kvm` があれば QEMU を選ぶ(`AGENT_HOST_VM_BACKEND` で決められる)。kvm のグループが今のセッションに効いていなければ `sg kvm` で実行しなおす。転送のポートを `AGENT_HOST_VM_SSH_PORT`・`AGENT_HOST_VM_RDP_PORT_OFFSET` で変えられ、使われていれば入れなおす前に止まる(#35)
 - Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)
 - git-flow(AVH 版、Ubuntu の apt)を既定で入れる。エージェントが `git flow feature start` / `finish` で GitFlow のブランチ運用を行える(#33)
 - `just verify` が利用者ごとの rootless Docker で `hello-world` を動かす(手元になければ取得し、終わったら消す。取得できなければ未検証)。pasta の設定(passt と drop-in)、`/etc/subuid`・`/etc/subgid` の範囲(利用者ごとに 65536 個以上で、重ならない)、env.yaml から外した利用者の Docker が止まっていることも見る(#29)

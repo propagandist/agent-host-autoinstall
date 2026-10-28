@@ -11,7 +11,7 @@ SPEC.md §7 の手順。まず仮想マシン(KVM/QEMU、Windows では VirtualB
 | `just test` | env.yaml の検査(知らないキー、SOPS のまま、書き忘れ、値の形、組み合わせ)、重ね方、生成する env.sh と /opt/agent-host に置くものの形 | ホストは要らない |
 | `just verify <ホスト>` | 下の「構成の確認」のうち、画面を見なくてよいもの(全体と、利用者ごとの節)。固定した版は、そのホストの `/opt/agent-host/post-install/` に書いてある値と比べる。何も変えない(ホストの上では `sudo /opt/agent-host/verify.sh`) | SSH と sudo のパスワード |
 | `just verify-rdp <ホスト> [--ask <利用者>] [env.yaml...]` | 利用者ごとに、その人の port で RDP の認証(NLA)が通ること。仮のパスワード(`rdp.initial_password`)で通らなければ「未検証」(本人が変えていれば正常)、`--ask` でその人の今のパスワードを聞いて確かめる。つながらない・TLS のエラーは失敗。画面は開かない(FreeRDP の `+auth-only`)。ポートに足す数は環境変数 `AGENT_HOST_RDP_PORT_OFFSET` | 手元の Docker か `xfreerdp3` |
-| `just vm-test [env.yaml...]` | VirtualBox の VM に今のスクリプトで作った ISO を入れなおし、下の 1・3・4(認証まで)・8 を人手なしで行い、その都度 `verify` と `verify-rdp` を通す。8 は 1 人目の gnome-shell を落とし、その人だけが戻り、2 人目の gnome-shell が続いていることを見る | VirtualBox、試験用の env.yaml(docs/release.md。users は 2 人以上、port は 3389〜3392)。1〜2 時間。VM の中身は消える |
+| `just vm-test [env.yaml...]` | VM(VirtualBox か QEMU/KVM)に今のスクリプトで作った ISO を入れなおし、下の 1・3・4(認証まで)・8 を人手なしで行い、その都度 `verify` と `verify-rdp` を通す。8 は 1 人目の gnome-shell を落とし、その人だけが戻り、2 人目の gnome-shell が続いていることを見る | VirtualBox か QEMU/KVM(エージェントのホストでは env.yaml の `vm`)、試験用の env.yaml(docs/release.md。users は 2 人以上、port は 3389〜3392)。1〜2 時間。VM の中身は消える |
 
 `just vm-test` が通っても、人が確かめるものが残る: 2(各ログインと RDP のパスワードの変更)、4 のうち画面と日本語入力と記号、2 人で同時につなぐこと、5、6、7(LAN の外から)、9。
 
@@ -73,6 +73,7 @@ sudo ss -tlnp | grep gnome-remote
 | Zed の拡張機能 | Zed を一度起動して閉じたあと `ls ~/.local/share/zed/extensions/installed` | 72-editors.sh の ZED_EXTENSIONS(と clouds・zed_extensions の分)が並ぶ |
 | Gitea CLI | RDP の端末で `tea --version` と `echo $GITEA_SERVER_URL` | 60-devtools.sh の版。gitea_url を書いたらその URL |
 | クラウドの CLI | RDP の端末で `aws --version; gcloud --version; az version`(選んだものだけ) | 63-clouds.sh の版。`echo $AWS_PAGER` は空 |
+| VM(env.yaml の vm を選んだときだけ) | RDP の端末で `id -nG; ls -l /dev/kvm; qemu-system-x86_64 --version` | kvm に入っている(次のログインから)。QEMU が入っている。vm を外して `just update` したら kvm に入っていない |
 | 開発の道具 | RDP の端末で `mise --version; uv --version; python --version; pnpm --version; ccmanager --version; git flow version; ulimit -n` | それぞれ動く。git flow は 1.12.3(AVH)。python は Python 3。ulimit -n は 65536 |
 | Mermaid CLI | RDP の端末で `printf 'flowchart LR\n  A[開始] --> B[日本語のラベル]\n' >/tmp/t.mmd; for f in svg png pdf; do mmdc -i /tmp/t.mmd -o /tmp/t.$f; done` | 3 つとも出る。PNG・PDF の日本語が文字化けしない。sandbox のエラーが出ない |
 | エージェントへの説明 | `sudo cat /home/<名前>/.claude/CLAUDE.md` | 「このホストについて」が置かれ、「あなたは <名前> ユーザーで」になっている |

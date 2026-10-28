@@ -38,6 +38,7 @@ KNOWN_KEYS = {
     "gitea_url": None,
     "agents": None,
     "clouds": None,
+    "vm": None,
     "notify": {"slack_webhook_url", "ipmsg_to", "ipmsg_broadcast"},
     "ups": {"mode", "driver", "port", "server", "name", "username", "password"},
     "dev_ports": None,
@@ -64,14 +65,14 @@ RESERVED_USERS = {
 }
 
 
-# 値の型。str は文字列、list は文字列の並び、dict はキーと値。空(書かない、null)はどれでもよい(既定の値になる)。
+# 値の型。str は文字列、list は文字列の並び、dict はキーと値、bool は true か false。空(書かない、null)はどれでもよい(既定の値になる)。
 # YAML は引用符のない 1234 や false を数や真偽値として読むので、文字列の項目では引用符で囲ませる。
 # 並びの項目に文字列を書くと 1 文字ずつに分かれていたので、型で止める(Issue #8)
 TYPES = {
     "hostname": str, "keyboard_layout": str, "desktop_color": str, "gitea_url": str,
     "ca_certs": list, "ntp_servers": list, "editors": list, "vscode_extensions": list, "zed_extensions": list,
     "agents": list, "clouds": list, "dev_ports": list, "lan_cidrs": list, "users": list,
-    "network": dict, "proxy": dict, "notify": dict, "sysadmin": dict, "ups": dict,
+    "network": dict, "proxy": dict, "notify": dict, "sysadmin": dict, "ups": dict, "vm": bool,
     "network.mode": str, "network.interface": str, "network.address": str, "network.gateway": str,
     "network.dns": list, "network.search": list,
     "proxy.url": str, "proxy.no_proxy": str,
@@ -80,7 +81,8 @@ TYPES = {
     "ups.mode": str, "ups.driver": str, "ups.port": str, "ups.server": str, "ups.name": str,
     "ups.username": str, "ups.password": str,
 }
-TYPE_NAMES = {str: "文字列(数字や true/false は引用符で囲む)", list: "並び(- で始まる行)", dict: "キーと値", int: "数"}
+TYPE_NAMES = {str: "文字列(数字や true/false は引用符で囲む)", list: "並び(- で始まる行)", dict: "キーと値", int: "数",
+              bool: "真偽値(true か false。引用符で囲まない)"}
 # users の 1 人の値の型(port だけは数)
 USER_TYPES = {
     "name": str, "port": int, "rdp": dict, "git_user_name": str, "git_user_email": str, "ssh_authorized_keys": list,
@@ -136,7 +138,7 @@ UPDATE_SCOPE = {
     "hostname": "install", "keyboard_layout": "install", "network": "install",
     "sysadmin": "update", "proxy": "update", "ca_certs": "update", "ntp_servers": "update",
     "users": "update", "editors": "update", "vscode_extensions": "update",
-    "zed_extensions": "update", "gitea_url": "update", "agents": "update", "clouds": "update", "notify": "update",
+    "zed_extensions": "update", "gitea_url": "update", "agents": "update", "clouds": "update", "vm": "update", "notify": "update",
     "dev_ports": "update", "lan_cidrs": "update", "ups": "update",
     "desktop_color": "relogin",
 }
@@ -346,6 +348,7 @@ def main():
     for c in clouds:
         if c not in ("aws", "gcp", "azure"):
             fail(f"clouds の {c} は使えない(aws, gcp, azure)")
+    vm = env.get("vm") is True
     desktop_color = str(env.get("desktop_color") or "")
     if desktop_color and not re.fullmatch(r"#[0-9a-fA-F]{6}", desktop_color):
         fail("desktop_color は #RRGGBB の形にする")
@@ -436,6 +439,7 @@ def main():
         f"AH_DEV_PORTS={shlex.quote(' '.join(dev_ports))}",
         f"AH_AGENTS={shlex.quote(' '.join(agents))}",
         f"AH_CLOUDS={shlex.quote(' '.join(clouds))}",
+        f"AH_VM={int(vm)}",
         f"AH_VSCODE_EXTENSIONS={shlex.quote(' '.join(vscode_extensions))}",
         f"AH_ZED_EXTENSIONS={shlex.quote(' '.join(zed_extensions))}",
         f"AH_DESKTOP_COLOR={shlex.quote(desktop_color)}",

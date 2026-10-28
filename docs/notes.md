@@ -9,7 +9,7 @@
 - ISO は ubuntu-26.04.1-desktop-amd64.iso から build-usb.sh で作った。USB からの起動から構成の完了まで約 47〜67 分、再起動から RDP の待ち受けまで約 80 秒
 - RDP は Windows のリモート デスクトップ接続(mstsc)と FreeRDP で確かめた。キーボードは 101(英字配列)
 - shellcheck は 0.11.0(Docker の ubuntu:26.04)で指摘なし
-- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの項目。v0.3.0 で 190 項目あまり)、`just verify-rdp`、`just vm-test`(VirtualBox で入れなおしからの通し)で機械的に確かめている
+- v0.2.0 から、`just test`(Docker の中の試験)、`just verify`(ホストの項目。v0.3.0 で 190 項目あまり)、`just verify-rdp`、`just vm-test`(VM に入れなおしからの通し。VirtualBox か QEMU/KVM)で機械的に確かめている
 - v0.3.0 から、`just vm-test` は利用者 2 人の env で通す(1 人目のセッションを落とし、2 人目が続くことも確かめる)
 - 実機ではまだ確かめていない(下の「確認できていないこと」)
 
@@ -443,6 +443,16 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 確かめたこと(2026-10-27、sudo なしで `apt-get download` した .deb を利用者の一時ディレクトリに展開して): `git flow version` は「1.12.3 (AVH Edition)」。試しのリポジトリで `git flow init -d`、`feature start`、`feature finish` が通った。コミットが 1 つだけの feature は、既定では fast-forward で develop に入る(merge コミットを残すなら `git flow feature finish --no-ff`)。git flow の設定(`gitflow.*`)はリポジトリごとなので、clone や worktree のあとに一度 `git flow init -d` が要る
 - 未確認: VM での構成(root の apt の経路)と `just verify`
 
+### エージェントのホストで vm-test を回す(2026-10-28、#35)
+
+- 発端: #28(Mermaid CLI)と #33(git-flow)の VM での確認をエージェントに任せようとしたが、v0.3.1 で構成したホストでは VM を動かせなかった。VirtualBox も QEMU もなく、`/dev/kvm`(`root:kvm` の 660)の ACL は画面のセッションの持ち主(sysadmin)にしか付かず、利用者は kvm に入っていない。vm-test.sh は VBoxManage だけを使っていた
+- 決めたこと: env.yaml に `vm`(真偽値。既定は false)を足し、選んだホストで 66-vm.sh が QEMU/KVM を入れ、利用者全員を kvm に入れる。VM 1 台でメモリを 4GB ほど使うので、既定で全ホストには入れない。rootless Docker の中で QEMU を動かす案は、dockerd(利用者の systemd)が kvm のグループを持たないので採らなかった。KVM なしの QEMU(TCG)は、インストールだけで数時間かかる見込みなので採らなかった
+- パッケージ(Ubuntu 26.04 の apt。2026-10-28 に .deb の中身で確認): `ovmf` 2025.11-3ubuntu7.3 は `ovmf-generic`・`ovmf-amdsev`・`ovmf-inteltdx`・`ubuntu-virt` に依存するだけの移行用のパッケージで、ファイルを持たない。`/usr/share/OVMF/OVMF_CODE_4M.fd`・`OVMF_VARS_4M.fd` は `ovmf-generic` にあるので、それを入れる。`qemu-system-x86` 1:10.2.1+ds-1ubuntu3.3 の推奨には GUI・SPICE・OpenGL などがあるが、画面を出さないので `--no-install-recommends` にする(`apt-get install -s` で新しく入るのは QEMU と依存のライブラリ、seabios、ipxe-qemu、ubuntu-virt など 20 個)
+- vm-test.sh の QEMU の版: `-enable-kvm -machine q35 -cpu host`、UEFI は OVMF の 4M(VARS は VM ごとに写す)、ディスクは virtio(qcow2、40G)、ネットワークは user モードの hostfwd を 127.0.0.1 だけに。VirtualBox の boot1 disk・boot2 dvd と同じく、ディスクを `bootindex=1`、ISO を `bootindex=2` にし、空のディスクからは ISO に落ちて入り、入れたあとはディスクから起動させる(インストーラーが再起動しても、ISO の autoinstall を繰り返さない)。電源断は pid に SIGKILL
+- 確かめたこと(sudo なしで `apt-get download` した qemu-system-x86・ovmf-generic などを利用者の一時ディレクトリに展開して。KVM が使えないので TCG で): 上の引数で QEMU が `-daemonize` して pid を書き、SSH と RDP の転送を 127.0.0.1 で待ち受けた。OVMF は virtio のディスク(Boot0003 "UEFI Misc Device")を先に、DVD(Boot0002)を後に試した。プロセスの名前(`/proc/<pid>/comm`)は `qemu-system-x86`
+- QEMU の user モードのネットワークも 10.0.2.0/24 なので、試験用の env.yaml の `lan_cidrs` は VirtualBox と同じでよい
+- 未確認: KVM での自動インストールが virtio のディスク(vda)と q35 の UEFI で通るか、インストーラーの再起動のあとにディスクから起動するか、kvm に入れたあと `sg kvm` で実行しなおして動くか、関数に寄せた VirtualBox の版(Windows で回しなおすまで)
+
 ### 構成リポジトリの鍵をなくしたときの回復(2026-10-28、Windows の構成リポジトリで確認、#34)
 
 - 構成リポジトリで、`.sops.yaml` の受け手の age の鍵が 1 つだけで、その秘密鍵がどこにもなく、誰も復号できなくなった。sysadmin の SSH の鍵も 1 つだけで、その秘密鍵が手元になく、`just update` が `Permission denied (publickey)` で止まった。どちらも 1 本だけにしていたことが原因なので、docs/fleet.md の 3 で回復用の鍵を足すことにし、戻し方を 10 に書いた
@@ -517,6 +527,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
 - Mermaid CLI: 構成(root)の経路での導入と `just verify`、プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
 - git-flow: VM での構成と `just verify`(#33)
+- vm-test の QEMU/KVM の版での通し(上の「エージェントのホストで vm-test を回す」)と、関数に寄せた VirtualBox の版の回しなおし(#35)
 - 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 

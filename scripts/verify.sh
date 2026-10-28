@@ -206,6 +206,18 @@ selected "${AH_CLOUDS:-}" aws && cmd_ver "AWS CLI" "aws-cli/$(pin AWSCLI_VERSION
 selected "${AH_CLOUDS:-}" gcp && pkg_pinned google-cloud-cli "$(pin GCLOUD_VERSION)"
 selected "${AH_CLOUDS:-}" azure && pkg_pinned azure-cli "$(pin AZURE_CLI_VERSION)"
 
+section "VM(env.yaml の vm: $([ "${AH_VM:-0}" = 1 ] && echo true || echo false))"
+in_kvm() { id -nG "$1" 2>/dev/null | tr ' ' '\n' | grep -qx kvm; }
+not_in_kvm() { ! in_kvm "$1"; }
+if [ "${AH_VM:-0}" = 1 ]; then
+    for pkg in qemu-system-x86 qemu-utils ovmf-generic; do check "$pkg が入っている" installed "$pkg"; done
+    check "UEFI のファームウェア(OVMF_CODE_4M.fd・OVMF_VARS_4M.fd)がある" \
+        test -f /usr/share/OVMF/OVMF_CODE_4M.fd -a -f /usr/share/OVMF/OVMF_VARS_4M.fd
+    for u in $AH_USERS; do check "$u が kvm に入っている" in_kvm "$u"; done
+else
+    for u in $AH_USERS; do check "$u が kvm に入っていない" not_in_kvm "$u"; done
+fi
+
 section "Docker(rootless)"
 for pkg in docker-ce docker-ce-cli docker-ce-rootless-extras; do pkg_pinned "$pkg" "$(pin DOCKER_VERSION)"; done
 pkg_pinned containerd.io "$(pin CONTAINERD_VERSION)"
@@ -509,6 +521,7 @@ if [ -n "$removed" ]; then
         check "$u のセッションが動いていない" bash -c "! systemctl is-active --quiet gnome-headless-session@$u.service"
         check "$u の rootless Docker が動いていない" bash -c "! pgrep -u $u -x 'dockerd|rootlesskit|containerd' >/dev/null"
         check "$u の RDP のポートを ufw で開けていない" bash -c "! ufw status | grep -q 'agent-host-rdp:$u'"
+        check "$u が kvm に入っていない" not_in_kvm "$u"
     done
 fi
 

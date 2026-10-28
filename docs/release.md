@@ -33,13 +33,20 @@ git config gitflow.prefix.versiontag v
 
 `just vm-test` のための試験用の env.yaml を `build/test/env.yaml` に作る(build/ はコミットされない)。Ubuntu の ISO は `just fetch-iso` で build/ に取得しておく。
 
-- `lan_cidrs` に VirtualBox の NAT の `10.0.2.0/24` を入れる(VM の 22 は手元の PC の 127.0.0.1:2222 に、RDP の 3389〜3392 は 127.0.0.1:13389〜13392 に転送する)
+- `lan_cidrs` に VM の NAT の `10.0.2.0/24`(VirtualBox も QEMU の user モードも同じ)を入れる(VM の 22 は手元の PC の 127.0.0.1:2222 に、RDP の 3389〜3392 は 127.0.0.1:13389〜13392 に転送する)
 - `users` は 2 人以上にし、`port` は 3389〜3392 にする(vm-test は 1 人目のセッションを落とし、2 人目が続いていることも確かめる)。`dev_ports` は `port` と重ねない(例 `3000:3099`)
 - 同じ Windows から mstsc で 2 人分を同時につなぐときは、2 つ目を `127.0.0.2:<転送先のポート>` にする(127.0.0.1 への 2 つ目は mstsc が「既に進行中のコンソール セッション」で止める)。VirtualBox の転送も 127.0.0.2 に足す(`VBoxManage controlvm <VM> natpf1 "<名前>,tcp,127.0.0.2,<ポート>,,<ポート - 10000>"`)
 - 試験用の鍵を作り(`ssh-keygen -t ed25519 -f build/test/id_ed25519 -N ""`)、公開鍵を `sysadmin.ssh_authorized_keys` に入れる
 - sudo のパスワードは、実行したときに聞かれる(環境変数 `AGENT_HOST_SUDO_PASSWORD` でも渡せる)
 - `editors`・`agents`・`clouds` などは、確かめたいものをすべて選んでおく
-- VM の名前・CPU・メモリなどは環境変数で変えられる(`scripts/local/vm-test.sh` の先頭)。Windows で Hyper-V(Docker Desktop)と共存させると、CPU 2 つ以上でゲストが止まった(docs/notes.md)ので、既定は CPU 1
+- VM の名前・CPU・メモリなどは環境変数で変えられる(`scripts/local/vm-test.sh` の先頭)。Windows で Hyper-V(Docker Desktop)と共存させると、CPU 2 つ以上でゲストが止まった(docs/notes.md)ので、VirtualBox の既定は CPU 1(QEMU は 2)
+
+VM の道具は自動で選ぶ(`AGENT_HOST_VM_BACKEND` で `virtualbox` か `qemu` に決められる)。VBoxManage があれば VirtualBox、なくて QEMU と `/dev/kvm` があれば QEMU/KVM。
+
+- エージェントのホストで回すときは、そのホストの env.yaml で `vm: true` にして `just update` する(66-vm.sh が QEMU/KVM と UEFI のファームウェアを入れ、利用者を kvm に入れる)。kvm のグループは次のログインから効くが、それまでも vm-test が `sg kvm` で実行しなおすので、そのまま回せる
+- QEMU の VM は `build/vm/<名前>/` に置く(ディスク、UEFI の変数、pid、シリアルのログ `serial.log`)。画面は出さない
+- ほかの利用者と共有するホストでは、転送のポートを取り合わないよう人ごとに変える(`AGENT_HOST_VM_SSH_PORT`(既定 2222)、`AGENT_HOST_VM_RDP_PORT_OFFSET`(既定 10000))。使われていれば、入れなおす前に止まる
+- 人が見ていないので、sudo のパスワードは `AGENT_HOST_SUDO_PASSWORD` で渡す
 
 ## 手順
 

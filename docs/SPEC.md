@@ -86,6 +86,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - Zed の拡張機能:TOML、Dockerfile、Docker Compose、HTML、Make、SQL、env、Git Firefly(clouds を選んだら Terraform)を、設定の auto_install_extensions で次の起動時に入れる。Zed には版を指定する方法がないので、入ったときの最新にし、その後は auto_update_extensions で更新を止める。env.yaml の `zed_extensions` で追加できる
 - 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
 - クラウドの CLI:env.yaml の `clouds` で AWS CLI v2 / Google Cloud CLI / Azure CLI から選ぶ。版を固定し、利用状況の送信を止める。認証は短い時間だけ有効なログインと、権限を絞った開発用のアカウントで使う。Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる
+- VM(任意。env.yaml の `vm`):エージェントがホストで `just vm-test` を回せるよう、QEMU/KVM と UEFI のファームウェア(OVMF)を入れ、利用者を kvm に入れる。選ばなくなったら kvm から外す。VM 1 台でメモリ 4GB ほどを使うので、既定は入れない
 - 通知:Claude Code の hooks(承認待ち・入力待ち・API のエラー)と Codex の notify(完了)から `agent-notify` を呼び、env.yaml の `notify` の Slack(Incoming Webhook)と IP Messenger(LAN 内の UDP)に送る。承認待ちとエラーは両方、完了は Slack だけ。本文の頭は `[ホスト名/利用者名]`
 - スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
 - UPS(任意。env.yaml の `ups`):NUT で見る。`usb` はこの PC につないだ UPS をドライバーで読み(upsd は 127.0.0.1 だけ)、`netclient` はほかの機器の NUT サーバーを見る。バッテリーが少なくなるか、NUT サーバーが終了を指示したら正しく終了する。`usb` では終了の最後に UPS の出力を止め、電源が戻ったら UPS が出力を戻し、BIOS の「電源が戻ったら起動」で起動する(そのあとは利用者ごとのセッションと RDP まで人手なしで戻る)。停電・復電・まもなく終了などを `agent-notify` で知らせる

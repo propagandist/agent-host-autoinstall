@@ -152,6 +152,7 @@ class TestValid(Case):
             zed_extensions=["toml"],
             agents=["opencode"],
             clouds=["aws", "gcp", "azure"],
+            vm=True,
             dev_ports=[3000, "8000:8099"],
             desktop_color="#123abc",
             gitea_url="https://gitea.example.internal/",
@@ -165,6 +166,7 @@ class TestValid(Case):
         self.assertEqual(env["AH_EDITORS"], "vscode zed neovim")
         self.assertEqual(env["AH_VSCODE_EXTENSIONS"], "hashicorp.terraform@2.40.0 ms-python.python")
         self.assertEqual(env["AH_CLOUDS"], "aws gcp azure")
+        self.assertEqual(env["AH_VM"], "1")
         self.assertEqual(env["AH_DEV_PORTS"], "3000 8000:8099")
         self.assertEqual(env["AH_GITEA_URL"], "https://gitea.example.internal")  # 末尾の / は落とす
         self.assertEqual(env["AH_IPMSG_TO"], "someone 192.0.2.20")
@@ -428,14 +430,18 @@ class TestRejected(Case):
             (dict(users=[user("alice", 3389, ssh_authorized_keys=["ssh-ed25519"])]), "SSH の公開鍵"),
             (dict(dev_ports=["4000:3000"]), "始め:終わり の順"),
             (dict(notify={"ipmsg_broadcast": ["::1"]}), "IPv4"),
+            (dict(vm="true"), "vm は真偽値"),
+            (dict(vm=1), "vm は真偽値"),
         ]
         for kw, message in cases:
             with self.subTest(kw=kw):
                 self.ng(self.with_(**kw), message)
-        # 通るもの: 数のポート、yescrypt のハッシュ、ecdsa の鍵
-        self.ok(self.write(self.with_(dev_ports=[3000, "8000:8099"],
+        # 通るもの: 数のポート、yescrypt のハッシュ、ecdsa の鍵、vm の false(書かないときと同じ)
+        out = self.ok(self.write(self.with_(dev_ports=[3000, "8000:8099"],
                                       sysadmin={"password_hash": "$y$j9T$salt$hash",
-                                                "ssh_authorized_keys": ["ecdsa-sha2-nistp256 AAAAE2Vj= a@b"]})))
+                                                "ssh_authorized_keys": ["ecdsa-sha2-nistp256 AAAAE2Vj= a@b"]},
+                                      vm=False)))
+        self.assertEqual(read_env_sh(os.path.join(out, "env.sh"))["AH_VM"], "0")
 
     def test_users(self):
         def u(**kw):
