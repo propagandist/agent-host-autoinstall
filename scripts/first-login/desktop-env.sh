@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# env.yaml から決まるデスクトップの設定(壁紙の色、Dock)を入れる(agent のセッションで動く)。
+# env.yaml から決まるデスクトップの設定(壁紙の色、Dock)と、入っているホストに後から足した設定
+# (使わない拡張機能を止めるなど)を入れる(agent のセッションで動く)。
 # ログインのたびの自動起動で動き、前回入れたものから変わったときだけ入れる。利用者が変えた Dock や色は、
 # env.yaml の desktop_color か、入っているエディターが変わるまで残る。first-login.sh からも呼ぶ。
 # just update のときに agent がログイン中なら、76-desktop.sh がその場でも呼ぶ(Issue #13)
@@ -39,6 +40,27 @@ if [[ "$(gsettings get org.gnome.desktop.wm.keybindings switch-input-source)" ==
     gsettings reset org.gnome.desktop.wm.keybindings switch-input-source
     gsettings reset org.gnome.desktop.wm.keybindings switch-input-source-backward
     echo "[agent-host] Ctrl+Space を GNOME の切り替えから外した(fcitx5 が使う)"
+fi
+
+# Ubuntu が既定で有効にする拡張機能のうち、使わないものを止める(一度だけ。本人が有効にしなおしたら、それに従う)。
+# デスクトップのアイコン(別の gjs のプロセスが動く)、タイル配置、snap の権限の確認と検索(snap は消してある)、ウェブ検索。
+# 有効にする一覧は /usr/share/gnome-shell/modes/ubuntu.json にあり、利用者の disabled-extensions で外せる。
+# Dock と AppIndicator(fcitx5 のアイコン)は残す
+if [ ! -f "$state_dir/extensions-off.done" ]; then
+    disabled="$(gsettings get org.gnome.shell disabled-extensions)"
+    for ext in ding@rastersoft.com tiling-assistant@ubuntu.com snapd-prompting@canonical.com \
+        snapd-search-provider@canonical.com web-search-provider@ubuntu.com; do
+        [[ "$disabled" == *"'$ext'"* ]] && continue
+        if [[ "$disabled" == "@as []" || "$disabled" == "[]" ]]; then
+            disabled="['$ext']"
+        else
+            disabled="${disabled%]}, '$ext']"
+        fi
+    done
+    gsettings set org.gnome.shell disabled-extensions "$disabled"
+    mkdir -p "$state_dir"
+    touch "$state_dir/extensions-off.done"
+    echo "[agent-host] 使わない拡張機能を止めた: $disabled"
 fi
 
 want="color=$desktop_color favorites=[$favorites]"

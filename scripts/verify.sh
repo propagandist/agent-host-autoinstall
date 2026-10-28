@@ -164,10 +164,18 @@ if grep -qE 'crashkernel=|(^| )splash( |$)' /proc/cmdline; then
     printf '  - 動いているカーネルの引数に crashkernel か splash が残っている(再起動で反映される)\n'
 fi
 for unit in cups.service avahi-daemon.service ModemManager.service bluetooth.service rsyslog.service syslog.socket \
-    motd-news.timer fwupd-refresh.timer; do
+    motd-news.timer fwupd-refresh.timer apt-news.service esm-cache.service; do
     state="$(systemctl is-enabled "$unit" 2>/dev/null || true)"
     case "$state" in masked | "" | not-found) ok "$unit は止めている(${state:-なし})" ;; *) ng "$unit は止めている" "$state" ;; esac
 done
+for pkg in appstream packagekit; do
+    check "$pkg がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' $pkg 2>/dev/null | grep -q '^ii'"
+done
+for plugin in A11ySettings Color Datetime Housekeeping Rfkill ScreensaverProxy Sharing Sound UsbProtection; do
+    eq "利用者のセッションで gsd の $plugin を動かさない" \
+        "$(systemctl --global is-enabled "org.gnome.SettingsDaemon.$plugin.service" 2>/dev/null || true)" masked
+done
+check "journald の記録の上限(1GB)" grep -qx 'SystemMaxUse=1G' /etc/systemd/journald.conf.d/60-agent-host.conf
 check "zram のスワップがある" bash -c "swapon --show=NAME --noheadings | grep -q zram"
 eq "スワップの積極さ(vm.swappiness)" "$(sysctl -n vm.swappiness)" 180
 eq "スワップの先読み(vm.page-cluster)" "$(sysctl -n vm.page-cluster)" 0
@@ -195,6 +203,8 @@ check "python が python3 を指す" test "$(readlink -f /usr/bin/python)" = "$(
 pkg_pinned orca-ide "$(pin ORCA_VERSION)"
 check "Google Chrome が入っている" installed google-chrome-stable
 check "Chrome のポリシー" test -f /etc/opt/chrome/policies/managed/agent-host.json
+check "Chrome は窓を閉じたら後ろに残らない(ポリシー)" \
+    grep -q '"BackgroundModeEnabled": false' /etc/opt/chrome/policies/managed/agent-host.json
 check "Xfce Terminal が入っている" installed xfce4-terminal
 check "Atril が入っている" installed atril
 npm_ver() { node -p "require('$(npm root -g)/$1/package.json').version" 2>/dev/null || true; }
@@ -364,6 +374,12 @@ user_checks() {
     eq "画面のロックが無効" "$(gset org.gnome.desktop.screensaver lock-enabled)" false
     eq "ロックの操作もできない" "$(gset org.gnome.desktop.lockdown disable-lock-screen)" true
     eq "アイドルで画面を消さない" "$(gset org.gnome.desktop.session idle-delay)" "uint32 0"
+    disabled_ext="$(gset org.gnome.shell disabled-extensions)"
+    if [[ "$disabled_ext" == *"'ding@rastersoft.com'"* && "$disabled_ext" == *"'snapd-search-provider@canonical.com'"* ]]; then
+        ok "使わない拡張機能(デスクトップのアイコン、snap の検索など)を止めている"
+    else
+        ng "使わない拡張機能(デスクトップのアイコン、snap の検索など)を止めている" "disabled-extensions=$disabled_ext"
+    fi
     eq "壁紙の色が env.yaml と同じ" "$(gset org.gnome.desktop.background primary-color)" "'${AH_DESKTOP_COLOR:-#4a4a4a}'"
     check "壁紙の色と Dock を入れる自動起動" test -f "$AGENT_HOME/.config/autostart/agent-host-desktop.desktop"
     check "空パスワードのログインキーリングがある" test -f "$AGENT_HOME/.local/share/keyrings/login.keyring"

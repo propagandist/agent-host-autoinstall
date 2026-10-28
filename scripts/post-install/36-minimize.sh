@@ -50,6 +50,8 @@ mask_user_units org.gnome.SettingsDaemon.Wwan.service org.gnome.SettingsDaemon.S
 mask_units motd-news.timer update-notifier-download.timer update-notifier-motd.timer fwupd-refresh.timer
 [ -f /etc/default/motd-news ] && sed -i 's/^ENABLED=.*/ENABLED=0/' /etc/default/motd-news
 mask_user_units ubuntu-insights-collect.timer ubuntu-insights-upload.timer
+#    Ubuntu Pro の APT News と ESM の取得(apt update のたびに python が動く。apt の hook は失敗を黙って無視する)
+mask_units apt-news.service esm-cache.service
 # 5. ファイルの索引作り(ホーム全体を索引し、worktree や node_modules で CPU とディスクを使う)
 mask_user_units localsearch-3.service
 hide_autostart localsearch-3
@@ -60,6 +62,16 @@ mask_user_units evolution-addressbook-factory.service evolution-calendar-factory
     gvfs-mtp-volume-monitor.service gvfs-goa-volume-monitor.service
 hide_autostart org.gnome.Evolution-alarm-notify geoclue-demo-agent ubuntu-advantage-notification \
     ubuntu-report-on-upgrade org.gnome.SettingsDaemon.DiskUtilityNotify snap-userd-autostart
+# 6b. gnome-settings-daemon のうち、画面のない常時稼働で使わないもの(1 つずつ別のプロセスで、利用者ごとに動く)。
+#     アクセシビリティ、色の管理と夜間モード、時刻の自動設定(chrony と固定のタイムゾーン)、ディスクの警告と
+#     サムネイルの掃除(ディスクは agent-host-diskcheck が見る)、機内モード、スクリーンセーバーの抑止の口、
+#     共有(headless の RDP は gnome-remote-desktop-headless.service で、これを通らない)、音、USB の保護、ペンタブレット。
+#     残すもの: Keyboard、MediaKeys(Ctrl+Alt+T)、Power(アイドルの設定)、XSettings(Xwayland のアプリ)
+mask_user_units org.gnome.SettingsDaemon.A11ySettings.service org.gnome.SettingsDaemon.Color.service \
+    org.gnome.SettingsDaemon.Datetime.service org.gnome.SettingsDaemon.Housekeeping.service \
+    org.gnome.SettingsDaemon.Rfkill.service org.gnome.SettingsDaemon.ScreensaverProxy.service \
+    org.gnome.SettingsDaemon.Sharing.service org.gnome.SettingsDaemon.Sound.service \
+    org.gnome.SettingsDaemon.UsbProtection.service org.gnome.SettingsDaemon.Wacom.service
 log "要らないサービスを止めた"
 
 # 7. snap と snapd(Chrome が既定のブラウザで、snap で入れるものはない。snapd の常駐と、snap 一式の約 1.3GB を減らす)。
@@ -82,7 +94,9 @@ EOF
 
 # 7b. 使わないパッケージ(止めるだけでなく消す)
 #   画面の読み上げ・点字(読み上げの orca は /usr/bin/orca で、Orca(orca-ide)と名前がぶつかる)、印刷のドライバー、
-#   AD・LDAP(sssd)、VPN・モデム、Bluetooth、中国語の入力、エラーと利用状況の報告。
+#   AD・LDAP(sssd)、VPN・モデム、Bluetooth、中国語の入力、エラーと利用状況の報告、
+#   ソフトウェアセンター向けの部品(appstream と apt の icons は apt update のたびに一覧と絵を取って索引を作りなおす。
+#   packagekit は dpkg を動かすたびに起こされて常駐する。一緒に add-apt-repository(software-properties-common)も消える)。
 #   cups 本体はデスクトップのまとめ(ubuntu-desktop-minimal)の必須なので残す(1. で止めている)。
 #   whoopsie-preferences と apport-symptoms は消すと GNOME の画面まで外れるので残す
 purge_pkgs=()
@@ -90,7 +104,8 @@ mapfile -t purge_pkgs < <(dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' \
     orca speech-dispatcher speech-dispatcher-audio-plugins speech-dispatcher-espeak-ng espeak-ng-data brltty \
     hplip hplip-data 'printer-driver-*' bluez-cups \
     'sssd*' openvpn pptp-linux ppp modemmanager bluez bluez-obexd 'ibus-table*' \
-    whoopsie apport apport-gtk apport-core-dump-handler ubuntu-report ubuntu-insights 2>/dev/null |
+    whoopsie apport apport-gtk apport-core-dump-handler ubuntu-report ubuntu-insights \
+    appstream apt-config-icons apt-config-icons-hidpi packagekit 2>/dev/null |
     awk '$1 == "ii" {print $2}')
 if [ "${#purge_pkgs[@]}" -gt 0 ]; then
     # 念のため、デスクトップを巻き込まないことを確かめてから消す
@@ -101,6 +116,8 @@ if [ "${#purge_pkgs[@]}" -gt 0 ]; then
         log "使わないパッケージを ${#purge_pkgs[@]} 個消した"
     fi
 fi
+# 消したものの依存と、古いカーネル(動いているものと 1 つ前は apt が残す)を消す
+apt-get autoremove --purge -y
 
 # 8. kdump(クラッシュ時の調査用。32〜64GB の機種で 1GB のメモリを常に予約する)
 if dpkg-query -W -f='${Status}' kdump-tools 2>/dev/null | grep -q 'install ok installed'; then
@@ -112,6 +129,10 @@ fi
 #    syslog.socket は rsyslog を起こそうとして失敗し続けるので一緒に止める
 mask_units rsyslog.service syslog.socket networkd-dispatcher.service openvpn.service sssd.service
 touch /etc/cloud/cloud-init.disabled
+# journald の記録は 1GB まで(既定はファイルシステムの 10%、最大 4GB)
+install -d -m 755 /etc/systemd/journald.conf.d
+printf '# agent-host-autoinstall が置いた設定\n[Journal]\nSystemMaxUse=1G\n' >/etc/systemd/journald.conf.d/60-agent-host.conf
+systemctl try-restart systemd-journald.service
 
 # 10. zram(メモリの半分を圧縮したスワップにする。ファイルのスワップは優先度の低い予備として残す)
 apt-get install -y systemd-zram-generator
