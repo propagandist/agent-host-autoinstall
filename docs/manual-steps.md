@@ -124,7 +124,7 @@ just rdp <ホスト> <ポート>   # build/<ホスト>-<ポート>.rdp を作る
 
 使い勝手:
 
-- 日本語入力は Ctrl+Space(半角/全角キーは RDP では押しっぱなしで届き、使えない。#21)、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
+- 日本語入力(fcitx5 の Mozc)は Ctrl+Space で切り替え。半角/全角キーは日本語にするだけ、無変換キーは英字にするだけ(半角/全角は RDP では押しっぱなしで届くので、切り替えには使わない。#21)、スクリーンショットは Ctrl+Shift+Alt+S(Windows のクライアントでは、PrintScreen は手元に取られることがある)。撮った画像はクリップボードに入るので、Claude Code に Ctrl+V で貼れる
 - 上部のバーの Clipboard Indicator から、コピーの履歴を選んで貼れる
 - 端末(Ctrl+Alt+T)は Xfce Terminal。右クリックで貼り付け、選択でコピー
 - PDF は Atril で開く(Files でダブルクリック)

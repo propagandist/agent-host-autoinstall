@@ -33,10 +33,19 @@ holder="$(printf '%s' "$copyright" | sed 's/^Copyright © [0-9-]* //')"
 
 docker build -q -t agent-host-guide -f docs/guide.Dockerfile docs >/dev/null
 
-# Windows(Git Bash)では Docker に Windows の形のパスを渡す。Linux では作ったファイルを自分の持ち物にする
+# Windows(Git Bash)では Docker に Windows の形のパスを渡す。Linux では作ったファイルを自分の持ち物にする。
+# rootless の Docker(構成したホストの利用者)では、コンテナの root が自分になる。--user で自分の番号を渡すと、
+# ホストでは別の番号(subuid)になって build/ に書けないので、渡さない
 case "$(uname -s)" in
 MINGW* | MSYS*) repo="$(pwd -W)"; user=() ;;
-*) repo="$(pwd)"; user=(--user "$(id -u):$(id -g)") ;;
+*)
+    repo="$(pwd)"
+    if docker info --format '{{.SecurityOptions}}' 2>/dev/null | grep -q 'name=rootless'; then
+        user=()
+    else
+        user=(--user "$(id -u):$(id -g)")
+    fi
+    ;;
 esac
 if ! MSYS_NO_PATHCONV=1 docker run --rm "${user[@]}" -v "$repo:/repo" -w /repo \
     -e TEXINPUTS="/repo/$out:" agent-host-guide \
