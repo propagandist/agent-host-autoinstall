@@ -234,6 +234,14 @@ Orca は 6768 番を普段は 127.0.0.1 だけで待ち受け、ペアリング�
 
 env.yaml の `users` の `ssh_authorized_keys` に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。作業の置き場所は `/home/<名前>/work`。
 
+鍵は SFTP でつなぐ人が手元の PC で作る。Windows の PowerShell、macOS、Linux で同じコマンドを使う。
+
+```sh
+ssh-keygen -t ed25519 -C "<自分を見分ける名前>"
+```
+
+保存先は既定のままでよい(`~/.ssh/id_ed25519`。Windows では `C:\Users\<名前>\.ssh\id_ed25519`)。パスフレーズは付けるのを勧める。`id_ed25519` は秘密鍵で、手元から出さない。`id_ed25519.pub` の 1 行を管理者に渡し、管理者が env.yaml のその人の `ssh_authorized_keys` に書いて `just update <ホスト>` で反映する。
+
 Windows では [WinSCP](https://winscp.net/) を使う。
 
 1. 「新しいサイト」で、転送プロトコル `SFTP`、ホスト名 `<ホスト>`、ポート 22、ユーザー名 `<利用者の name>`

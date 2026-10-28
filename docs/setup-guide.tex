@@ -983,7 +983,17 @@ Orca Relay(ベータ) & Orca のサーバーが中継する。モバイル回線
 
 \subsection{ファイルのやり取り}
 env.yaml の \code{users[].ssh_authorized_keys} に公開鍵を書いた人は、SFTP でその利用者に入れる(シェルには入れない)。
-作業の置き場所は \code{/home/<利用者>/work}。Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
+作業の置き場所は \code{/home/<利用者>/work}。
+
+鍵は SFTP でつなぐ人が手元の PC で作る。Windows の PowerShell、macOS、Linux で同じコマンドを使う。
+\begin{local}
+ssh-keygen -t ed25519 -C "<自分を見分ける名前>"
+\end{local}
+保存先は既定のままでよい(\code{~/.ssh/id_ed25519}。Windows ではユーザーのフォルダーの \code{.ssh} の中)。パスフレーズは付けるのを勧める。
+\code{id_ed25519} は秘密鍵で、手元から出さない。\code{id_ed25519.pub} の 1 行を管理者に渡し、
+管理者が env.yaml のその人の \code{ssh_authorized_keys} に書いて \code{just update <ホスト>} で反映する。
+
+Windows では WinSCP\footnote{\url{https://winscp.net/}} を使う。
 \begin{checklist}
   \item 「新しいサイト」で、転送プロトコル \code{SFTP}、ホスト名 \code{<ホスト>}、ポート 22、ユーザー名 \code{<利用者>}
   \item 「設定」→ SSH →「認証」→「秘密鍵」に鍵のファイルを選ぶ。OpenSSH の形式の鍵は、PuTTY の形式(\code{.ppk})への変換を勧められるので、変換して保存する
