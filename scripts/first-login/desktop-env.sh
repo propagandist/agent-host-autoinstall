@@ -23,12 +23,22 @@ for app in orca-ide xfce4-terminal google-chrome com.microsoft.VSCode dev.zed.Ze
     fi
 done
 
-# 0.3.0 より前に立てたセッションでは、gsd-keyboard が mozc-jp を足して Mozc が 2 つ並んでいる(first-login.sh)。
-# mozc-on があれば mozc-jp を外す(目印があるので、gsd-keyboard はもう足さない)
+# 0.3 までは IBus の Mozc(mozc-on。0.3.0 より前は mozc-jp も)を入力ソースに置き、Ctrl+Space を GNOME の切り替えに
+# 割り当てていた。日本語入力を fcitx5 に替えたので(76-desktop.sh)、IBus の入力ソースを外し、Ctrl+Space を fcitx5 に渡す
 sources="$(gsettings get org.gnome.desktop.input-sources sources)"
-if [[ "$sources" == *"('ibus', 'mozc-on')"* && "$sources" == *", ('ibus', 'mozc-jp')"* ]]; then
-    gsettings set org.gnome.desktop.input-sources sources "${sources//, (\'ibus\', \'mozc-jp\')/}"
-    echo "[agent-host] 入力ソースから重なった mozc-jp を外した"
+if [[ "$sources" == *"('ibus', "* ]]; then
+    sources="$(sed -E "s/(, )?\('ibus', '[^']*'\)//g; s/^\[, /[/" <<<"$sources")"
+    if [ "$sources" = "[]" ]; then
+        # shellcheck source=/dev/null
+        sources="[('xkb', '$(. /etc/default/keyboard && echo "${XKBLAYOUT%%,*}")')]"
+    fi
+    gsettings set org.gnome.desktop.input-sources sources "$sources"
+    echo "[agent-host] 入力ソースから IBus を外した: $sources"
+fi
+if [[ "$(gsettings get org.gnome.desktop.wm.keybindings switch-input-source)" == *"'<Control>space'"* ]]; then
+    gsettings reset org.gnome.desktop.wm.keybindings switch-input-source
+    gsettings reset org.gnome.desktop.wm.keybindings switch-input-source-backward
+    echo "[agent-host] Ctrl+Space を GNOME の切り替えから外した(fcitx5 が使う)"
 fi
 
 want="color=$desktop_color favorites=[$favorites]"

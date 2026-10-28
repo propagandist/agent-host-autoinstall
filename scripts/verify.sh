@@ -120,6 +120,9 @@ check "0.2 までのセッションの見張りがない" test ! -e /etc/systemd
 hl_dropin=/etc/systemd/system/gnome-headless-session@.service.d/50-agent-host.conf
 check "ヘッドレスのセッションを静的な gdm で動かす(drop-in)" bash -c "grep -qx 'DynamicUser=no' $hl_dropin && grep -qx 'User=gdm' $hl_dropin"
 check "ヘッドレスのセッションは落ちても立ちなおす(Restart=always)" grep -qx 'Restart=always' "$hl_dropin"
+# 漏れて膨らんだ gnome-shell は応答しないまま続いた(docs/notes.md、#36)。上限で止めて立ちなおさせる
+shell_dropin=/etc/systemd/user/org.gnome.Shell@.service.d/50-agent-host.conf
+check "gnome-shell のメモリに上限がある(drop-in)" bash -c "grep -qx 'MemoryMax=30%' $shell_dropin && grep -qx 'MemorySwapMax=512M' $shell_dropin"
 eq "スリープが mask されている" "$(systemctl is-enabled sleep.target suspend.target hibernate.target hybrid-sleep.target 2>/dev/null | sort -u | tr '\n' ' ')" "masked "
 
 section "SSH と ufw"
@@ -241,9 +244,15 @@ case "$gpu_vendor" in
 esac
 
 section "日本語"
-for pkg in ibus-mozc language-pack-ja language-pack-gnome-ja fonts-noto-cjk; do
+for pkg in fcitx5 fcitx5-mozc mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk; do
     check "$pkg が入っている" installed "$pkg"
 done
+# IBus の Mozc は、RDP の半角/全角の押しっぱなしで gnome-shell を漏らす(docs/notes.md)。日本語入力は fcitx5
+check "ibus-mozc がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' ibus-mozc 2>/dev/null | grep -q '^ii'"
+eq "IBus のデーモンを立てない(user のユニットを mask)" \
+    "$(systemctl --global is-enabled org.freedesktop.IBus.session.GNOME.service 2>/dev/null || true)" masked
+eq "セッションが立つたびに fcitx5 を起動する" \
+    "$(systemctl --global is-enabled agent-host-fcitx5.service 2>/dev/null || true)" enabled
 
 if selected "${AH_EDITORS:-}" vscode; then
     section "VS Code"
@@ -358,20 +367,34 @@ user_checks() {
     dinfo="$(as_agent env DOCKER_HOST="unix://$runtime_dir/docker.sock" docker info --format '{{.SecurityOptions}}' 2>&1 || true)"
     if [[ "$dinfo" == *rootless* ]]; then ok "docker が rootless で応える"; else ng "docker が rootless で応える" "$dinfo"; fi
 
-    # 日本語入力
-    local sources bus_file engines
+    # 日本語入力(fcitx5 と Mozc。GNOME の入力ソースは配列だけで、切り替えは fcitx5 の Ctrl+Space)
+    local sources
     sources="$(gset org.gnome.desktop.input-sources sources)"
-    if [[ "$sources" == *"('ibus', 'mozc-on')"* ]]; then ok "入力ソースに Mozc がある"; else ng "入力ソースに Mozc がある" "$sources"; fi
-    if [[ "$sources" != *"('ibus', 'mozc-jp')"* ]]; then ok "入力ソースの Mozc は 1 つ"; else ng "入力ソースの Mozc は 1 つ" "$sources"; fi
-    # IBus のアドレスは ~/.config/ibus/bus/ にある(新しいものが今のセッション)
-    # shellcheck disable=SC2012  # ファイル名は 16 進と英数字だけ
-    bus_file="$(ls -t "$AGENT_HOME"/.config/ibus/bus/* 2>/dev/null | head -1 || true)"
-    if [ -n "$bus_file" ]; then
-        engines="$(as_agent bash -c ". '$bus_file'; export IBUS_ADDRESS; ibus list-engine" 2>/dev/null || true)"
-        if grep -q 'mozc-on' <<<"$engines"; then ok "IBus が Mozc を使える"; else ng "IBus が Mozc を使える" "list-engine に mozc-on がない"; fi
+    if [[ "$sources" == "[('xkb', "* && "$sources" != *"('ibus', "* ]]; then
+        ok "入力ソースは配列だけ(IBus がない)"
     else
-        ng "IBus が Mozc を使える" "IBus が動いていない(~/.config/ibus/bus/ がない)"
+        ng "入力ソースは配列だけ(IBus がない)" "$sources"
     fi
+    if [[ "$(gset org.gnome.desktop.wm.keybindings switch-input-source)" != *"'<Control>space'"* ]]; then
+        ok "Ctrl+Space を GNOME が取らない(fcitx5 の切り替えに使う)"
+    else
+        ng "Ctrl+Space を GNOME が取らない(fcitx5 の切り替えに使う)" "$(gset org.gnome.desktop.wm.keybindings switch-input-source)"
+    fi
+    check "fcitx5 の設定に Mozc がある" grep -qx 'Name=mozc' "$AGENT_HOME/.config/fcitx5/profile"
+    # RDP の半角/全角は押しっぱなしで届く(#21)。何度押されても同じになる「日本語にする」だけにし、Mozc からは外す
+    # shellcheck disable=SC2016  # awk の式
+    local in_section='/^\[/{f=0} f && $0==k{ok=1} END{exit !ok}'
+    check "半角/全角は fcitx5 で日本語にするだけ(ActivateKeys)" awk -v k=0=Zenkaku_Hankaku \
+        "/^\\[Hotkey\\/ActivateKeys\\]/{f=1;next} $in_section" "$AGENT_HOME/.config/fcitx5/config"
+    check "無変換で英字に戻す(DeactivateKeys)" awk -v k=0=Muhenkan \
+        "/^\\[Hotkey\\/DeactivateKeys\\]/{f=1;next} $in_section" "$AGENT_HOME/.config/fcitx5/config"
+    check "Mozc の割り当てが独自の表で、半角/全角がない" bash -c \
+        "grep -aq \$'status\\tkey\\tcommand' '$AGENT_HOME/.config/mozc/config1.db' && ! grep -aq 'Hankaku/Zenkaku' '$AGENT_HOME/.config/mozc/config1.db'"
+    check "fcitx5 が動いている" as_agent systemctl --user is-active agent-host-fcitx5.service
+    local shell_max
+    shell_max="$(as_agent systemctl --user show org.gnome.Shell@ubuntu.service -p MemoryMax --value 2>/dev/null || true)"
+    if [[ "$shell_max" =~ ^[0-9]+$ ]]; then ok "gnome-shell のメモリの上限が効いている($((shell_max / 1048576))MB)"; else ng "gnome-shell のメモリの上限が効いている" "MemoryMax=${shell_max:-?}"; fi
+    check "ibus-daemon が動いていない" bash -c "! pgrep -u '$AGENT_USER' -x ibus-daemon >/dev/null"
 
     if selected "${AH_EDITORS:-}" vscode; then
         check "表示を日本語にする設定(argv.json)" grep -q '"locale": *"ja"' "$AGENT_HOME/.vscode/argv.json"

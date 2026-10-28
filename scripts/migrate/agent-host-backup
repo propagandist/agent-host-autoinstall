@@ -44,7 +44,7 @@ add_user_paths() {
         "$home/.config/tea" "$home/.aws" "$home/.config/gcloud" "$home/.azure" "$home/.config/mise"
         # Orca の設定と状態、エディター・端末・日本語入力の設定、シェルの履歴
         "$home/.config/orca" "$home/.orca"
-        "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc"
+        "$home/.config/Code/User" "$home/.config/zed" "$home/.config/xfce4" "$home/.config/mozc" "$home/.config/fcitx5"
         "$home/.bash_history"
         # 作業中のもの(push していない変更を含む。Orca の worktree もこの下)
         "$home/work"

@@ -13,12 +13,98 @@ CLIPBOARD_INDICATOR_UUID=clipboard-indicator@tudmotu.com
 CLIPBOARD_INDICATOR_VERSION_TAG=70694   # 拡張機能の版 71
 CLIPBOARD_INDICATOR_SHA256=687cb404f9540958ddb0c1de638970572cef73f22f016e5d6c6d6f5d4cd55f97
 
-# --- 日本語の言語サポート: 日本語入力(Mozc)と言語パック(Ubuntu の公式パッケージ。OS の更新に任せる) ---
+# --- 日本語の言語サポート: 日本語入力(fcitx5 と Mozc)と言語パック(Ubuntu の公式パッケージ。OS の更新に任せる) ---
 # インストーラーはロケールに合わせて入れることがあるが、入らなかったこともある(VirtualBox の入れなおしで
 # fonts-noto-cjk だけが入り、ibus-mozc と language-pack-ja が無く、日本語を打てなかった)。当てにせず入れる。
-# 入力ソース(mozc-on)の設定は first-login で行う
-apt-get install -y ibus-mozc mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk
-log "日本語入力(Mozc)と日本語の言語パックを入れた"
+apt-get install -y mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-noto-cjk
+# 入力メソッドは IBus ではなく fcitx5 にする。RDP の半角/全角キーは押しっぱなしで届き、ホストのキーリピートで
+# 押され続ける(#21)。IBus の Mozc はそのたびに入力モードの表示を更新し、gnome-shell がそれを受けてメモリを漏らし、
+# ホストが応答しなくなって OOM で落ちた(#36)。fcitx5 は IBus のふりをする口(ibusfrontend)で gnome-shell とつながり、表示の
+# 更新を送らないので、同じリピートで漏れなかった(どちらも実機で確認。docs/notes.md)。
+# Recommends は Qt6 と設定の画面、中国語の辞書まで引くので入れない(Mozc の設定は mozc-utils-gui で行う)
+apt-get install -y --no-install-recommends fcitx5 fcitx5-mozc fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
+apt-get purge -y ibus-mozc
+# ibus-daemon は GNOME のセッションが立てる(user の org.freedesktop.IBus.session.GNOME.service)。fcitx5 と
+# 同じ口を取り合うので、全員で止める。ibus のパッケージは gnome-shell の Recommends なので残す
+systemctl --global mask org.freedesktop.IBus.session.GNOME.service >/dev/null
+# GNOME の Wayland では im-config が入力メソッドを起動しない(/etc/profile.d/im-config_wayland.sh が止めている)。
+# ibus と同じ並びで、セッションが立つたびに fcitx5 を起動する
+cat >/etc/systemd/user/agent-host-fcitx5.service <<'EOF'
+[Unit]
+Description=Fcitx 5 (日本語入力。agent-host が IBus の代わりに置く)
+Requisite=gnome-session-initialized.target
+After=gnome-session-initialized.target
+PartOf=gnome-session-initialized.target
+Before=gnome-session.target
+
+[Service]
+ExecStart=/usr/bin/fcitx5 --replace
+Restart=on-failure
+Slice=session.slice
+
+[Install]
+WantedBy=gnome-session.target
+EOF
+systemctl --global enable agent-host-fcitx5.service >/dev/null 2>&1
+# 配列(env.yaml の keyboard_layout)と Mozc の組。fcitx5 が終わるときに書きなおすので、ないときだけ置く。
+# 切り替えは fcitx5 の既定のキー(Ctrl+Space と半角/全角)で行う(GNOME の入力ソースの設定は first-login)
+fcitx5_user() {
+    local layout
+    # shellcheck source=/dev/null
+    layout="$(. /etc/default/keyboard && echo "${XKBLAYOUT%%,*}")"
+    [ -f "$AGENT_HOME/.config/fcitx5/profile" ] || write_agent_file 644 "$AGENT_HOME/.config/fcitx5/profile" <<EOF
+[Groups/0]
+Name=Default
+Default Layout=$layout
+DefaultIM=mozc
+
+[Groups/0/Items/0]
+Name=keyboard-$layout
+Layout=
+
+[Groups/0/Items/1]
+Name=mozc
+Layout=
+
+[GroupOrder]
+0=Default
+EOF
+    # キーの割り当て。RDP の半角/全角は押しっぱなしで届き、ホストがリピートし続ける(#21)。切り替え(Trigger)に
+    # すると日本語と英字を行き来し続けるので、何度押されても同じになる「日本語にする」(Activate)にし、英字は無変換と
+    # Ctrl+Space で戻す(実機で確認)。fcitx5 が終わるときに書きなおすので、ないときだけ置く
+    [ -f "$AGENT_HOME/.config/fcitx5/config" ] || write_agent_file 644 "$AGENT_HOME/.config/fcitx5/config" <<'EOF'
+[Hotkey/TriggerKeys]
+0=Control+space
+
+[Hotkey/ActivateKeys]
+0=Zenkaku_Hankaku
+
+[Hotkey/DeactivateKeys]
+0=Muhenkan
+EOF
+    # 日本語になったあとのリピートは Mozc に届き、Mozc の割り当て(MS-IME)の半角/全角で入力モードを切り替え続ける。
+    # 半角/全角を外した表を独自の割り当てにする(実機で確認)。利用者が Mozc の設定を保存していれば、それを残す
+    if [ ! -f "$AGENT_HOME/.config/mozc/config1.db" ]; then
+        agent_run install -d -m 700 "$AGENT_HOME/.config/mozc"
+        python3 "$(dirname "$0")/mozc-config.py" "$(dirname "$0")/mozc-keymap.tsv" |
+            write_agent_file 600 "$AGENT_HOME/.config/mozc/config1.db"
+    fi
+    # セッションが動いていれば(just update)、その場で IBus から fcitx5 に替える。gnome-shell は IBus の口が
+    # 替わるとつなぎなおす(実機で確認)。替えないと、desktop-env.sh が入力ソースから IBus の Mozc を外したあと、
+    # セッションを立てなおすまで日本語を打てない
+    agent_bus_run systemctl --user daemon-reload >/dev/null 2>&1 || return 0
+    agent_bus_run systemctl --user is-active --quiet gnome-session-initialized.target || return 0
+    if agent_bus_run systemctl --user is-active --quiet org.freedesktop.IBus.session.GNOME.service; then
+        agent_bus_run systemctl --user stop org.freedesktop.IBus.session.GNOME.service >/dev/null 2>&1 || true
+        # Mozc のサーバーは IBus と fcitx5 で共通で、設定は起動したときに読む。上の config1.db を読ませるために止める
+        # (fcitx5-mozc が必要なときに起動しなおす)
+        agent_run pkill -u "$AGENT_USER" -x mozc_server || true
+    fi
+    agent_bus_run systemctl --user start agent-host-fcitx5.service >/dev/null 2>&1 ||
+        log "注意: $AGENT_USER のセッションで fcitx5 を起動できなかった。セッションを立てなおすと起動する"
+}
+for_each_user fcitx5_user
+log "日本語入力(fcitx5 と Mozc)と日本語の言語パックを入れ、IBus を止めた"
 
 # --- 端末: Xfce Terminal(Ubuntu の公式パッケージ。OS の更新に任せる) ---
 # GPU を使わず軽い(VirtualBox で 1 つあたり約 27MB。Ghostty は約 148MB、Alacritty は約 73MB)。

@@ -54,13 +54,12 @@ mask_user_units ubuntu-insights-collect.timer ubuntu-insights-upload.timer
 mask_user_units localsearch-3.service
 hide_autostart localsearch-3
 # 6. 利用者のセッションの不要な常駐(予定表・連絡先、携帯・カメラ・オンラインアカウントの監視、位置情報、
-#    Ubuntu Pro と利用報告の通知、ディスクの通知、snap の補助、Mozc のために常に起動される Xwayland)
+#    Ubuntu Pro と利用報告の通知、ディスクの通知、snap の補助。IBus の Mozc は 76-desktop.sh が消す)
 mask_user_units evolution-addressbook-factory.service evolution-calendar-factory.service \
     evolution-source-registry.service gvfs-afc-volume-monitor.service gvfs-gphoto2-volume-monitor.service \
     gvfs-mtp-volume-monitor.service gvfs-goa-volume-monitor.service
 hide_autostart org.gnome.Evolution-alarm-notify geoclue-demo-agent ubuntu-advantage-notification \
-    ubuntu-report-on-upgrade org.gnome.SettingsDaemon.DiskUtilityNotify snap-userd-autostart \
-    ibus-mozc-launch-xwayland
+    ubuntu-report-on-upgrade org.gnome.SettingsDaemon.DiskUtilityNotify snap-userd-autostart
 log "要らないサービスを止めた"
 
 # 7. snap と snapd(Chrome が既定のブラウザで、snap で入れるものはない。snapd の常駐と、snap 一式の約 1.3GB を減らす)。
