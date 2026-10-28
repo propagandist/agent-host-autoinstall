@@ -15,7 +15,8 @@ scripts/with-env.sh    復号して道具に渡し、終わったら消す
 justfile               just check / iso / update / status / facts など
 ```
 
-要るもの: just、Git Bash(Windows)、Docker Desktop、sops、age。
+要るもの: just、Git Bash(Windows)、Docker Desktop、sops、age。Windows での入れ方と、`sops edit` に要る `EDITOR` は
+tool/docs/fleet.md の 3。鍵やパスワードをなくしたときは tool/docs/fleet.md の 10。
 
 ```
 just setup                    # 道具を取得する(clone したあとに 1 回)
@@ -25,4 +26,5 @@ just update agent-host-01     # 設定とスクリプトの変更を反映する
 just status agent-host-01     # 状態と、置いた版・最後に適用に成功した版を見る
 just verify agent-host-01     # 仕様どおりかを確かめる
 just facts agent-host-01      # facts/agent-host-01.yaml を書く
+just check-age-key <鍵>       # その age の鍵だけで復号できるかを確かめる(回復用の鍵や、足した人の鍵)
 ```

@@ -1220,6 +1220,9 @@ just facts agent-host-01      # facts/agent-host-01.yaml(機種、シリアル�
 \begin{caution}
 ISO、移行の書き出し、age の秘密鍵は構成リポジトリに入れない。作業する人が抜けたら、\code{sops updatekeys} で鍵を外し、
 その人が知っている秘密情報(sysadmin のパスワード、Webhook、まだ変えていない利用者の RDP の仮のパスワード)を替える。
+age の受け手と sysadmin の SSH の鍵には、回復用の鍵を 1 つずつ足し、その秘密鍵はパスワード管理の共有の保管庫にだけ置く。
+鍵が 1 本だけだと、なくしたときに値の入れ直しやホストでの手作業が要る(\code{docs/fleet.md} の 10)。
+暗号化したファイルは、暗号化していない値も \code{sops edit} で変える(直接書き換えると \code{MAC mismatch} で復号できなくなる)。
 \end{caution}
 
 \subsection{困ったとき}

@@ -17,12 +17,16 @@
 - Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)
 - git-flow(AVH 版、Ubuntu の apt)を既定で入れる。エージェントが `git flow feature start` / `finish` で GitFlow のブランチ運用を行える(#33)
 - `just verify` が利用者ごとの rootless Docker で `hello-world` を動かす(手元になければ取得し、終わったら消す。取得できなければ未検証)。pasta の設定(passt と drop-in)、`/etc/subuid`・`/etc/subgid` の範囲(利用者ごとに 65536 個以上で、重ならない)、env.yaml から外した利用者の Docker が止まっていることも見る(#29)
+- 構成リポジトリのひな形に `just check-age-key <鍵>` を足した。その age の鍵だけで、暗号化したすべてのファイルを復号できるかを確かめる(sops は `SOPS_AGE_KEY_FILE` を渡しても手元の `keys.txt` も読むので、そのままでは確かめにならない)
+- 構成リポジトリのひな形の `with-env.sh` が、暗号化していないファイルに秘密の値(`encrypted_regex` と同じ名前で、空でない値)があると止まる(値は出さず、行の番号だけを出す)。sops がないときは入れ方の案内を出す(#34)
+- docs/fleet.md: 回復用の age の鍵と SSH の鍵を足すこと(3)、Windows での sops・age の入れ方と `sops edit` の `EDITOR`(3)、暗号化していない値も sops を通して変えること(3)、足した人の鍵の確かめ方(8)、鍵やパスワードをなくしたときの戻し方(10)を書いた。手順書の「複数台を管理する」にも要点を足した
 
 ### 修正
 - 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
 - 手順書の「ファイルのやり取り(SFTP)」に、つなぐ人が手元の PC で鍵を作る手順(`ssh-keygen -t ed25519`)と、公開鍵を env.yaml に書いて反映するまでの流れを足した(#38)
+- 構成リポジトリのひな形の `.sops.yaml` の `path_regex` が `/` 区切りだけを見ていて、Windows の sops では `hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できず、RDP の仮のパスワードが平文で残った。`/` と `\` の両方を許す。Windows でひな形から構成リポジトリを作っていたら、`.sops.yaml` の `path_regex` を `(^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$` にして `hosts/*.yaml` を暗号化し、平文で履歴に入った仮のパスワードは、まだ変えていない人に変えてもらう(#34)
 
 ## [0.3.1] - 2026-10-25 — 構成リポジトリのひな形を直す版
 
