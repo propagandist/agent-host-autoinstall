@@ -210,7 +210,7 @@ section "VM(env.yaml の vm: $([ "${AH_VM:-0}" = 1 ] && echo true || echo false)
 in_kvm() { id -nG "$1" 2>/dev/null | tr ' ' '\n' | grep -qx kvm; }
 not_in_kvm() { ! in_kvm "$1"; }
 if [ "${AH_VM:-0}" = 1 ]; then
-    for pkg in qemu-system-x86 qemu-utils ovmf-generic; do check "$pkg が入っている" installed "$pkg"; done
+    for pkg in qemu-system-x86 qemu-utils ovmf-generic util-linux-extra; do check "$pkg が入っている" installed "$pkg"; done
     check "UEFI のファームウェア(OVMF_CODE_4M.fd・OVMF_VARS_4M.fd)がある" \
         test -f /usr/share/OVMF/OVMF_CODE_4M.fd -a -f /usr/share/OVMF/OVMF_VARS_4M.fd
     for u in $AH_USERS; do check "$u が kvm に入っている" in_kvm "$u"; done

@@ -756,7 +756,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{62-agents.sh} & 選んだ追加のエージェント \\
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
 \code{65-docker.sh} & Docker と、利用者ごとの rootless Docker \\
-\code{66-vm.sh} & env.yaml の \code{vm} を選んだら QEMU/KVM と UEFI のファームウェア(ovmf-generic)を入れ、利用者を kvm に入れる。選ばなくなったら kvm から外す(道具は消さない) \\
+\code{66-vm.sh} & env.yaml の \code{vm} を選んだら QEMU/KVM と UEFI のファームウェア(ovmf-generic)、\code{sg}(util-linux-extra)を入れ、利用者を kvm に入れる。選ばなくなったら kvm から外す(道具は消さない) \\
 \code{70-orca.sh} & Orca と、利用者ごとの自動起動 \\
 \code{72-editors.sh} & 選んだエディター。VS Code は拡張機能も版を固定して入れ、表示を日本語にし(argv.json の locale)、本体と拡張機能の自動更新を止める。Zed は拡張機能を起動時に入れる設定にし、本体と拡張機能の更新を止める \\
 \code{75-chrome.sh} & Google Chrome と、利用者の既定のブラウザ \\

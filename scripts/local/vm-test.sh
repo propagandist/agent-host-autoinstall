@@ -66,11 +66,11 @@ qemu)
     command -v qemu-system-x86_64 >/dev/null || { echo "qemu-system-x86_64 がない(env.yaml の vm)" >&2; exit 1; }
     if [ ! -r /dev/kvm ] || [ ! -w /dev/kvm ]; then
         # kvm に入れたあと、まだ新しいログインをしていない。グループが効いていればそれで実行しなおす
-        if [ -z "${AGENT_HOST_VM_SG:-}" ] && getent group kvm | cut -d: -f4 | tr , '\n' | grep -qx "$(id -un)"; then
+        if [ -z "${AGENT_HOST_VM_SG:-}" ] && command -v sg >/dev/null && getent group kvm | cut -d: -f4 | tr , '\n' | grep -qx "$(id -un)"; then
             echo "kvm のグループが今のセッションに効いていないので、sg kvm で実行しなおす" >&2
             exec env AGENT_HOST_VM_SG=1 sg kvm -c "$(printf '%q ' "$0" "$@")"
         fi
-        echo "/dev/kvm を読み書きできない(kvm のグループに入っていない。env.yaml の vm)" >&2
+        echo "/dev/kvm を読み書きできない(kvm のグループに入っていない。env.yaml の vm。入っていても sg がなければ、次のログインまで使えない)" >&2
         exit 1
     fi
     ovmf_code=/usr/share/OVMF/OVMF_CODE_4M.fd
