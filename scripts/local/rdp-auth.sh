@@ -15,8 +15,9 @@ shown="$1"
 pw_file="$2"
 shift 2
 offset="${AGENT_HOST_RDP_PORT_OFFSET:-0}"
-# Docker の中からは、手元の PC の 127.0.0.1(試験用の VM のポートの転送先)を host.docker.internal で見る
-if [ -f /.dockerenv ] && { [ "$host" = 127.0.0.1 ] || [ "$host" = localhost ]; }; then
+# Docker Desktop の中からは、手元の PC の 127.0.0.1(試験用の VM のポートの転送先)を host.docker.internal で見る。
+# Linux の Docker にはこの名前がなく、in-ubuntu.sh が手元のネットワーク(--network host)で動かすので、そのまま 127.0.0.1
+if [ -f /.dockerenv ] && { [ "$host" = 127.0.0.1 ] || [ "$host" = localhost ]; } && getent hosts host.docker.internal >/dev/null; then
     host=host.docker.internal
 fi
 
