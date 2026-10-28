@@ -3,6 +3,8 @@
 #
 # 使い方: scripts/local/host.sh <操作> <ホスト> [引数]
 #   status  <ホスト>                 置いた版と成功した版・構成・RDP・利用者のセッション・ディスク・メモリ・失敗した unit を見る
+#   footprint <ホスト> [秒]          メモリと CPU を、サービス・利用者のセッション・アプリの単位(cgroup)ごとに見る
+#                                    (CPU は指定の秒数(既定 30)のあいだの平均。読むだけ、sudo は要らない)
 #   facts   <ホスト>                 台帳のための情報を YAML で出す(sudo のパスワードを聞かれる)
 #   logs    <ホスト>                 構成・最後の just update・利用者ごとの first-login の記録を見る(sudo のパスワードを聞かれる)
 #   verify  <ホスト>                 仕様どおりに構成されているかを確かめる(scripts/verify.sh。何も変えない)
@@ -61,6 +63,52 @@ status)
         free -h | awk '\''NR == 2 {print "メモリ: 使用 " $3 " / " $2}'\''
         echo "失敗した unit:"; systemctl --failed --no-legend --no-pager | sed "s/^/  /"
     '
+    ;;
+footprint)
+    # システムが使う分を減らすときの物差し(docs/notes.md「システムの資源を減らす」)。cgroup の memory.current は
+    # ページキャッシュを含む。利用者は user-<uid>.slice を名前に置き換えて出す
+    secs="${1:-30}"
+    [[ "$secs" =~ ^[1-9][0-9]*$ ]] || { echo "秒は 1 以上の整数で指定する" >&2; exit 2; }
+    # shellcheck disable=SC2029  # 秒の数は手元で確かめてから VM に渡す
+    ssh "${ssh_opts[@]}" "$target" "bash -s $secs" <<'EOF'
+set -euo pipefail
+secs="$1"
+cg=/sys/fs/cgroup
+echo "== メモリ(MB)"
+free -m | awk 'NR <= 3'
+zramctl --output NAME,DISKSIZE,DATA,COMPR,TOTAL 2>/dev/null || true
+# <cgroup> <CPU の累計 µs> <メモリ>
+snap() {
+    find "$cg/system.slice" "$cg/user.slice" "$cg/init.scope" -maxdepth 5 -name cpu.stat 2>/dev/null | while read -r f; do
+        d="${f%/cpu.stat}"
+        printf '%s %s %s\n' "${d#"$cg"/}" "$(sed -n 's/^usage_usec //p' "$f")" "$(cat "$d/memory.current" 2>/dev/null || echo 0)"
+    done
+}
+names="$(getent passwd | awk -F: '$3 >= 1000 || $1 ~ /^gdm/ {print $3, $1}')"
+a="$(snap)"; sleep "$secs"; b="$(snap)"
+echo
+echo "== cgroup ごと(メモリ 8MB 以上か CPU 0.5% 以上。CPU は ${secs} 秒の平均、1 コア = 100%)"
+printf '%8s %7s  %s\n' MB CPU% cgroup
+awk -v secs="$secs" -v names="$names" '
+    BEGIN { n = split(names, kv, "\n"); for (i = 1; i <= n; i++) { split(kv[i], p, " "); user[p[1]] = p[2] } }
+    NR == FNR { cpu0[$1] = $2; next }
+    {
+        mb = $3 / 1048576; pct = ($2 - cpu0[$1]) / (secs * 10000)
+        if (mb < 8 && pct < 0.5) next
+        path = $1
+        if (match(path, /user-[0-9]+\.slice/)) {
+            uid = substr(path, RSTART + 5, RLENGTH - 11)
+            if (uid in user) gsub("user-" uid "\\.slice", "[" user[uid] "]", path)
+        }
+        printf "%8.0f %7.1f  %s\n", mb, pct, path
+    }' <(printf '%s\n' "$a") <(printf '%s\n' "$b") | sort -k3
+echo
+echo "== プロセス(RSS の上位 20。共有の分を重ねて数える)"
+ps -eo rss=,user=,comm= --sort=-rss | head -20 | awk '{printf "%8.0f  %-12s %s\n", $1 / 1024, $2, $3}'
+echo
+echo "== タイマー($(systemctl list-timers --all --no-legend | wc -l) 個)"
+systemctl list-timers --all --no-legend --no-pager | awk '{print "  " $(NF - 1)}' | sort
+EOF
     ;;
 facts)
     # 台帳(構成リポジトリの docs/inventory.md など)に写すための情報。秘密情報は出さない

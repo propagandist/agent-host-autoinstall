@@ -71,6 +71,10 @@ ssh host:
 status host:
     scripts/local/host.sh status {{host}}
 
+# メモリと CPU をサービス・利用者のセッション・アプリの単位で見る(CPU は secs 秒の平均。システムが使う分を減らすときの物差し)
+footprint host secs="30":
+    scripts/local/host.sh footprint {{host}} {{secs}}
+
 # 台帳のためにホストの情報を YAML で出す(機種、シリアル、MAC、ディスク、メモリ、OS、置いた版、鍵の指紋)
 facts host:
     scripts/local/host.sh facts {{host}}
