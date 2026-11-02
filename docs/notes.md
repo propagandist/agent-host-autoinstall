@@ -547,6 +547,7 @@ VirtualBox の VM(CPU 1 つ、メモリ 4GB、利用者 2 人、gnome-shell 50.1
 - Mermaid CLI: プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
 - vm-test: 関数に寄せた VirtualBox の版の回しなおし(#35)
 - 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Orca 以外の Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
+- CCManager 4.4.9 を AVX のない CPU で使うこと。VirtualBox の VM(CPU に avx・avx2・fma が見えない)では、Bun で作った本体が SIGILL で落ち、起動のラッパーがそれを隠して何も出さずに 0 で終わるので、just verify の版の確認だけが落ちた(2026-11-01)。AVX のない古い実機でも同じく使えないとみているが、実機では試していない
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意
