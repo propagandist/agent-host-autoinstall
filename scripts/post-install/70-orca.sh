@@ -22,13 +22,16 @@ apt-mark hold orca-ide
 log "Orca $ORCA_VERSION を入れて hold した"
 
 # 自動起動。/usr/bin/orca-ide は CLI 用のシムなので、GUI 本体の /opt/Orca/orca-ide を書く
-# /opt/Orca/orca-ide で GUI が Wayland ネイティブで起動する(VirtualBox で確認済み)
+# X11(Xwayland)で起動する。Wayland のままだと、一度も RDP でつないでいない(画面がない)セッションで、Orca が
+# gnome-shell に wl_display.sync を 1 秒に約 6400 回送り続け、2 つで CPU 1 つを使い切った(#50。VirtualBox で確認)。
+# X11 の Chromium は GTK の入力モジュールで日本語を受ける。既定では im-ibus(fcitx5 の IBus の口)を選び、
+# 変換は効くが未確定の文字が欄に出なかったので、fcitx5 のモジュールを指定する(どちらも VirtualBox で確認)
 setup_orca() {
     write_agent_file 644 "$AGENT_HOME/.config/autostart/orca.desktop" <<'EOF'
 [Desktop Entry]
 Type=Application
 Name=Orca
-Exec=/opt/Orca/orca-ide
+Exec=env GTK_IM_MODULE=fcitx /opt/Orca/orca-ide --ozone-platform=x11
 X-GNOME-Autostart-enabled=true
 EOF
     log "$AGENT_USER の Orca の自動起動を設定した"

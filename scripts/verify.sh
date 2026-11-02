@@ -292,6 +292,8 @@ for pkg in fcitx5 fcitx5-mozc mozc-utils-gui language-pack-ja language-pack-gnom
 done
 # IBus の Mozc は、RDP の半角/全角の押しっぱなしで gnome-shell を漏らす(docs/notes.md)。日本語入力は fcitx5
 check "ibus-mozc がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' ibus-mozc 2>/dev/null | grep -q '^ii'"
+# ibus があると、gnome-session が XMODIFIERS=@im=ibus を入れ、ibus-x11 が利用者ごとに起動する(#42)
+check "ibus がない" bash -c "! dpkg-query -W -f='\${db:Status-Abbrev}' ibus 2>/dev/null | grep -q '^ii'"
 eq "IBus のデーモンを立てない(user のユニットを mask)" \
     "$(systemctl --global is-enabled org.freedesktop.IBus.session.GNOME.service 2>/dev/null || true)" masked
 eq "セッションが立つたびに fcitx5 を起動する" \
@@ -406,6 +408,9 @@ user_checks() {
 
     # アプリ
     check "Orca の自動起動" test -f "$AGENT_HOME/.config/autostart/orca.desktop"
+    # Wayland だと、つないでいないセッションで gnome-shell と CPU を使い続ける(#50)
+    check "Orca を X11 で起動する" grep -qx 'Exec=env GTK_IM_MODULE=fcitx /opt/Orca/orca-ide --ozone-platform=x11' \
+        "$AGENT_HOME/.config/autostart/orca.desktop"
     check "既定のブラウザが Chrome" grep -q 'x-scheme-handler/https=google-chrome.desktop' "$AGENT_HOME/.config/mimeapps.list"
     check "PDF の既定のアプリが Atril" grep -q '^application/pdf=atril.desktop' "$AGENT_HOME/.config/mimeapps.list"
 

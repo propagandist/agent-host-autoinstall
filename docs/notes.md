@@ -66,7 +66,7 @@ SPEC.md §9 の未確定事項から始めた調査と、機能を足したと�
 ### Orca・Claude Code・Codex・Node.js
 - Orca 1.4.237(2026-10-21)。.deb の URL は `releases/download/v<ver>/orca-ide_<ver>_amd64.deb`、SHA256 は GitHub API の digest(確認済み)。GUI 本体は `/opt/Orca/orca-ide`、`/usr/bin/orca-ide` は CLI 用のシム(確認済み、.deb を展開)
 - Orca の .deb 版は自分では更新を適用しないが、更新の通知は出る。止める設定・環境変数はソースに見当たらない(確認済み、v1.4.237 のソース)
-- `/opt/Orca/orca-ide` の autostart で GUI が起動し、Wayland ネイティブ(`--ozone-platform=wayland`)で動く。依存パッケージも解決した。Orca は Claude と Codex を検出した(VirtualBox で確認済み)
+- `/opt/Orca/orca-ide` の autostart で GUI が起動し、Wayland ネイティブ(`--ozone-platform=wayland`)で動く(0.3.2 より後は、つないでいないセッションの CPU の空回りを避けるため X11 で起動する。下の「つないでいないセッションで Orca と gnome-shell が CPU を使い続ける」)。依存パッケージも解決した。Orca は Claude と Codex を検出した(VirtualBox で確認済み)
 - Orca は `~/.codex/config.toml` に hooks の設定を追記する。こちらが置いた `check_for_update_on_startup = false` は先頭に残る(確認済み)
 - Claude Code は公式 apt リポジトリ(`downloads.claude.ai/claude-code/apt/stable`)から 2.1.308-1 を入れ、apt-mark hold する。パッケージマネージャー経由では自動更新しない(確認済み、公式文書)。署名鍵の fingerprint は 31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE
 - Codex 0.164.0(npm)。自分で黙って更新はせず、起動時の確認は `~/.codex/config.toml` の `check_for_update_on_startup = false` で止まる(確認済み)。`codex login --device-auth` が現行の名前(確認済み、beta 扱い)
@@ -493,8 +493,22 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - 守り(20-sessions.sh): user の `org.gnome.Shell@.service` に `MemoryMax=30%`・`MemorySwapMax=512M` の drop-in を置き、膨らんだら固まる前に落として立ちなおらせる。ユニットの `OnFailure` の `org.gnome.Shell-disable-extensions.service` は、起動の途中の印(`$XDG_RUNTIME_DIR/gnome-shell-disable-extensions`)があるときだけ拡張機能を止めるので、OOM の 2 回(18:40、19:49)とログアウトで立てなおしたとき(21:16)には動かなかった(journal の「unmet condition」)。OOM のあと、ヘッドレスのセッションは数秒で立ちなおり、Orca の端末(エージェント)は残った。上限で落ちるとき(memory.max の OOM)の動きは確かめていない
 - 2026-10-28、hotfix/0.3.2 で、Windows の VirtualBox の VM(メモリ 4GB、2 人の env)で `just vm-test` を流した。入れなおしから RDP の待ち受けまでと電源を切ったあとの戻りは人手なしで通ったが、sudo のパスワードを入れ違えて verify とセッションを落とす試験が動かなかった。同じ VM で `AGENT_HOST_VM_REUSE=1` でやりなおし、すべて通った(verify 213 項目、2 回とも)。gnome-shell のメモリの上限は 1167MB(4GB の 30%)で効いていた。verify で、新しく入れたときに利用者ごとの agent-host-fcitx5.service が動き、ibus-daemon が動いていないこと、入力ソースと fcitx5・Mozc の設定を確かめた
 - 同じ VM に RDP で入って打つと、押していない文字が重複して入った。gnome-shell は漏れておらず(1 分で 819MB から 791MB。ピーク 941MB で上限に当たっていない。`memory.events` の max・oom は 0。PSS 584MB のうち anon 356MB、shmem 196MB)、起動しなおしもなかった。VM は CPU 1 つで load average が 2〜3 あり、「離した」が遅れて mutter がリピートを足したと見ているが、VM の中で遅れを測ってはいない(推測)。同じときの実機(CPU 6 つ、load average 0.5)では、gnome-shell の止まりは 60 秒で最大 31ms(784 回のうち 200ms を超えたのは 0)で、利用者も重複は起きていないと確かめた。入力の確かめは実機を基準にする
-- Xwayland のアプリの入力: `XMODIFIERS=@im=ibus` は gnome-session が自分で入れている(`/usr/bin/gnome-session` に文字列がある)。ibus のパッケージの `/etc/xdg/Xwayland-session.d/10-ibus-x11` が Xwayland が立つたびに ibus-x11 を起動し、fcitx5 は「Failed to open xim, retrying」を出す。Orca は Wayland で動くので当たらない。X11 のアプリで入力できるかは確かめていない
-- 未確認: 新しく入れたときに gnome-shell が fcitx5 につなぐこと(RDP の画面での入力)、just update で動いているセッションがその場で fcitx5 に替わること、候補の窓の位置、Xwayland のアプリでの入力(上)、fcitx5 がつなぐので Xwayland が常に起動しておくこと、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
+- Xwayland のアプリの入力: `XMODIFIERS=@im=ibus` は gnome-session が自分で入れている(`/usr/bin/gnome-session` に文字列がある)。ibus のパッケージの `/etc/xdg/Xwayland-session.d/10-ibus-x11` が Xwayland が立つたびに ibus-x11 を起動し、fcitx5 は「Failed to open xim, retrying」を出す。0.3.2 より後に ibus のパッケージを消した(下の「つないでいないセッションで Orca と gnome-shell が CPU を使い続ける」)
+- 未確認: 新しく入れたときに gnome-shell が fcitx5 につなぐこと(RDP の画面での入力)、just update で動いているセッションがその場で fcitx5 に替わること、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
+
+### つないでいないセッションで Orca と gnome-shell が CPU を使い続ける(2026-11-02、VirtualBox で確認、#50・#42)
+
+VirtualBox の VM(CPU 1 つ、メモリ 4GB、利用者 2 人、gnome-shell 50.1、Orca 1.4.237、fcitx5 5.1.19)で、#44 の基準の値を取っていて見つけた。
+
+- 起きたこと: 起動してから一度も RDP でつないでいない利用者で、gnome-shell が約 68%、Orca が約 31%(大半がカーネルの側)で、VM の CPU の空きは 0% だった。一度つないで切ったセッション(gnome-shell の記録に `Added virtual monitor Meta-0` → `Removed virtual monitor Meta-0`)では起きない
+- 原因(確認済みのところまで): Orca の本体のプロセスが、gnome-shell の Wayland のソケットに `wl_display.sync` を 1 秒に約 6400 回送り続けていた(`strace`)。Orca を SIGSTOP で止めると gnome-shell も静かになった。画面(モニター)が一度もない Wayland のセッションで、Electron が画面の情報を待って往復を繰り返していると推定(未確認)
+- 直したこと: Orca の自動起動を X11(Xwayland)にした(`--ozone-platform=x11`)。誰もつながないまま 5 分おいて、gnome-shell・Orca・Xwayland・fcitx5 のどれも CPU 0.5% 未満、VM の CPU の空きは 99.55% だった。Dock や一覧から起動しなおした Orca は Wayland で動く(つないでから起動するので、この空回りは起きない見込み。確かめていない)
+- X11 の Orca の日本語入力: X11 の Chromium は GTK の入力モジュールで受ける。既定では ibus-gtk3 の im-ibus(fcitx5 の IBus の口)を選び、変換はできたが、未確定の文字が欄に出なかった。`GTK_IM_MODULE=fcitx` を渡すと、未確定の文字が下線つきで欄に出て、候補の窓も入力の位置に出た(Docker の FreeRDP から xdotool で打ち、画面を撮って確かめた)。XIM(`XMODIFIERS=@im=fcitx` と im-xim)では「nihongo」が「inhongo」と順が入れ替わったので使わない
+- ibus のパッケージを消した(#42): 残すと gnome-session が `XMODIFIERS=@im=ibus`・`QT_IM_MODULE=ibus` を入れ(`ibus-daemon` があり、値が空のときだけ。gnome-session の `leader-main.c`)、Xwayland が立つたびに ibus-x11(1 人あたり約 70MB)が起動する。消しても外れるパッケージはなく、gnome-shell は fcitx5 の IBus の口につながり、Xfce Terminal(Wayland)で Mozc の変換ができた。ibus-gtk3 は残す(消すと X11 の GTK のアプリが im-xim を選び、日本語を打てなかった)
+- Xwayland は、fcitx5 が DISPLAY を持って X11 につなぐので、これまでも利用者ごとに起動していた(つないでいたのは fcitx5・gnome-shell・gsd-xsettings・ibus-x11・mutter-x11-frames だけ)。Orca を X11 にしたので、これからは外せない
+- 試してやめたこと: gnome-shell に `--virtual-monitor` を付けて起動のときから画面を持たせると、空回りは止まった。しかしヘッドレスの gnome-remote-desktop は、つなぐたびに自分の仮想モニター(Meta-1)を足し(`screen-share-mode` が `mirror-primary` でも同じ)、RDP には壁紙だけの 2 枚目の画面が出て、Orca とパネルは見えない 1 枚目の側に残った
+- just update で上げたホスト: 利用者の systemd は動き続けるので、前に受け取った `XMODIFIERS=@im=ibus` を再起動まで持ち続ける。動いている ibus-x11 も、セッションを立てなおすまで残る
+- 未確認: 実機での空回りと、直したあとの CPU。X11 の Orca での HiDPI の表示、クリップボード、ファイルのダイアログ
 
 ### mstsc の資格情報の画面の PIN と指紋(2026-10-27)
 
@@ -532,7 +546,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
 - Mermaid CLI: プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
 - vm-test: 関数に寄せた VirtualBox の版の回しなおし(#35)
-- 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
+- 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Orca 以外の Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
 ## 運用上の注意

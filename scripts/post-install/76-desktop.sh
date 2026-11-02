@@ -23,9 +23,12 @@ apt-get install -y mozc-utils-gui language-pack-ja language-pack-gnome-ja fonts-
 # 更新を送らないので、同じリピートで漏れなかった(どちらも実機で確認。docs/notes.md)。
 # Recommends は Qt6 と設定の画面、中国語の辞書まで引くので入れない(Mozc の設定は mozc-utils-gui で行う)
 apt-get install -y --no-install-recommends fcitx5 fcitx5-mozc fcitx5-frontend-gtk3 fcitx5-frontend-gtk4
-apt-get purge -y ibus-mozc
+# ibus(ibus-daemon と ibus-x11)も消す(gnome-shell の Recommends。消しても外れるものはない)。残すと、gnome-session が
+# XMODIFIERS=@im=ibus を入れ、Xwayland が立つたびに ibus-x11 が利用者ごとに起動していた(#42)。gnome-shell と
+# X11 の GTK(ibus-gtk3 の im-ibus)は、ibus のパッケージがなくても fcitx5 の IBus の口につながる(VirtualBox で確認)
+apt-get purge -y ibus-mozc ibus
 # ibus-daemon は GNOME のセッションが立てる(user の org.freedesktop.IBus.session.GNOME.service)。fcitx5 と
-# 同じ口を取り合うので、全員で止める。ibus のパッケージは gnome-shell の Recommends なので残す
+# 同じ口を取り合うので、全員で止める(ibus を消す前に入れたホストの、動いているセッションのため)
 systemctl --global mask org.freedesktop.IBus.session.GNOME.service >/dev/null
 # GNOME の Wayland では im-config が入力メソッドを起動しない(/etc/profile.d/im-config_wayland.sh が止めている)。
 # ibus と同じ並びで、セッションが立つたびに fcitx5 を起動する

@@ -27,6 +27,8 @@
 
 ### 修正
 - Linux の手元で `just verify-rdp` が試験用の VM につながらなかった(Docker の中の FreeRDP が `host.docker.internal` を引けない)。手元が Linux なら Docker を `--network host` で動かす。`vm-test.sh` に実行の権限がなく Linux の just から動かなかったので付けた(#35)
+- 一度も RDP でつないでいない利用者のセッションで、Orca(Wayland)と gnome-shell が CPU を使い続けていた(VM で 2 つあわせて CPU 1 つ分)。Orca を X11(Xwayland)で起動し、日本語入力は fcitx5 の GTK のモジュールで受ける(#50)
+- fcitx5 に替えたあとも ibus のパッケージが残り、X11 のアプリの入力の指定が `XMODIFIERS=@im=ibus` のままで、ibus-x11 が利用者ごとに起動していた。ibus のパッケージを消す(#42)
 - 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)
 - docs/notes.md の「運用上の注意」の秘密情報が入るファイルにも、`/opt/agent-host/users/` と `/opt/agent-host.prev/` を足した
