@@ -23,6 +23,7 @@
 - 構成リポジトリのひな形の `with-env.sh` が、暗号化していないファイルに秘密の値(`encrypted_regex` と同じ名前で、空でない値)があると止まる(値は出さず、行の番号だけを出す)。sops がないときは入れ方の案内を出す(#34)
 - docs/fleet.md: 回復用の age の鍵と SSH の鍵を足すこと(3)、Windows での sops・age の入れ方と `sops edit` の `EDITOR`(3)、暗号化していない値も sops を通して変えること(3)、足した人の鍵の確かめ方(8)、鍵やパスワードをなくしたときの戻し方(10)を書いた。手順書の「複数台を管理する」にも要点を足した
 - 手順書に、手元の PC の Orca からホストの Orca につなぐ手順(Remote Orca Server、ベータ)を足した。公式の文書から書き、LAN の IP で 6768 を足してつながることを確かめた。2 人目以降のポートと、版が違うときは未確認(#37)
+- `just guide-check`: 手順書の PDF を作り、余白へのはみ出しを確かめる(ログの Overfull、コマンドの枠の長い行、ページの画像の左右の余白)。`just release-check` でも行う
 
 ### 修正
 - Linux の手元で `just verify-rdp` が試験用の VM につながらなかった(Docker の中の FreeRDP が `host.docker.internal` を引けない)。手元が Linux なら Docker を `--network host` で動かす。`vm-test.sh` に実行の権限がなく Linux の just から動かなかったので付けた(#35)
@@ -32,6 +33,7 @@
 - 手順書の「ファイルのやり取り(SFTP)」に、つなぐ人が手元の PC で鍵を作る手順(`ssh-keygen -t ed25519`)と、公開鍵を env.yaml に書いて反映するまでの流れを足した(#38)
 - 構成リポジトリのひな形の `.sops.yaml` の `path_regex` が `/` 区切りだけを見ていて、Windows の sops では `hosts/<ホスト>.yaml` が `no matching creation rules found` で暗号化できず、RDP の仮のパスワードが平文で残った。`/` と `\` の両方を許す。Windows でひな形から構成リポジトリを作っていたら、`.sops.yaml` の `path_regex` を `(^|[/\\])(common|hosts[/\\][^/\\]+)\.yaml$` にして `hosts/*.yaml` を暗号化し、平文で履歴に入った仮のパスワードは、まだ変えていない人に変えてもらう(#34)
 - `just rdp` が、どの利用者の接続ファイルにもユーザー名 `agent` を入れていた。3 つ目の引数で `rdp.username` を渡す(省くとユーザー名を書かない)
+- 手順書の PDF で、本文の余白や枠の外へはみ出していたところを直した(全体の構成と起動の流れの図、コマンドの枠の長い行、「0.2 から上げるとき」の段落、表の見出しの行の地の色)
 
 ### 確認した環境
 - エージェントのホスト(core)の QEMU/KVM の VM(CPU 2、メモリ 4GB、利用者 2 人の env)で `just vm-test`(ae54f66)の 9 項目がすべて通った。入れなおしから 2 人の RDP が待ち受けるまで人手なし、`just verify`(210 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くこと

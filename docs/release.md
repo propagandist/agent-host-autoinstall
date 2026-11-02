@@ -66,7 +66,7 @@ VM の道具は自動で選ぶ(`AGENT_HOST_VM_BACKEND` で `virtualbox` か `qem
    - コミットする
 4. リリースの前の確認
    ```sh
-   just release-check    # コミット済みか、CHANGELOG の節、lint、just test、PDF の作成
+   just release-check    # コミット済みか、CHANGELOG の節、lint、just test、PDF の作成とはみ出しの検査
    ```
 5. release ブランチのスクリプトで VM に新しく入れなおし、受け入れテスト(docs/acceptance-test.md)を行う。直したら release ブランチにコミットし、4 からやりなおす
    ```sh

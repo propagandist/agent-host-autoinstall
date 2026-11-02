@@ -14,7 +14,7 @@ AGENTS.md                   # ほかのエージェント向けに CLAUDE.md を
 LICENSE                     # Apache License 2.0(標準の全文のまま。書き足さない)
 NOTICE                      # 著作権者の表示(手順書の PDF の発行者もここから入れる)
 icon.png                    # Orca がプロジェクトを登録するときに拾うアイコン(256×256 の PNG。元は docs/icon.svg)
-justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF、リリース前の確認)。just で一覧
+justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF とはみ出しの検査、リリース前の確認)。just で一覧
 CHANGELOG.md                # 変更の記録(版ごと)
 .github/workflows/release.yml # タグの push で手順書の PDF を作り GitHub Release に付ける
 autoinstall/
@@ -25,7 +25,7 @@ build/                      # 手元の作業の出力(ISO、一時ファイル 
 scripts/
   build-usb.sh              # env.yaml を埋め込んだ autoinstall.yaml とスクリプトを入れた ISO を作る
   stage.sh                  # env.yaml から設定を作り /opt/agent-host に置くものをそろえる(build-usb.sh と just update が使う)
-  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: 実行ごとの build/.run.XXXXXX に env.yaml を写す・BUILD-INFO、build-guide.sh: 手順書の PDF、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VM(VirtualBox か QEMU/KVM)での通しの試験)
+  local/                    # just から呼ぶ手元用のスクリプト(in-ubuntu.sh: Linux の道具を Docker で、iso.sh: env.yaml の検査と ISO、host.sh: ホストの操作、envs.sh: 実行ごとの build/.run.XXXXXX に env.yaml を写す・BUILD-INFO、build-guide.sh: 手順書の PDF、guide-check.sh・guide-check.py: 手順書の PDF のはみ出しの検査、gen-cover.py: 表紙の絵を Gemini で作る、rdp-auth.sh: RDP の認証の確認、vm-test.sh: VM(VirtualBox か QEMU/KVM)での通しの試験)
   render-autoinstall.py     # stage.sh から呼ぶ。env.yaml を重ねて検査し(知らないキーはエラー)、autoinstall.yaml と env.sh を生成
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
@@ -92,6 +92,10 @@ docs/
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語
 - **手順書を合わせる。** 構成・手順・固定するバージョンを変えたら、docs/manual-steps.md と docs/setup-guide.tex も直す
+- **手順書の PDF ははみ出しを確かめる。** docs/setup-guide.tex を変えたら `just guide-check` を通す(PDF を作りなおし、余白へのはみ出しを確かめる)。直したところは、ページの画像を目でも見る
+  - 確かめるのは、ログの `Overfull \hbox`(図・表・本文の改行できない \code)、コマンドの枠の長い行、ページの画像の左右の余白(図の線や、淡い地の色も拾う)の 3 つ。ログの Overfull だけでは足りない(Verbatim は行が長くても Overfull を出さず、枠の外へ字が出る。setup-guide.tex の前置きで、長い行を警告にしている)
+  - コマンドの枠の長い行は、コメントを次の行に分けるか、上の行に移す
+  - 見出しの行に地の色を付ける表は、両端を `@{}` で詰めない(色が余白へ出る)。割合で幅を決める列は `P{割合}` を使う
 
 ## マルチエージェントでのレビューと起票
 
