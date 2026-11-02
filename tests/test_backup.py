@@ -185,6 +185,16 @@ class TestRestore(unittest.TestCase):
             os.remove(f"{HOME}/.config")
             os.rename(f"{HOME}/.config.keep", f"{HOME}/.config")
 
+    def test_work_dir_is_on_var_tmp(self):
+        # 書き出しは /tmp(tmpfs)ではなく /var/tmp に置き、終わったら残さない(Issue #51)。
+        # TMPDIR が使えない場所を指していても、/var/tmp に置くので通る
+        before = set(os.listdir("/var/tmp"))
+        with open(self.archive, "rb") as f:
+            r = subprocess.run(["bash", os.path.join(REPO, "scripts", "migrate", "agent-host-restore")],
+                               stdin=f, capture_output=True, text=True, env={**os.environ, "TMPDIR": "/nonexistent"})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(set(os.listdir("/var/tmp")), before)
+
     def test_old_format_is_restored_as_user(self):
         # v0.2.0 までの書き出し(記録は agent_uid= だけ。ホームの分も root の tar の中)も、利用者の権限で取り込む
         src = tempfile.mkdtemp()
