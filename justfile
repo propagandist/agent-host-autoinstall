@@ -30,7 +30,7 @@ iso out="build/agent-host.iso" +envs=env:
 # shellcheck と構文の検査
 lint:
     scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/notify/agent-host-ups-notify scripts/migrate/agent-host-* examples/fleet/scripts/*.sh'
-    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/post-install/mozc-config.py", "scripts/local/gen-cover.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py", "tests/test_notify.py", "tests/test_envs.py", "tests/test_mozc_config.py")]'
+    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/post-install/mozc-config.py", "scripts/local/gen-cover.py", "scripts/local/guide-check.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py", "tests/test_notify.py", "tests/test_envs.py", "tests/test_mozc_config.py")]'
     @echo "検査は問題ない"
 
 # env.yaml の検査と、/opt/agent-host に置くものの試験(tests/。ホストは要らない)
@@ -41,6 +41,10 @@ test:
 guide:
     scripts/local/build-guide.sh
 
+# 手順書の PDF を作り、余白へのはみ出しがないかを確かめる(ログの Overfull、コマンドの枠の長い行、ページの画像の余白)
+guide-check: guide
+    scripts/local/guide-check.sh
+
 # リリースの前の確認(release か hotfix のブランチで、コミット済みであること、検査と PDF の作成が通ること)。手順は docs/release.md
 release-check:
     case "$(git branch --show-current)" in release/*|hotfix/*) ;; *) echo "release/<版> か hotfix/<版> のブランチで実行する" >&2; exit 1 ;; esac
@@ -48,7 +52,7 @@ release-check:
     v="$(git branch --show-current)"; v="${v#*/}"; grep -q "^## \[$v\] - .* — ." CHANGELOG.md || { echo "CHANGELOG.md に ## [$v] - <日付> — <位置づけ> の見出しがない" >&2; exit 1; }
     just lint
     just test
-    just guide
+    just guide-check
     @echo "リリースの前の確認は問題ない。次は VM での入れなおしと受け入れテスト(docs/release.md)"
 
 # 利用者の RDP の接続ファイルを build/<ホスト>-<ポート>.rdp に作る(ポートとユーザーは env.yaml の users の port と rdp.username。

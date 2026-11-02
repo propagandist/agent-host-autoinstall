@@ -57,6 +57,10 @@
   title={#2},fonttitle=\headstyle\scriptsize,coltitle=white,colbacktitle=#1,
   attach boxed title to top right={yshift=-2.2mm,xshift=-3mm},
   boxed title style={arc=1pt,boxrule=0pt,left=3pt,right=3pt,top=1pt,bottom=1pt}}
+% Verbatim は行が枠より長くても Overfull を出さず、字が枠の外へ出る。長い行はログに警告を出す(just guide-check が見る)
+\let\guideFormatLine\FancyVerbFormatLine
+\renewcommand{\FancyVerbFormatLine}[1]{\sbox0{\guideFormatLine{#1}}%
+  \ifdim\wd0>\linewidth\PackageWarning{guide}{verbatim line too wide by \the\dimexpr\wd0-\linewidth\relax}\fi\usebox0}
 \newenvironment{local}{\VerbatimEnvironment\begin{cmdframe}{localcol}{手元の PC}\begin{Verbatim}[fontsize=\small]}
   {\end{Verbatim}\end{cmdframe}}
 \newenvironment{host}{\VerbatimEnvironment\begin{cmdframe}{hostcol}{ホスト(sysadmin)}\begin{Verbatim}[fontsize=\small]}
@@ -80,6 +84,9 @@
 % 表とチェックリスト
 %----------------------------------------------------------------------
 \newcolumntype{L}{>{\raggedright\arraybackslash}X}
+% 行の幅に対する割合で決める列(左右の \tabcolsep を含む。割合の合計を 1 にすると行の幅ちょうど)。
+% 見出しの行の地の色は列の左右の \tabcolsep まで塗るので、表の両端を @{} で詰めると色が余白へ出る。両端は詰めない
+\newcolumntype{P}[1]{p{\dimexpr#1\linewidth-2\tabcolsep\relax}}
 \newcommand{\headrow}{\rowcolor{accentlight}}
 \newlist{checklist}{itemize}{2}
 \setlist[checklist]{label=$\square$,leftmargin=2em,itemsep=2pt}
@@ -183,7 +190,7 @@ RDP で接続できる状態に戻ることを目指す。
 人の役割は、作業を任せ、承認や質問に答え、できたものを見比べて選ぶことに移る。
 そうなると「エージェントをどこで動かすか」が問題になる。置き場所ごとに比べると次のとおり(2026-10-25 時点の各社の文書と、このリポジトリで確かめたことによる)。
 
-\noindent{\small\begin{tabularx}{\linewidth}{@{}p{0.2\linewidth}p{0.22\linewidth}L@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{P{0.2}P{0.22}L}
 \toprule\headrow
 置き場所 & 向いていること & この用途で足りないこと \\
 \midrule
@@ -288,8 +295,8 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
     \node[group,fill=accentlight,fit=(rdpc)(sshc)(sftpc),label={[font=\headstyle\small,text=accent]above:手元の PC}] (pc) {};
   \end{scope}
   % ホスト
-  \node[box,right=34mm of rdpc,minimum width=36mm] (grd) {リモート デスクトップ\\[-1pt]{\scriptsize 利用者ごとのポート :3389 ・ :3390 …}};
-  \node[box,right=34mm of sshc,minimum width=36mm] (sshd) {sshd\\[-1pt]{\scriptsize :22(sysadmin ／ 利用者は SFTP)}};
+  \node[box,right=30mm of rdpc,minimum width=36mm] (grd) {リモート デスクトップ\\[-1pt]{\scriptsize 利用者ごとのポート :3389 ・ :3390 …}};
+  \node[box,right=30mm of sshc,minimum width=36mm] (sshd) {sshd\\[-1pt]{\scriptsize :22(sysadmin ／ 利用者は SFTP)}};
   \node[soft,right=6mm of grd,minimum width=40mm,minimum height=18mm] (session)
     {利用者ごとの GNOME セッション\\[-1pt]{\scriptsize ヘッドレス}\\[-1pt]{\scriptsize Orca ・ Claude Code ・ Codex ・ Chrome}};
   \node[box,below=of session,minimum width=40mm] (docker) {rootless Docker\\[-1pt]{\scriptsize 利用者ごと ・ mise ・ uv}};
@@ -312,7 +319,7 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
 \end{figure}
 
 \subsection{ユーザー}
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lllL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lllL}
 \toprule\headrow
 ユーザー & 用途 & sudo & ログイン \\
 \midrule
@@ -340,7 +347,7 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
   \node[box,left=of rdp] (orca) {Orca 起動};
   \draw[flow] (power) -- (boot); \draw[flow] (boot) -- (prov); \draw[flow] (prov) -- (gdm);
   \draw[flow] (gdm) -- (gnome); \draw[flow] (gnome) -- (rdp); \draw[flow] (rdp) -- (orca);
-  \node[box,draw=cautioncol,fill=cautionbg,right=10mm of gnome] (watch) {systemd\\[-1pt]{\scriptsize 落ちたその人だけ立てなおす}};
+  \node[box,draw=cautioncol,fill=cautionbg,right=7mm of gnome] (watch) {systemd\\[-1pt]{\scriptsize 落ちたその人だけ立てなおす}};
   \draw[flow,draw=cautioncol,dashed] (watch) |- node[lbl,pos=0.25,right] {約 15 秒} (gnome.north east);
   \draw[flow,draw=cautioncol,dashed] (gnome) -- node[lbl,above] {落ちる} (watch);
 \end{tikzpicture}
@@ -380,7 +387,7 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
 版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds} で選んだときだけ入る。
 
 {\small
-\begin{longtable}{@{}p{0.25\linewidth}p{0.42\linewidth}p{0.27\linewidth}@{}}
+\begin{longtable}{P{0.25}P{0.48}P{0.27}}
 \toprule\headrow
 名前 & 何をするものか & 使い方 \\
 \midrule
@@ -471,7 +478,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
 \end{local}
 
 \subsection{ネットワークの情報}
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lL}
 \toprule\headrow
 項目 & 内容 \\
 \midrule
@@ -486,7 +493,7 @@ NTP サーバー & その LAN から ntp.ubuntu.com に届かない場合だけ 
 \subsection{アカウントと契約}
 どれも、利用者ごとに本人のアカウントと契約を使う(複数の人で共有しない)。
 
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lL}
 \toprule\headrow
 用途 & 内容 \\
 \midrule
@@ -526,7 +533,7 @@ just check-env common.yaml hosts/agent-host-01.yaml
 
 \subsection{項目の一覧}
 {\small
-\begin{longtable}{@{}p{0.34\linewidth}p{0.61\linewidth}@{}}
+\begin{longtable}{P{0.34}P{0.66}}
 \toprule\headrow
 項目 & 内容 \\
 \midrule
@@ -663,7 +670,7 @@ env.yaml は安全な場所に保管しておく(入れなおしや移行で使�
 \subsection{UPS(env.yaml の ups を書いた場合)}\label{sec:ups}
 \code{85-ups.sh} が NUT(Network UPS Tools)で UPS を見て、バッテリーが少なくなるか NUT サーバーが指示したら、正しく終了する。
 
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lLL}
 \toprule\headrow
 \code{ups.mode} & つなぎ方 & 電源が戻ったあと \\
 \midrule
@@ -738,7 +745,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \end{figure}
 
 {\small
-\begin{longtable}{@{}p{0.25\linewidth}p{0.70\linewidth}@{}}
+\begin{longtable}{P{0.25}P{0.75}}
 \toprule\headrow
 スクリプト & すること \\
 \midrule
@@ -771,7 +778,8 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 
 \subsection{結果を確かめる}
 \begin{local}
-just status <ホスト>    # 置いた版と成功した版・構成・待ち受けのポート・利用者のセッション・ディスク・メモリ・失敗した unit
+just status <ホスト>    # 置いた版と成功した版・構成・待ち受けのポート・利用者のセッション・
+                        # ディスク・メモリ・失敗した unit
 just logs <ホスト>      # 構成・利用者ごとの first-login とセッションの記録
 just verify <ホスト>    # 仕様どおりかを確かめる(全体と利用者ごと。sudo のパスワードを聞かれる)
 just verify-rdp <ホスト> # 利用者ごとに、仮のパスワードで RDP の認証が通るか(画面は開かない)
@@ -821,7 +829,8 @@ env.yaml から外した利用者の Docker が止まっていることも見る
 
 \subsection{RDP でつなぐ}\label{sec:rdp}
 \begin{local}
-just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る(Windows のリモート デスクトップ接続用)
+just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート>.rdp を作る
+                                       # (Windows のリモート デスクトップ接続用)
 \end{local}
 接続先は \code{<ホスト>:<その人の port>}(env.yaml の \code{users[].port})。\code{just rdp} の \code{<ユーザー>} はその人の \code{rdp.username}(省くと、接続ファイルにユーザー名を書かない)。ユーザーとパスワードは、その人の \code{rdp.username} と
 \code{rdp.initial_password}(仮の値)。RDP のクライアントは何でもよい
@@ -858,7 +867,7 @@ Claude Code や Codex などのサブスクリプションは個人の契約な�
 \end{caution}
 
 \subsection{日本語入力と使い勝手}
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lL}
 \toprule\headrow
 操作 & キーと動き \\
 \midrule
@@ -971,7 +980,7 @@ Orca のワークツリーやターミナルの出力をスマホで見て、コ
 スマホから自分のターミナルを操作できるので、スマホを持つ人はエージェントを丸ごと操作できる。
 画面のロックをかけたスマホだけをペアリングし、無くしたら「設定 > モバイル」からその端末を外す。
 \end{caution}
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lLL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lLL}
 \toprule\headrow
 つなぎ方 & 通り道 & このホストでの準備 \\
 \midrule
@@ -1058,7 +1067,7 @@ FileZilla は公式サイトの標準のインストーラーにほかのソフ�
 印刷して、結果の欄に印を付けながら行う。詳細は \code{docs/acceptance-test.md}。
 
 {\small
-\begin{longtable}{@{}p{0.03\linewidth}p{0.25\linewidth}p{0.47\linewidth}p{0.17\linewidth}@{}}
+\begin{longtable}{P{0.05}P{0.25}P{0.53}P{0.17}}
 \toprule\headrow
 \# & 確認すること & 合格の条件 & 結果 \\
 \midrule
@@ -1084,7 +1093,8 @@ FileZilla は公式サイトの標準のインストーラーにほかのソフ�
 df -h /; sudo vgs                      # ルートがディスクのほぼ全部
 ip -4 addr; ip route                   # env.yaml の network どおり
 apt-mark showhold                      # 版を固定したパッケージ
-sudo ufw status                        # 22/利用者の RDP のポート/dev_ports(と 2425/udp)が lan_cidrs だけ
+sudo ufw status                        # 22/利用者の RDP のポート/dev_ports(と 2425/udp)が
+                                       # lan_cidrs だけ
 sudo -u <利用者> XDG_RUNTIME_DIR=/run/user/$(id -u <利用者>) \
     systemctl --user show-environment  # mise の PATH、DOCKER_HOST など
 \end{host}
@@ -1116,7 +1126,7 @@ OS を入れなおさずに反映できる。
 \begin{local}
 just update <ホスト>    # env.yaml から設定を作りなおし、スクリプトを入れ替えて、構成を再実行する
 \end{local}
-\noindent{\small\begin{tabularx}{\linewidth}{@{}p{0.36\linewidth}p{0.16\linewidth}L@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{P{0.36}P{0.16}L}
 \toprule\headrow
 env.yaml の項目 & just update で & 注記 \\
 \midrule
@@ -1159,8 +1169,9 @@ env.yaml の \code{users} を直して \code{just update} する。\code{port} �
 \end{itemize}
 
 \paragraph{0.2 から上げるとき}
-0.2 までの env.yaml の \code{rdp}・\code{git_user_name}・\code{git_user_email}・\code{agent_ssh_authorized_keys} は使えなくなった
-(書き換え先を出して検査で止まる)。\code{users} の 1 人目を \code{name: agent}、\code{port: 3389} にすれば、
+0.2 までの env.yaml の次のキーは使えなくなった(書き換え先を出して検査で止まる):
+\code{rdp}・\code{git_user_name}・\code{git_user_email}・\code{agent_ssh_authorized_keys}。
+\code{users} の 1 人目を \code{name: agent}、\code{port: 3389} にすれば、
 今のホーム、ログイン、RDP の証明書をそのまま使える。\code{rdp.password} は \code{rdp.initial_password} にする
 (0.2 で入れた認証情報はキーリングにあり、ヘッドレスの RDP には引き継がれないので、この値が入る)。
 \code{dev_ports} が利用者の port と重なっていると止まる(例 \code{"3000:3999"} は 3389 を含むので、\code{"3000:3099"} などにする)。
@@ -1208,7 +1219,8 @@ just backup <ホスト>    # build/backups/<ホスト>-<日時>.tar.zst に書�
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 \end{host}
 \begin{local}
-export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"  # ほかの指定があれば後ろに足す
+# ほかの指定があれば後ろに足す
+export AGENT_HOST_SSH_OPTS="-o UserKnownHostsFile=$PWD/build/known_hosts.migrate"
 just status <ホスト>    # 指紋が同じなら yes
 \end{local}
   \item 構成が終わったら取り込み、再起動する
@@ -1233,7 +1245,7 @@ just ssh <ホスト>       # sudo systemctl reboot(元の known_hosts でつな�
 ホストが 2 台以上になったら、このリポジトリ(道具)とは別に、実機の構成を管理する非公開のリポジトリ(構成リポジトリ)を
 非公開の Git リポジトリ(自前の Gitea、GitHub の private など)に作る。詳しい手順は \code{docs/fleet.md}、ひな形は \code{examples/fleet/} にある。
 
-\noindent{\small\begin{tabularx}{\linewidth}{@{}lL@{}}
+\noindent{\small\begin{tabularx}{\linewidth}{lL}
 \toprule\headrow
 置くもの & 内容 \\
 \midrule
@@ -1263,7 +1275,7 @@ age の受け手と sysadmin の SSH の鍵には、回復用の鍵を 1 つず�
 
 \subsection{困ったとき}
 {\small
-\begin{longtable}{@{}p{0.27\linewidth}p{0.68\linewidth}@{}}
+\begin{longtable}{P{0.27}P{0.73}}
 \toprule\headrow
 症状 & 見るところ・対処 \\
 \midrule
@@ -1287,7 +1299,7 @@ EMFILE / ファイル監視の上限 & \code{ulimit -n}(65536)と \code{fs.inoti
 2026-10-25 時点。値はスクリプトの先頭にある。
 
 {\small
-\begin{longtable}{@{}p{0.32\linewidth}p{0.28\linewidth}p{0.35\linewidth}@{}}
+\begin{longtable}{P{0.32}P{0.28}P{0.40}}
 \toprule\headrow
 ソフトウェア & 版 & 入れ方 \\
 \midrule
@@ -1324,7 +1336,7 @@ NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨す�
 \section{ホスト上のファイルの配置}
 %======================================================================
 {\small
-\begin{longtable}{@{}p{0.45\linewidth}p{0.50\linewidth}@{}}
+\begin{longtable}{P{0.45}P{0.55}}
 \toprule\headrow
 場所 & 内容 \\
 \midrule
