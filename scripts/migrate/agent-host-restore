@@ -17,7 +17,9 @@ set -euo pipefail
 [ -f /var/lib/agent-host/provisioned ] || { echo "構成が終わっていない(/var/lib/agent-host/provisioned がない)" >&2; exit 1; }
 load_env
 
-work="$(mktemp -d)"
+# 書き出しは丸ごと置いてから何回も読むので、ディスクの上の /var/tmp に置く。/tmp は tmpfs(メモリの半分)で、
+# それより大きい書き出しは置ききれずに止まった(Issue #51)
+work="$(mktemp -d -p /var/tmp agent-host-restore.XXXXXX)"
 trap 'rm -rf "$work"' EXIT
 cat >"$work/backup.tar.zst"
 tar --zstd -xf "$work/backup.tar.zst" -C "$work" agent-host-manifest.txt ||

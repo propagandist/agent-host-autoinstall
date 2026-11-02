@@ -1229,6 +1229,7 @@ just restore <ホスト> build/backups/<ホスト>-<日時>.tar.zst
 unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate
 just ssh <ホスト>       # sudo systemctl reboot(元の known_hosts でつながる)
 \end{local}
+  取り込みは書き出しを丸ごと \code{/var/tmp} に置いてから展開するので、新しいホストのディスクには、書き出しの大きさに加えて展開する分の空きが要る
   \item \code{just verify <ホスト>} と、受け入れテストの 4・5 を行う
 \end{enumerate}
 

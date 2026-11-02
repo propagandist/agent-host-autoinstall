@@ -330,6 +330,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
    unset AGENT_HOST_SSH_OPTS; rm -f build/known_hosts.migrate   # 取り込むと元のホスト鍵に戻るので、一時のものは要らない
    just ssh <ホスト>      # sudo systemctl reboot(元の known_hosts でつながる)
    ```
+   取り込みは書き出しを丸ごと `/var/tmp` に置いてから展開するので、新しいホストのディスクには、書き出しの大きさに加えて展開する分の空きが要る
 7. `just verify <ホスト>` と、受け入れテストの 4・5 を行う
 
 **ホスト鍵:** 入れなおすと SSH のホスト鍵が新しくなり、取り込むと書き出したときの鍵に戻る(sshd も再起動する)。そのため、取り込むまでは手元の known_hosts の鍵と合わず、`just status` も `just restore` も「REMOTE HOST IDENTIFICATION HAS CHANGED」で止まる。known_hosts の古い鍵は消さない(消すと、取り込んだあとにもう一度食い違う)。`StrictHostKeyChecking=no` などで確かめずにつなぐと、書き出し(ログインの情報が入る)と sudo のパスワードを、確かめていない相手に送ることになるので使わない。
