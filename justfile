@@ -30,7 +30,7 @@ iso out="build/agent-host.iso" +envs=env:
 # shellcheck と構文の検査
 lint:
     scripts/local/in-ubuntu.sh shellcheck shellcheck bash -c 'shellcheck -x scripts/*.sh scripts/lib/*.sh scripts/post-install/*.sh scripts/first-login/*.sh scripts/local/*.sh scripts/notify/agent-host-diskcheck scripts/notify/agent-host-ups-notify scripts/migrate/agent-host-* examples/fleet/scripts/*.sh'
-    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/render-autoinstall.py", "scripts/post-install/mozc-config.py", "scripts/local/gen-cover.py", "scripts/local/guide-check.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py", "tests/test_notify.py", "tests/test_envs.py", "tests/test_mozc_config.py")]'
+    scripts/local/in-ubuntu.sh python3 python3 python3 -c 'import ast; [ast.parse(open(f, encoding="utf-8").read(), f) for f in ("scripts/notify/agent-notify", "scripts/perf/agent-host-perf", "scripts/render-autoinstall.py", "scripts/post-install/mozc-config.py", "scripts/local/gen-cover.py", "scripts/local/guide-check.py", "tests/test_render.py", "tests/test_agent_home.py", "tests/test_backup.py", "tests/test_notify.py", "tests/test_perf.py", "tests/test_envs.py", "tests/test_mozc_config.py")]'
     @echo "検査は問題ない"
 
 # env.yaml の検査と、/opt/agent-host に置くものの試験(tests/。ホストは要らない)
@@ -87,6 +87,14 @@ verify-rdp host +args=env:
 # VirtualBox の VM に入れなおし、検査・電源を切ったあと・セッションが落ちたあとを通しで確かめる(VM の中身は消える。1〜2 時間)
 vm-test +envs="build/test/env.yaml":
     scripts/local/vm-test.sh {{envs}}
+
+# 負荷の履歴と速さの測定をまとめて見る(読むだけ。sudo は要らない)。日数(1〜35。既定 7)と --json を渡せる
+perf host *args:
+    scripts/local/host.sh perf {{host}} {{args}}
+
+# 速さを今すぐ測る(約 3 分。ハードウェアや設定を変える前後に。sudo のパスワードを聞かれる)。忙しければ測らない。--force で測る
+perf-bench host *args:
+    scripts/local/host.sh perf-bench {{host}} {{args}}
 
 # 構成・first-login・セッションの見張りの記録を見る
 logs host:

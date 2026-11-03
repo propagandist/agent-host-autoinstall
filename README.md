@@ -72,6 +72,7 @@ just iso                # build/agent-host.iso を作る → USB に書き込む
 # 入れる先の PC を USB から起動 → 確認なしでインストール → 初回の起動で構成 → 利用者ごとのセッション
 just status <ホスト>    # 置いた版と成功した版、構成、RDP、利用者ごとのセッションの状態を見る
 just verify <ホスト>    # 仕様どおりに構成されたかを確かめる(全体と利用者ごと。読むだけ)
+just perf <ホスト>      # 負荷の履歴と速さの測定を見る
 just rdp <ホスト> <ポート> <ユーザー>   # その利用者の RDP の接続ファイルを作る(env.yaml の users の port と rdp.username)
 ```
 

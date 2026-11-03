@@ -9,6 +9,8 @@
 #   verify-rdp <ホスト> [--ask <利用者>] <env.yaml>...  利用者ごとに RDP の認証が通るかを確かめる(FreeRDP)。
 #                                    仮のパスワードで確かめる。--ask で、その利用者の今のパスワードを聞いて確かめる。
 #                                    ポートに足す数は環境変数 AGENT_HOST_RDP_PORT_OFFSET(試験用の VM は 10000)
+#   perf    <ホスト> [日数] [--json]  負荷の履歴と速さの測定をまとめて見る(sudo は要らない)
+#   perf-bench <ホスト> [--force]    速さを今すぐ測る(約 3 分。忙しければ測らない。--force で測る)
 #   update  <ホスト> <env.yaml>...   スクリプトと env.yaml の変更を反映して構成を再実行する(OS は入れなおさない)
 #   backup  <ホスト> [出力ファイル]  移行の書き出し(既定は build/backups/<ホスト>-<日時>.tar.zst)
 #   restore <ホスト> <ファイル>      移行の取り込み
@@ -149,6 +151,28 @@ logs)
             echo "--- $u のセッション"; sudo journalctl -u "gnome-headless-session@$u.service" -o cat --no-pager | tail -5
         done
     '
+    ;;
+perf)
+    report_args=()
+    for a in "$@"; do
+        case "$a" in
+        --json) report_args+=(--json) ;;
+        *[!0-9]* | "") echo "日数か --json を指定する: $a" >&2; exit 2 ;;
+        *) report_args+=(--days "$a") ;;
+        esac
+    done
+    # shellcheck disable=SC2029  # 渡すのは、上で確かめた日数と --json だけ
+    ssh "${ssh_opts[@]}" "$target" /usr/local/bin/agent-host-perf report "${report_args[@]}"
+    ;;
+perf-bench)
+    case "${1:-}" in
+    "" | --force) ;;
+    *) echo "指定できるのは --force だけ: $1" >&2; exit 2 ;;
+    esac
+    ask_password
+    # shellcheck disable=SC2029  # 渡すのは、上で確かめた --force だけ
+    printf '%s\n' "$PW" | ssh "${ssh_opts[@]}" "$target" "sudo -S -p '' /usr/local/bin/agent-host-perf bench ${1:-}"
+    unset PW
     ;;
 update)
     [ $# -ge 1 ] || { echo "env.yaml を指定する" >&2; exit 2; }

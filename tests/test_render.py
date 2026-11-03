@@ -492,7 +492,7 @@ class TestStage(Case):
         self.assertTrue(os.path.isfile(os.path.join(out, "autoinstall.yaml")))
         for name in ("provision.sh", "setup-provision.sh", "verify.sh", "env.sh", "users/alice.env",
                      "users/alice.authorized_keys", "sysadmin_authorized_keys", "BUILD-INFO",
-                     "lib/common.sh", "systemd/agent-host-provision.service", "notify/agent-notify",
+                     "lib/common.sh", "systemd/agent-host-provision.service", "notify/agent-notify", "perf/agent-host-perf",
                      "migrate/agent-host-backup", "migrate/agent-host-restore"):
             with self.subTest(name=name):
                 self.assertTrue(os.path.exists(os.path.join(stage, name)), name)
@@ -506,6 +506,7 @@ class TestStage(Case):
         self.assertEqual(mode("BUILD-INFO"), 0o644)
         self.assertEqual(mode("provision.sh"), 0o755)
         self.assertEqual(mode("notify/agent-notify"), 0o755)
+        self.assertEqual(mode("perf/agent-host-perf"), 0o755)
         posts = sorted(os.listdir(os.path.join(stage, "post-install")))
         self.assertEqual(posts, sorted(os.listdir(os.path.join(REPO, "scripts", "post-install"))))
         for p in posts:
