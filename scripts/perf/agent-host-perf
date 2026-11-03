@@ -598,6 +598,8 @@ def number(value):
 
 def print_stats(stats):
     """項目ごとに p50・p95・最も悪い値・その時刻を出す。"""
+    if not stats:  # 期間の記録がすべて休止中の GPU など、値が 1 つもない
+        return
     width = max(len(name) for name in stats)
     print(f"  {'項目'.ljust(width - 2)}  {'p50':>9} {'p95':>9} {'悪い値':>7}  時刻")
     for name, s in stats.items():

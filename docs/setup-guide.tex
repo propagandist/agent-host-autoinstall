@@ -769,6 +769,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{75-chrome.sh} & Google Chrome と、利用者の既定のブラウザ \\
 \code{76-desktop.sh} & 日本語入力(fcitx5 と Mozc。IBus は止める)と言語パック、端末(Xfce Terminal)、PDF ビューアー(Atril)、クリップボードの履歴(Clipboard Indicator)、Chrome のポリシー、壁紙の色と Dock(セッションが立つたびに入れる自動起動。セッションが動いていればその場で)、ブックマーク \\
 \code{80-agent-session.sh} & 利用者ごとに、空パスワードのキーリング、英語のフォルダー名、git、更新の通知の停止、CA の登録、mise、エージェント向けの説明 \\
+\code{83-perf.sh} & 性能の記録(sysstat、負荷の値のタイマー、週 1 回の速さの測定) \\
 \code{84-notify.sh} & 通知(Claude Code の hooks、Codex の notify)と、ディスクの残りの監視 \\
 \code{85-ups.sh} & env.yaml の \code{ups} で選んだ UPS を NUT で見る。バッテリーが少ないと終了し、USB でつないだときは UPS の出力を止めて、電源が戻ったら起動させる。停電と復電を通知する \\
 \code{86-migrate.sh} & 移行用の \code{agent-host-backup} と \code{agent-host-restore} を置く \\
