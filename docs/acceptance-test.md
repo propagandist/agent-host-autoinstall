@@ -84,7 +84,7 @@ sudo ss -tlnp | grep gnome-remote
 | Docker の通信 | 利用者全員が、RDP の端末で `docker run --rm alpine:3 wget -qO- http://example.com` | 全員が取得できる(pasta。just verify は pasta の設定までを見る) |
 | UPS(ups を書いたとき) | ホストで `upsc <name>@localhost`(netclient なら `<name>@<server>`)。UPS の電源プラグを抜いて数十秒で挿しなおす | `ups.status` が `OL`。抜くと「停電: UPS のバッテリーで動いている」、挿すと「UPS: 電源が戻った」が届く。バッテリーが少なくなるまで待つと終了し、電源が戻ると起動する(usb のとき) |
 | ディスクの監視 | `systemctl is-enabled agent-host-diskcheck.timer` | enabled |
-| 性能の記録 | 手元の `just perf <ホスト>`、`just perf-bench <ホスト>` のあとにもう一度 `just perf <ホスト>` | sar と利用者ごとの値が出る(GPU は AMD のときだけ)。測定のあと「速さの測定」に値が出て、`/var/lib/agent-host/perf/bench-tmp` が残っていない |
+| 性能の記録 | 手元の `just perf <ホスト>`、`just perf-bench <ホスト>`(飛んだら `--force`。CPU の少ない VM では、誰もつないでいないセッションの CPU の空回り #50 で飛ぶ)のあとにもう一度 `just perf <ホスト>` | sar と利用者ごとの値が出る(GPU は AMD のときだけ)。測定のあと「速さの測定」に値が出て、`/var/lib/agent-host/perf/bench-tmp` が残っていない |
 | 移行 | 書き出し → 消す → 取り込み(docs/manual-steps.md の 16。just backup → 消す → just restore) | 利用者全員のログインと ~/work、本人が変えた RDP のパスワードが戻る |
 | 各ツール | `node --version; codex --version; claude --version` | 60-devtools.sh に書いたバージョン |
 | 利用者に sudo がない | `id <名前>` | sudo グループに入っていない。ホームは 700(`stat -c %a /home/<名前>`) |

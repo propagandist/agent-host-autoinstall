@@ -360,6 +360,14 @@ class TestReport(PerfCase):
         self.assertEqual(gpu["busy"]["worst"], 40)
         self.assertEqual(gpu["vram_used_mib"]["worst"], 1.0)
 
+    def test_gpu_always_suspended_is_printed(self):
+        # 期間の記録がすべて休止中の GPU があっても、文字の出力が止まらない
+        now = int(time.time())
+        self.write_samples([{"t": now - 300, "gpus": {"0000:01:00.0": {"suspended": True}}, "users": {}}])
+        code, out, _ = self.run_tool("report")
+        self.assertEqual(code, 0)
+        self.assertIn("休止していた記録 1 / 1", out)
+
     def test_old_samples_are_out_of_range(self):
         self.write_samples([{"t": int(time.time()) - 10 * DAY, "gpus": {}, "users": {"a": {"mem": 1}}}])
         self.assertEqual(self.report("--days", "7")["per_sample"]["samples"], 0)
