@@ -14,6 +14,7 @@
 - `vm` を足した(true か false)。書かなければ今までどおり(false)
 
 ### 追加
+- 実機の性能を定期的に記録する。負荷の履歴は sysstat(28 日残す)と、sar にない値(AMD の GPU、利用者ごとの cgroup、gnome-shell のメモリ)を 5 分ごとに記録するタイマー。速さの測定は、毎晩 04:30 ごろに、直近の成功から 7 日以上経っていて空いているときだけ、sysbench と fio で CPU・メモリ・ディスクを測る。`just perf <ホスト>` でまとめて見て、`just perf-bench <ホスト>` で今すぐ測る。BIOS・メモリの速度・ディスクなどの条件も記録し、変わった回を区切って比べる。構成リポジトリのひな形に `just perf-save` を足した。sysstat、fio、sysbench、dmidecode を入れる(#63・#60)
 - env.yaml の `vm` を `true` にすると、QEMU/KVM と UEFI のファームウェアを入れ、利用者全員を kvm に入れる(66-vm.sh)。エージェントがそのホストで `just vm-test` を回せる。`false` に戻すと kvm から外す。`just verify` も見る(#35)
 - `just vm-test` が QEMU/KVM でも動く。VBoxManage があれば VirtualBox、なくて QEMU と `/dev/kvm` があれば QEMU を選ぶ(`AGENT_HOST_VM_BACKEND` で決められる)。kvm のグループが今のセッションに効いていなければ `sg kvm` で実行しなおす(26.04 では `sg` が util-linux-extra にあるので、66-vm.sh で入れる)。転送のポートを `AGENT_HOST_VM_SSH_PORT`・`AGENT_HOST_VM_RDP_PORT_OFFSET` で変えられ、使われていれば入れなおす前に止まる(#35)
 - Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)

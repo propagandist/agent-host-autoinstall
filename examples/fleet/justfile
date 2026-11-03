@@ -57,6 +57,20 @@ facts host target=host:
     just -f {{tool}} facts {{target}} | sed '/^$/d' > facts/{{host}}.yaml
     @echo "書いた: facts/{{host}}.yaml"
 
+# 負荷の履歴と速さの測定をまとめて見る。日数(1〜35。既定 7)と --json を渡せる
+perf target *args:
+    just -f {{tool}} perf {{target}} {{args}}
+
+# 負荷の履歴と測定を perf/<ホスト>/<日付>.json に保存する(コミットする。入れなおしや機種の交換のあとも比べられる)
+perf-save host target=host:
+    mkdir -p perf/{{host}}
+    just -f {{tool}} perf {{target}} 35 --json > perf/{{host}}/$(date +%F).json
+    @echo "書いた: perf/{{host}}/$(date +%F).json"
+
+# 速さを今すぐ測る(約 3 分。ハードウェアや設定を変える前後に)。忙しければ測らない。--force で測る
+perf-bench target *args:
+    just -f {{tool}} perf-bench {{target}} {{args}}
+
 # 構成・利用者ごとの first-login とセッションの記録を見る
 logs target:
     just -f {{tool}} logs {{target}}

@@ -335,6 +335,23 @@ check "通知のスクリプト" test -x /usr/local/bin/agent-notify
 eq "通知の設定は root と利用者だけが読める" "$(stat -c '%a %U:%G' /etc/agent-host/notify.env 2>/dev/null)" "640 root:$AH_USERS_GROUP"
 check "ディスクの残りの監視のタイマー" systemctl is-active agent-host-diskcheck.timer
 check "移行のスクリプト" test -x /usr/local/sbin/agent-host-backup
+
+section "性能の記録"
+check "sysstat の記録のタイマー" systemctl is-active sysstat-collect.timer
+eq "sar の記録を残す日数" "$(sed -n 's/^HISTORY=//p' /etc/sysstat/sysstat 2>/dev/null)" 28
+check "負荷の記録のスクリプト" test -x /usr/local/bin/agent-host-perf
+check "負荷の記録のタイマー" systemctl is-active agent-host-perf-sample.timer
+check "速さの測定のタイマー" systemctl is-active agent-host-perf-bench.timer
+check "fio と sysbench" bash -c 'command -v fio && command -v sysbench'
+eq "記録の場所は利用者も読める" "$(stat -c '%a' /var/lib/agent-host/perf 2>/dev/null)" 755
+# 起動の直後は、まだタイマーが動いていないことがある
+if [ "$(cut -d. -f1 /proc/uptime)" -lt 900 ]; then
+    ok "直近の記録(起動から 15 分たっていないので見ない)"
+else
+    check "直近の sar の記録(15 分以内)" bash -c "find /var/log/sysstat -name 'sa[0-9][0-9]' -mmin -15 | grep -q ."
+    check "直近の負荷の記録(15 分以内)" bash -c "find /var/lib/agent-host/perf -name 'samples-*.jsonl' -mmin -15 | grep -q ."
+fi
+check "負荷の記録を読める(agent-host-perf report)" /usr/local/bin/agent-host-perf report --json
 eq "root の containerd は止めている" "$(systemctl is-enabled containerd.service 2>/dev/null || true)" masked
 if [ -f /etc/default/apport ]; then
     check "apport(クラッシュの報告)が無効" grep -q '^enabled=0' /etc/default/apport

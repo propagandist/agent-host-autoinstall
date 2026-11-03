@@ -1115,6 +1115,24 @@ sudo systemctl reboot
 \end{host}
 再起動後は何もしなくても RDP で接続できる状態に戻る。
 
+\subsection{性能の記録を見る}\label{sec:perf}
+負荷の履歴と速さの測定は、自動で記録される(設定は要らない)。
+\begin{local}
+just perf <ホスト>              # 直近 7 日の履歴と測定の推移
+just perf <ホスト> 28           # 日数を変える(1〜35)
+just perf <ホスト> --json       # 機械で読む形
+just perf-bench <ホスト>        # 速さを今すぐ測る(約 3 分)
+just perf-bench <ホスト> --force  # 忙しくても測る
+\end{local}
+\begin{itemize}
+  \item 負荷の履歴: システム全体は sar(28 日)。GPU(AMD のみ)、利用者ごとのメモリと CPU、gnome-shell のメモリは 5 分ごとに記録する(35 日)
+  \item 速さの測定: 毎晩 04:30 ごろに、直近の成功から 7 日以上経っていて、ホストが空いているときだけ、CPU・メモリ・ディスクを測る。忙しければ翌晩に回す
+  \item BIOS、メモリ、ディスクを変えるときは、\textbf{変える前と後に} \code{just perf-bench} で測る。条件が変わると \code{just perf} に区切りが出る
+  \item 測定のあいだにほかの利用者の CPU が 0.1 コアを超えた回は「ほかの負荷あり」と印が付き、中央値に入らない。基準にする回は、エージェントや RDP のセッションが落ち着いているときに測る
+  \item 利用者とエージェントは、ホストで \code{agent-host-perf report} を sudo なしで読める
+  \item 値の良し悪しの判定はしない。機種によって正しい値が違うので、同じホストの前後で比べる
+\end{itemize}
+
 \subsection{設定やバージョンを変える}\label{sec:versions}
 env.yaml を直したとき、スクリプトや固定するバージョン(スクリプトの先頭の版と SHA256)を直したときは、
 OS を入れなおさずに反映できる。
@@ -1254,6 +1272,7 @@ just ssh <ホスト>       # sudo systemctl reboot(元の known_hosts でつな�
 \code{common.yaml} & 全台で共通の値。秘密情報は SOPS と age で値だけ暗号化する \\
 \code{hosts/<ホスト>.yaml} & ホストごとの値。\code{common.yaml} に重ねる \\
 \code{facts/}、\code{docs/} & 台帳、ホストの情報(\code{just facts})、受け入れテストと変更の記録 \\
+\code{perf/<ホスト>/} & 性能の記録の保存(\code{just perf-save}。入れなおしのあとも比べられる) \\
 \bottomrule
 \end{tabularx}}
 
@@ -1360,6 +1379,11 @@ NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨す�
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
 \code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\
 \code{agent-host-diskcheck.timer} & ディスクの残りの監視(1 時間ごと) \\
+\code{/usr/local/bin/agent-host-perf} & 性能の記録と、まとめて見るスクリプト \\
+\code{agent-host-perf-sample.timer} & sar にない負荷の値の記録(5 分ごと) \\
+\code{agent-host-perf-bench.timer} & 速さの測定(毎晩見て、週 1 回、空いているときだけ) \\
+\code{/var/lib/agent-host/perf/} & 性能の記録(利用者も読める) \\
+\code{/var/log/sysstat/} & sar の記録(28 日) \\
 \code{gnome-headless-session@<利用者>.service} & 利用者ごとのヘッドレスのセッション \\
 \code{/etc/systemd/system/gnome-headless-session@.service.d/} & セッションのユニットの drop-in(静的な gdm、Restart=always) \\
 \code{/etc/gdm3/custom.conf} & 自動ログインを使わない(\code{AutomaticLoginEnable=false}) \\

@@ -14,7 +14,7 @@ AGENTS.md                   # ほかのエージェント向けに CLAUDE.md を
 LICENSE                     # Apache License 2.0(標準の全文のまま。書き足さない)
 NOTICE                      # 著作権者の表示(手順書の PDF の発行者もここから入れる)
 icon.png                    # Orca がプロジェクトを登録するときに拾うアイコン(256×256 の PNG。元は docs/icon.svg)
-justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF とはみ出しの検査、リリース前の確認)。just で一覧
+justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、性能の記録、手順書の PDF とはみ出しの検査、リリース前の確認)。just で一覧
 CHANGELOG.md                # 変更の記録(版ごと)
 .github/workflows/release.yml # タグの push で手順書の PDF を作り GitHub Release に付ける
 autoinstall/
@@ -53,6 +53,7 @@ scripts/
     76-desktop.sh           # 日本語入力(fcitx5 と Mozc。IBus は止める)、Xfce Terminal、Atril(PDF)、Clipboard Indicator、Chrome のポリシー、壁紙の色、ブックマーク
     mozc-keymap.tsv         # Mozc のキーの割り当て(MS-IME から半角/全角を外したもの)。mozc-config.py で config1.db にする(76 が使う)
     80-agent-session.sh     # 利用者ごとのキーリング、フォルダー名、git、プロキシ、mise、エージェントへの説明
+    83-perf.sh              # 性能の記録(sysstat、負荷の値のタイマー、週 1 回の速さの測定)
     84-notify.sh            # 通知(Slack、IP Messenger)とディスクの残りの監視
     85-ups.sh               # env.yaml の ups で選んだ UPS を NUT で見る(バッテリーが少ないと終了、出力を止めて復電で起動、通知)
     86-migrate.sh           # 移行用のスクリプトを /usr/local/sbin に置く
@@ -60,9 +61,10 @@ scripts/
   notify/agent-notify       # 通知を送るスクリプト(/usr/local/bin に置く)
   notify/agent-host-diskcheck # ディスクの残りの監視
   notify/agent-host-ups-notify # NUT の upsmon から呼ぶ、UPS の通知(agent-notify に渡す)
+  perf/agent-host-perf      # 性能の記録と、まとめて見るスクリプト(sample・bench・report。/usr/local/bin に置く)
   migrate/                  # 環境を入れ替えるときの書き出し(agent-host-backup)と取り込み(agent-host-restore)
   first-login/              # 利用者ごと: first-login.sh(セッションを立てる前に、88 が利用者のバスで一度だけ。gsettings)、desktop-env.sh(セッションが立つたび。壁紙の色と Dock)
-tests/                      # just test(env.yaml の検査と stage.sh、利用者のホームへの書き込み、移行の書き出し、通知、一時ディレクトリ。root が要るものは Docker の中だけ)
+tests/                      # just test(env.yaml の検査と stage.sh、利用者のホームへの書き込み、移行の書き出し、通知、性能の記録、一時ディレクトリ。root が要るものは Docker の中だけ)
 examples/
   fleet/                    # 構成リポジトリのひな形(docs/fleet.md)
 docs/

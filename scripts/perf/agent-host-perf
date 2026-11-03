@@ -1,0 +1,691 @@
+#!/usr/bin/env python3
+"""ホストの負荷の履歴と速さの測定を記録し、まとめて見せる。
+
+使い方:
+  agent-host-perf sample                      sar にない値(GPU、利用者ごとの cgroup)を 1 回記録する(5 分ごとのタイマーから)
+  agent-host-perf bench [--if-due] [--force]  CPU・メモリ・ディスクの速さを測る(約 3 分。root で動かす)
+      --if-due  直近の成功から 7 日以上経っているときだけ測る(毎晩のタイマーから)
+      --force   ホストが忙しくても測る(ディスクの空きの確認は残す)
+  agent-host-perf report [--days N] [--json]  履歴と測定をまとめて出す(root は要らない)
+
+システム全体の値(CPU、メモリ、ディスク、圧迫)は sysstat の記録を読むので、ここでは記録しない。
+しきい値での判定はしない(値が溜まってから決める。docs/notes.md)。
+出力にホスト名・シリアル・MAC は入れない。
+"""
+import argparse
+import calendar
+import datetime
+import fcntl
+import glob
+import json
+import math
+import os
+import pwd
+import re
+import shutil
+import signal
+import statistics
+import subprocess
+import sys
+import time
+
+DATA_DIR = "/var/lib/agent-host/perf"
+SA_DIR = "/var/log/sysstat"
+KEEP_DAYS = 35  # samples-*.jsonl を残す日数(bench.jsonl は小さいので消さない)
+BENCH_EVERY_DAYS = 7
+# 空きの判定の初期値。実機の結果を見て直す
+MAX_LOAD_PER_CPU = 0.25
+MAX_PRESSURE_PCT = 5.0
+MIN_FREE_BYTES = 5 * 1024**3
+NOISY_CORES = 0.1  # 測定のあいだ、ほかの利用者がこれ以上の CPU を使っていたら noisy
+BENCH_SECONDS = 20  # fio の 1 項目
+SYSBENCH_SECONDS = 10
+BENCH_FILE_SIZE = "1G"
+# 条件のうち、変わっても結果の比較を区切らないもの(カーネルは月 1 回の更新で変わるので、区切ると比べる相手がなくなる)
+CONTEXT_NOT_KEY = {"kernel"}
+
+
+class BenchError(Exception):
+    pass
+
+
+def read_text(path):
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            return f.read().strip()
+    except OSError:  # 無いファイルのほか、GPU の sysfs は状態によって EBUSY・EPERM を返す
+        return None
+
+
+def read_int(path):
+    text = read_text(path)
+    try:
+        return int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def load_jsonl(path):
+    """壊れた行(書いている途中の電源断など)は飛ばす。"""
+    rows = []
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict) and isinstance(row.get("t"), (int, float)):
+                    rows.append(row)
+    except OSError:
+        pass
+    return rows
+
+
+def append_jsonl(path, row):
+    os.makedirs(os.path.dirname(path), mode=0o755, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+
+def drop_none(values):
+    return {k: v for k, v in values.items() if v is not None}
+
+
+# --- sample ---
+
+def sample_gpus(root):
+    """AMD の GPU だけ。card の番号は変わることがあるので PCI アドレスをキーにする。"""
+    gpus = {}
+    for card in sorted(glob.glob(f"{root}/sys/class/drm/card[0-9]*")):
+        if not re.fullmatch(r"card\d+", os.path.basename(card)):
+            continue
+        uevent = dict(line.split("=", 1) for line in (read_text(f"{card}/device/uevent") or "").splitlines() if "=" in line)
+        pci = uevent.get("PCI_SLOT_NAME")
+        if uevent.get("DRIVER") != "amdgpu" or not pci:
+            continue
+        # 休止している GPU は読まない。読むと起こして、休止の効果を測定が消してしまう恐れがある
+        if read_text(f"{card}/device/power/runtime_status") == "suspended":
+            gpus[pci] = {"suspended": True}
+            continue
+        hwmon = (sorted(glob.glob(f"{card}/device/hwmon/hwmon*")) or [f"{card}/device/hwmon/none"])[0]
+        power = read_int(f"{hwmon}/power1_input")
+        if power is None:
+            power = read_int(f"{hwmon}/power1_average")
+        temp = read_int(f"{hwmon}/temp1_input")
+        sclk = read_int(f"{hwmon}/freq1_input")
+        mclk = read_int(f"{hwmon}/freq2_input")
+        gpus[pci] = drop_none({
+            "busy": read_int(f"{card}/device/gpu_busy_percent"),
+            "vram_used": read_int(f"{card}/device/mem_info_vram_used"),
+            "vram_total": read_int(f"{card}/device/mem_info_vram_total"),
+            "power_w": round(power / 1e6, 1) if power is not None else None,
+            "temp_c": round(temp / 1000, 1) if temp is not None else None,
+            "sclk_mhz": round(sclk / 1e6) if sclk is not None else None,
+            "mclk_mhz": round(mclk / 1e6) if mclk is not None else None,
+        })
+    return gpus
+
+
+def pressure_total(path):
+    """cgroup の *.pressure の some の累積(マイクロ秒)。"""
+    match = re.search(r"^some .*total=(\d+)", read_text(path) or "", re.M)
+    return int(match.group(1)) if match else None
+
+
+def stat_value(path, key):
+    match = re.search(rf"^{key} (\d+)", read_text(path) or "", re.M)
+    return int(match.group(1)) if match else None
+
+
+def user_name(uid):
+    try:
+        return pwd.getpwuid(uid).pw_name
+    except KeyError:
+        return f"uid-{uid}"
+
+
+def sample_users(root):
+    users = {}
+    for slice_dir in sorted(glob.glob(f"{root}/sys/fs/cgroup/user.slice/user-*.slice")):
+        match = re.fullmatch(r"user-(\d+)\.slice", os.path.basename(slice_dir))
+        if not match:
+            continue
+        uid = int(match.group(1))
+        row = {
+            "mem": read_int(f"{slice_dir}/memory.current"),
+            "swap": read_int(f"{slice_dir}/memory.swap.current"),
+            "cpu_usec": stat_value(f"{slice_dir}/cpu.stat", "usage_usec"),
+            "psi_cpu_us": pressure_total(f"{slice_dir}/cpu.pressure"),
+            "psi_io_us": pressure_total(f"{slice_dir}/io.pressure"),
+            "psi_mem_us": pressure_total(f"{slice_dir}/memory.pressure"),
+            "oom_kill": stat_value(f"{slice_dir}/memory.events", "oom_kill"),
+        }
+        # gnome-shell(#36 の漏れの再発を見る)。単位の名前はセッションの種類で変わる(ubuntu、gdm など)
+        shells = glob.glob(f"{slice_dir}/user@{uid}.service/session.slice/org.gnome.Shell@*.service")
+        shell = max(shells, key=lambda p: read_int(f"{p}/memory.current") or 0, default=None)
+        if shell:
+            row["shell_mem"] = read_int(f"{shell}/memory.current")
+            row["shell_swap"] = read_int(f"{shell}/memory.swap.current")
+            row["shell_peak"] = read_int(f"{shell}/memory.peak")
+        users[user_name(uid)] = drop_none(row)
+    return users
+
+
+def cmd_sample(args):
+    now = time.time()
+    row = {"t": int(now), "oom_kill": stat_value(f"{args.root}/proc/vmstat", "oom_kill"),
+           "gpus": sample_gpus(args.root), "users": sample_users(args.root)}
+    append_jsonl(f"{args.dir}/samples-{time.strftime('%Y-%m-%d', time.localtime(now))}.jsonl", row)
+    cutoff = datetime.date.fromtimestamp(now) - datetime.timedelta(days=KEEP_DAYS)
+    for path in glob.glob(f"{args.dir}/samples-*.jsonl"):
+        match = re.fullmatch(r"samples-(\d{4}-\d{2}-\d{2})\.jsonl", os.path.basename(path))
+        if match and datetime.date.fromisoformat(match.group(1)) < cutoff:
+            os.unlink(path)
+    return 0
+
+
+# --- bench ---
+
+def run_tool(cmd, timeout):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise BenchError(f"{cmd[0]}: {e}") from e
+    if r.returncode != 0:
+        raise BenchError(f"{cmd[0]} が失敗した: {(r.stderr or r.stdout).strip()[:200]}")
+    return r.stdout
+
+
+def sysbench_value(output, pattern, what):
+    match = re.search(pattern, output)
+    if not match:
+        raise BenchError(f"sysbench の出力から {what} を読めない")
+    return float(match.group(1))
+
+
+def run_sysbench(threads):
+    out = run_tool(["sysbench", "cpu", f"--threads={threads}", f"--time={SYSBENCH_SECONDS}", "run"], SYSBENCH_SECONDS + 60)
+    return sysbench_value(out, r"events per second:\s*([\d.]+)", "events per second")
+
+
+def run_sysbench_memory():
+    out = run_tool(["sysbench", "memory", "--threads=1", f"--time={SYSBENCH_SECONDS}", "--memory-block-size=1M",
+                    "--memory-total-size=0", "run"], SYSBENCH_SECONDS + 60)
+    return sysbench_value(out, r"\(([\d.]+) MiB/sec\)", "MiB/sec")
+
+
+def run_fio(name, path, rw, bs, extra=()):
+    out = run_tool(["fio", f"--name={name}", f"--filename={path}", f"--size={BENCH_FILE_SIZE}", "--direct=1",
+                    f"--rw={rw}", f"--bs={bs}", "--ioengine=psync", "--iodepth=1", f"--runtime={BENCH_SECONDS}",
+                    "--time_based", "--output-format=json", *extra], BENCH_SECONDS + 240)
+    try:
+        job = json.loads(out[out.index("{"):])["jobs"][0]  # 前に注意の行が出ることがある
+    except (ValueError, KeyError, IndexError) as e:
+        raise BenchError(f"fio の出力を読めない: {e}") from e
+    if job.get("error"):
+        raise BenchError(f"fio のエラー: {job['error']}")
+    return job
+
+
+def fio_p99_ms(section):
+    value = section.get("percentile", {}).get("99.000000")
+    return round(value / 1e6, 3) if value is not None else None
+
+
+def run_disk_tests(work):
+    path = f"{work}/testfile"
+    seqwrite = run_fio("seqwrite", path, "write", "1M")  # 最初に書いて、読む項目のファイルを作る
+    seqread = run_fio("seqread", path, "read", "1M")
+    randread = run_fio("randread", path, "randread", "4k")
+    syncwrite = run_fio("syncwrite", path, "randwrite", "4k", ("--fsync=1",))  # git や npm に近い
+    return drop_none({
+        "seqwrite_mib_s": round(seqwrite["write"]["bw_bytes"] / 1024**2, 1),
+        "seqread_mib_s": round(seqread["read"]["bw_bytes"] / 1024**2, 1),
+        "randread_iops": round(randread["read"]["iops"], 1),
+        "randread_p99_ms": fio_p99_ms(randread["read"].get("clat_ns", {})),
+        "syncwrite_iops": round(syncwrite["write"]["iops"], 1),
+        "syncwrite_p99_ms": fio_p99_ms(syncwrite.get("sync", {}).get("lat_ns", {})),
+    })
+
+
+def tool_output(cmd):
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=10, env={**os.environ, "LC_ALL": "C"})
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def memory_context():
+    """dmidecode の枚数と速度だけを取る(シリアルと型番は持たない)。root でないと読めない。"""
+    out = tool_output(["dmidecode", "-t", "memory"])
+    if not out:
+        return None
+    speeds, rated, count = [], [], 0
+    for block in out.split("\n\n"):
+        if not re.search(r"^Memory Device$", block, re.M) or re.search(r"^\s*Size: No Module", block, re.M):
+            continue
+        count += 1
+        match = re.search(r"^\s*Configured Memory Speed: (\d+)", block, re.M)
+        if match:
+            speeds.append(int(match.group(1)))
+        match = re.search(r"^\s*Speed: (\d+)", block, re.M)
+        if match:
+            rated.append(int(match.group(1)))
+    return {"count": count, "speed_mts": sorted(set(speeds)), "rated_mts": sorted(set(rated))}
+
+
+def collect_disks(node, disks):
+    if node.get("type") == "disk":
+        rota = node.get("rota")
+        disks.append({"model": (node.get("model") or "").strip(), "rotational": rota in (True, "1", 1),
+                      "transport": node.get("tran")})
+    for child in node.get("children", []):
+        collect_disks(child, disks)
+
+
+def disk_context():
+    """/ の下の実ディスク(LVM を通して)。シリアルは取らない。"""
+    source = tool_output(["findmnt", "-no", "SOURCE", "/"])
+    out = tool_output(["lsblk", "-J", "-s", "-o", "TYPE,ROTA,MODEL,TRAN", source]) if source else None
+    try:
+        nodes = json.loads(out)["blockdevices"]
+    except (TypeError, ValueError, KeyError):
+        return None
+    disks = []
+    for node in nodes:
+        collect_disks(node, disks)
+    return sorted(disks, key=lambda d: d["model"])
+
+
+def tool_version(cmd):
+    out = tool_output(cmd)
+    return out.splitlines()[0] if out else None
+
+
+def bench_context(root):
+    cpuinfo = read_text(f"{root}/proc/cpuinfo") or ""
+    match = re.search(r"^model name\s*:\s*(.+)$", cpuinfo, re.M)
+    profile = tool_output(["powerprofilesctl", "get"])
+    return drop_none({
+        "kernel": os.uname().release,
+        "bios": read_text(f"{root}/sys/class/dmi/id/bios_version"),
+        "bios_date": read_text(f"{root}/sys/class/dmi/id/bios_date"),
+        "cpu": match.group(1).strip() if match else None,
+        "cpus": os.cpu_count(),
+        "memory": memory_context(),
+        "disks": disk_context(),
+        "governor": read_text(f"{root}/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"),
+        "power_profile": profile,
+        "fio": tool_version(["fio", "--version"]),
+        "sysbench": tool_version(["sysbench", "--version"]),
+    })
+
+
+def context_key(context):
+    return json.dumps({k: v for k, v in context.items() if k not in CONTEXT_NOT_KEY}, sort_keys=True, ensure_ascii=False)
+
+
+def busy_reason(root):
+    loadavg = (read_text(f"{root}/proc/loadavg") or "").split()
+    cpus = os.cpu_count() or 1
+    if len(loadavg) >= 2 and float(loadavg[1]) / cpus >= MAX_LOAD_PER_CPU:
+        return f"load average(5 分)が {loadavg[1]}(CPU {cpus} 個)"
+    for kind in ("io", "memory"):
+        match = re.search(r"^some avg10=[\d.]+ avg60=([\d.]+)", read_text(f"{root}/proc/pressure/{kind}") or "", re.M)
+        if match and float(match.group(1)) >= MAX_PRESSURE_PCT:
+            return f"{kind} の圧迫(avg60)が {match.group(1)}%"
+    return None
+
+
+def others_cpu_usec(root):
+    """利用者の slice の CPU の累積の合計。自分のいる slice(sudo で手で測るときの sysadmin)は除く。"""
+    own = read_text(f"{root}/proc/self/cgroup") or ""
+    total = 0
+    for slice_dir in glob.glob(f"{root}/sys/fs/cgroup/user.slice/user-*.slice"):
+        if f"/{os.path.basename(slice_dir)}/" not in own:
+            total += stat_value(f"{slice_dir}/cpu.stat", "usage_usec") or 0
+    return total
+
+
+def last_ok_time(rows):
+    return max((r["t"] for r in rows if r.get("status") == "ok"), default=None)
+
+
+def cmd_bench(args):
+    log = f"{args.dir}/bench.jsonl"
+    now = time.time()
+    if args.if_due:
+        last = last_ok_time(load_jsonl(log))
+        # 日付で比べる(時刻で比べると、タイマーの揺らぎで 1 日遅れる)
+        if last and (datetime.date.fromtimestamp(now) - datetime.date.fromtimestamp(last)).days < BENCH_EVERY_DAYS:
+            return 0
+
+    def skipped(reason):
+        append_jsonl(log, {"t": int(now), "status": "skipped", "reason": reason})
+        print(f"測らなかった: {reason}", file=sys.stderr)
+        return 0 if args.if_due else 1
+
+    os.makedirs(args.dir, mode=0o755, exist_ok=True)
+    free = shutil.disk_usage(args.dir).free
+    if free < MIN_FREE_BYTES:
+        return skipped(f"ディスクの空きが {free / 1024**3:.1f}GiB")
+    reason = None if args.force else busy_reason(args.root)
+    if reason:
+        return skipped(reason)
+
+    lock = open(f"{args.dir}/bench.lock", "w", encoding="utf-8")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        print("別の測定が動いている", file=sys.stderr)
+        return 1
+
+    # タイマーの unit の停止や SSH の切断でも、finally で一時ファイルを消す
+    for sig in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(sig, lambda signum, frame: sys.exit(128 + signum))
+    # root で書くので、誰でも書ける /var/tmp には置かない(利用者が置いたリンクをたどらないため)
+    work = f"{args.dir}/bench-tmp"
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work, mode=0o700)
+    context = bench_context(args.root)
+    started = time.time()
+    others_before = others_cpu_usec(args.root)
+    try:
+        results = {
+            "cpu_1t_events_s": run_sysbench(1),
+            "cpu_all_events_s": run_sysbench(os.cpu_count() or 1),
+            "mem_mib_s": run_sysbench_memory(),
+            **run_disk_tests(work),
+        }
+    except BenchError as e:
+        append_jsonl(log, {"t": int(now), "status": "failed", "reason": str(e), "context": context})
+        print(f"測定に失敗した: {e}", file=sys.stderr)
+        return 1
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    elapsed = time.time() - started
+    others_cores = max(0, others_cpu_usec(args.root) - others_before) / 1e6 / max(elapsed, 1)
+    row = {"t": int(now), "status": "ok", "seconds": round(elapsed), "forced": bool(args.force),
+           "noisy": others_cores >= NOISY_CORES, "others_cores": round(others_cores, 3),
+           "results": results, "context": context}
+    append_jsonl(log, row)
+    print(json.dumps(results, ensure_ascii=False, indent=2))
+    return 0
+
+
+# --- report ---
+
+def percentile(values, q):
+    """最近傍の順位。values は小さい順。"""
+    return values[max(0, math.ceil(q / 100 * len(values)) - 1)]
+
+
+def time_text(t):
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(t))
+
+
+def summarize(points, low_is_worse=False):
+    """[(時刻, 値)] を p50・p95・最も悪い値とその時刻にまとめる。low_is_worse の項目の p95 は、悪い側の 5%(下から 5%)。"""
+    points = [(t, v) for t, v in points if isinstance(v, (int, float))]
+    if not points:
+        return None
+    values = sorted(v for _, v in points)
+    worst_t, worst = (min if low_is_worse else max)(points, key=lambda p: p[1])
+    return {"n": len(values), "p50": round(percentile(values, 50), 3),
+            "p95": round(percentile(values, 5 if low_is_worse else 95), 3),
+            "worst": round(worst, 3), "worst_at": time_text(worst_t)}
+
+
+def read_sar(sa_dir, now, days):
+    """sadf -j で読む。ホスト名(nodename)は捨てる。読めない・その日のものでないファイルは飛ばす(saDD は月をまたいで上書きされる)。"""
+    stats = []
+    today = datetime.date.fromtimestamp(now)
+    for offset in range(days, -1, -1):
+        day = today - datetime.timedelta(days=offset)
+        path = f"{sa_dir}/sa{day:%d}"
+        if not os.path.exists(path):
+            continue
+        out = tool_output(["sadf", "-j", path, "--", "-u", "-r", "-S", "-d", "-q", "ALL"])
+        try:
+            host = json.loads(out)["sysstat"]["hosts"][0]
+        except (TypeError, ValueError, KeyError, IndexError):
+            continue
+        if host.get("file-date") != day.isoformat():
+            continue
+        stats.extend(host.get("statistics", []))
+    return stats
+
+
+def sar_summary(stats, since):
+    series = {}
+
+    def add(name, t, value):
+        series.setdefault(name, []).append((t, value))
+
+    for row in stats:
+        ts = row.get("timestamp", {})
+        try:
+            t = calendar.timegm(time.strptime(f"{ts['date']} {ts['time']}", "%Y-%m-%d %H:%M:%S"))
+        except (KeyError, ValueError):
+            continue
+        if t < since:
+            continue
+        for cpu in row.get("cpu-load", []):
+            if cpu.get("cpu") == "all" and "idle" in cpu:
+                add("cpu_busy_pct", t, 100 - cpu["idle"])
+                add("cpu_iowait_pct", t, cpu.get("iowait"))
+        add("load_1m", t, row.get("queue", {}).get("ldavg-1"))
+        psi = row.get("psi", {})
+        add("psi_cpu_pct", t, psi.get("psi-cpu", {}).get("some_avg"))
+        add("psi_io_pct", t, psi.get("psi-io", {}).get("some_avg"))
+        add("psi_mem_pct", t, psi.get("psi-mem", {}).get("some_avg"))
+        memory = row.get("memory", {})
+        if isinstance(memory.get("avail"), (int, float)):
+            add("mem_avail_gib", t, memory["avail"] / 1024**2)
+        add("swap_used_pct", t, memory.get("swpused-percent"))
+        for disk in row.get("disk", []):
+            name = disk.get("disk-device", "")
+            if not name.startswith(("zram", "dm-", "loop")):  # 実ディスクだけ
+                add(f"disk_{name}_await_ms", t, disk.get("await"))
+                add(f"disk_{name}_util_pct", t, disk.get("util-percent"))
+    return {name: s for name, points in series.items()
+            if (s := summarize(points, low_is_worse=name == "mem_avail_gib"))}
+
+
+def load_samples(data_dir, since):
+    rows = []
+    for path in sorted(glob.glob(f"{data_dir}/samples-*.jsonl")):
+        rows.extend(r for r in load_jsonl(path) if r["t"] >= since)
+    return sorted(rows, key=lambda r: r["t"])
+
+
+def rate_points(rows, scale):
+    """累積の値 [(時刻, 値)] を、区間ごとの増え方にする。戻ったとき(再起動、cgroup の作りなおし)と、間が空いたときは捨てる。"""
+    points = []
+    for (t0, v0), (t1, v1) in zip(rows, rows[1:]):
+        if not isinstance(v0, (int, float)) or not isinstance(v1, (int, float)):
+            continue
+        if v1 < v0 or not 0 < t1 - t0 <= 3600:
+            continue
+        points.append((t1, (v1 - v0) / (t1 - t0) * scale))
+    return points
+
+
+def increase(values):
+    """累積の値の増えた分の合計。戻ったところは数えない。"""
+    values = [v for v in values if isinstance(v, (int, float))]
+    return sum(b - a for a, b in zip(values, values[1:]) if b > a)
+
+
+def samples_summary(rows):
+    gpus, users = {}, {}
+    for pci in sorted({p for r in rows for p in r.get("gpus", {})}):
+        gpu_rows = [(r["t"], r["gpus"][pci]) for r in rows if pci in r.get("gpus", {})]
+        awake = [(t, g) for t, g in gpu_rows if not g.get("suspended")]
+        out = {"samples": len(gpu_rows), "suspended_samples": len(gpu_rows) - len(awake)}
+        for key in ("busy", "power_w", "temp_c", "sclk_mhz"):
+            out[key] = summarize([(t, g.get(key)) for t, g in awake])
+        out["vram_used_mib"] = summarize([(t, g["vram_used"] / 1024**2) for t, g in awake if "vram_used" in g])
+        gpus[pci] = drop_none(out)
+    for name in sorted({u for r in rows for u in r.get("users", {})}):
+        user_rows = [(r["t"], r["users"][name]) for r in rows if name in r.get("users", {})]
+
+        def series(key):
+            return [(t, u.get(key)) for t, u in user_rows if key in u]
+
+        def gib(key):
+            return summarize([(t, v / 1024**3) for t, v in series(key)])
+
+        users[name] = drop_none({
+            "mem_gib": gib("mem"),
+            "swap_gib": gib("swap"),
+            "cpu_cores": summarize(rate_points(series("cpu_usec"), 1e-6)),
+            "psi_cpu_pct": summarize(rate_points(series("psi_cpu_us"), 1e-4)),
+            "psi_io_pct": summarize(rate_points(series("psi_io_us"), 1e-4)),
+            "psi_mem_pct": summarize(rate_points(series("psi_mem_us"), 1e-4)),
+            "shell_mem_gib": gib("shell_mem"),
+            "shell_swap_gib": gib("shell_swap"),
+            "shell_peak_gib": gib("shell_peak"),
+            "oom_kills": increase([v for _, v in series("oom_kill")]),
+        })
+    return {"samples": len(rows), "oom_kills": increase([r.get("oom_kill") for r in rows]), "gpus": gpus, "users": users}
+
+
+def bench_summary(data_dir, now, since):
+    rows = sorted(load_jsonl(f"{data_dir}/bench.jsonl"), key=lambda r: r["t"])
+    ok = [r for r in rows if r.get("status") == "ok" and isinstance(r.get("results"), dict) and isinstance(r.get("context"), dict)]
+    changes = []
+    for prev, cur in zip(ok, ok[1:]):
+        keys = sorted(set(prev["context"]) | set(cur["context"]))
+        diff = {k: {"from": prev["context"].get(k), "to": cur["context"].get(k)} for k in keys
+                if prev["context"].get(k) != cur["context"].get(k)}
+        if diff:
+            changes.append({"at": time_text(cur["t"]), "comparable": context_key(prev["context"]) == context_key(cur["context"]),
+                            "changed": diff})
+    latest = None
+    if ok:
+        last = ok[-1]
+        same = [r for r in ok[:-1] if not r.get("noisy") and context_key(r["context"]) == context_key(last["context"])]
+        compare = {}
+        for key, value in last["results"].items():
+            earlier = [r["results"][key] for r in same if isinstance(r["results"].get(key), (int, float))]
+            median = statistics.median(earlier) if earlier else None
+            compare[key] = {"value": value, "median_same_context": median,
+                            "diff_pct": round((value - median) / median * 100, 1) if median else None}
+        latest = {"at": time_text(last["t"]), "noisy": bool(last.get("noisy")), "forced": bool(last.get("forced")),
+                  "seconds": last.get("seconds"), "compared_with": len(same), "results": compare, "context": last["context"]}
+    not_ok = [{"at": time_text(r["t"]), "status": r.get("status"), "reason": r.get("reason")}
+              for r in rows if r.get("status") != "ok" and r["t"] >= since]
+    last_ok = ok[-1]["t"] if ok else None
+    return {"runs": [{"at": time_text(r["t"]), "noisy": bool(r.get("noisy")), "results": r["results"]} for r in ok],
+            "latest": latest, "days_since_last_ok": (now - last_ok) // 86400 if last_ok else None,
+            "changes": changes, "not_measured": not_ok}
+
+
+def build_report(args, now):
+    since = now - args.days * 86400
+    sar = sar_summary(read_sar(args.sa_dir, now, args.days), since)
+    return {"days": args.days, "from": time_text(since), "to": time_text(now), "system": sar,
+            "per_sample": samples_summary(load_samples(args.dir, since)),
+            "bench": bench_summary(args.dir, now, since)}
+
+
+def number(value):
+    return f"{value:g}" if isinstance(value, (int, float)) else "-"
+
+
+def print_stats(stats):
+    """項目ごとに p50・p95・最も悪い値・その時刻を出す。"""
+    width = max(len(name) for name in stats)
+    print(f"  {'項目'.ljust(width - 2)}  {'p50':>9} {'p95':>9} {'悪い値':>7}  時刻")
+    for name, s in stats.items():
+        print(f"  {name.ljust(width)}  {number(s['p50']):>9} {number(s['p95']):>9} {number(s['worst']):>9}  {s['worst_at']}")
+
+
+def print_report(report):
+    print(f"期間: {report['from']} 〜 {report['to']}({report['days']} 日)")
+    print("mem_avail_gib の p95 と悪い値は、少ない側の値")
+    print("\n[システム全体(sar)]")
+    if report["system"]:
+        print_stats(report["system"])
+    else:
+        print("  履歴なし")
+    per = report["per_sample"]
+    print("\n[GPU]")
+    if per["gpus"]:
+        for pci, gpu in per["gpus"].items():
+            print(f"  {pci}(休止していた記録 {gpu['suspended_samples']} / {gpu['samples']})")
+            print_stats({k: v for k, v in gpu.items() if isinstance(v, dict)})
+    else:
+        print("  履歴なし")
+    print("\n[利用者ごと]")
+    if per["users"]:
+        for name, user in per["users"].items():
+            print(f"  {name}(OOM で止まった数 {user.get('oom_kills', 0)})")
+            print_stats({k: v for k, v in user.items() if isinstance(v, dict)})
+    else:
+        print("  履歴なし")
+    print(f"\nカーネルの OOM killer が動いた数: {per['oom_kills']}")
+    bench = report["bench"]
+    print("\n[速さの測定]")
+    latest = bench["latest"]
+    if latest:
+        marks = "".join(f"、{m}" for m, on in (("ほかの負荷あり", latest["noisy"]), ("--force", latest["forced"])) if on)
+        print(f"  最後の成功: {latest['at']}({bench['days_since_last_ok']} 日前{marks})。同じ条件の過去の {latest['compared_with']} 回と比べる")
+        width = max(len(k) for k in latest["results"])
+        print(f"  {'項目'.ljust(width - 2)}  {'直近':>9} {'中央値':>7} {'差(%)':>7}")
+        for key, r in latest["results"].items():
+            print(f"  {key.ljust(width)}  {number(r['value']):>10} {number(r['median_same_context']):>10} {number(r['diff_pct']):>8}")
+    else:
+        print("  履歴なし")
+    for change in bench["changes"]:
+        label = "条件が変わった" if not change["comparable"] else "カーネルだけ変わった(比較は続ける)"
+        print(f"  {change['at']} {label}:")
+        for key, diff in change["changed"].items():
+            print(f"    {key}: {json.dumps(diff['from'], ensure_ascii=False)} → {json.dumps(diff['to'], ensure_ascii=False)}")
+    if bench["not_measured"]:
+        last = bench["not_measured"][-1]
+        print(f"  測らなかった回: {len(bench['not_measured'])}(最後: {last['at']} {last['status']} {last['reason']})")
+
+
+def cmd_report(args):
+    report = build_report(args, int(time.time()))
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=1))
+    else:
+        print_report(report)
+    return 0
+
+
+def days_arg(text):
+    value = int(text)
+    if not 1 <= value <= KEEP_DAYS:
+        raise argparse.ArgumentTypeError(f"1〜{KEEP_DAYS} で指定する")
+    return value
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="agent-host-perf", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    # 試験で疑似の /sys・/proc と記録の場所を渡す
+    parser.add_argument("--root", default="", help=argparse.SUPPRESS)
+    parser.add_argument("--dir", default=DATA_DIR, help=argparse.SUPPRESS)
+    parser.add_argument("--sa-dir", default=SA_DIR, help=argparse.SUPPRESS)
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("sample").set_defaults(func=cmd_sample)
+    bench = sub.add_parser("bench")
+    bench.add_argument("--if-due", action="store_true")
+    bench.add_argument("--force", action="store_true")
+    bench.set_defaults(func=cmd_bench)
+    report = sub.add_parser("report")
+    report.add_argument("--days", type=days_arg, default=7)
+    report.add_argument("--json", action="store_true")
+    report.set_defaults(func=cmd_report)
+    args = parser.parse_args(argv)
+    os.umask(0o022)  # 記録は利用者とエージェントが sudo なしで読む(sar の記録と同じ)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
