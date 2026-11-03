@@ -39,7 +39,7 @@
 - 手順書の PDF で、本文の余白や枠の外へはみ出していたところを直した(全体の構成と起動の流れの図、コマンドの枠の長い行、「0.2 から上げるとき」の段落、表の見出しの行の地の色)
 
 ### 確認した環境
-- エージェントのホスト(core)の QEMU/KVM の VM(CPU 2、メモリ 4GB、利用者 2 人の env)で `just vm-test`(ae54f66)の 9 項目がすべて通った。入れなおしから 2 人の RDP が待ち受けるまで人手なし、`just verify`(210 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くこと
+- エージェントのホストの QEMU/KVM の VM(CPU 2、メモリ 4GB、利用者 2 人の env)で `just vm-test`(ae54f66)の 9 項目がすべて通った。入れなおしから 2 人の RDP が待ち受けるまで人手なし、`just verify`(210 項目)・`just verify-rdp`(2 人)、電源を切ったあとの戻り、1 人目の gnome-shell を落としてその人だけ戻り 2 人目が続くこと
 - 同じ VM の利用者 2 人で、`mmdc` の SVG・PNG・PDF(PNG の日本語は目視で文字化けなし)と、`git flow` の init・feature start・finish。2 回目の just update で Mermaid CLI を入れなおさないこと
 - 未確認: 関数に寄せた vm-test の VirtualBox の版、PDF の日本語の目視
 
