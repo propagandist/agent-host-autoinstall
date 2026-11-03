@@ -56,6 +56,8 @@ add_user_paths() {
     #     実際に探し、見つけたパスだけを除く。.git の中は見ない。dist・target・.cache などのビルドの出力は除かない
     anchored_excludes=(
         "$home/.config/orca/*Cache" "$home/.config/orca/Crashpad" "$home/.config/orca/*Shared Dictionary"
+        # 動いている Orca の印。書き出し元の機械の pid などが入っていて、移すと取り込み先で起動しない(Issue #52)
+        "$home/.config/orca/orcad.lock" "$home/.config/orca/Singleton*"
         "$home/.config/gcloud/logs"
     )
     printf '%s\n' "${anchored_excludes[@]}" >"$work/anchored.$AGENT_USER"
