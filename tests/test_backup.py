@@ -64,6 +64,10 @@ class TestBackupExcludes(unittest.TestCase):
         write(f"{HOME}/.config/orca/Cache/data_0")
         write(f"{HOME}/.config/orca/Partitions/p/Code Cache/js/index")
         write(f"{HOME}/.config/orca/Preferences", "{}\n")
+        # 動いている Orca の印(Issue #52)
+        write(f"{HOME}/.config/orca/orcad.lock", "{}\n")
+        if not os.path.lexists(f"{HOME}/.config/orca/SingletonLock"):  # TestRestore からもう一度呼ばれる
+            os.symlink("old-host-123", f"{HOME}/.config/orca/SingletonLock")
         # クラウドの CLI と Gitea CLI のログイン(Issue #7)
         write(f"{HOME}/.aws/config")
         write(f"{HOME}/.config/gcloud/credentials.db")
@@ -84,7 +88,8 @@ class TestBackupExcludes(unittest.TestCase):
         run("runuser", "-u", "agent", "--", "ln", "-sfn", "/srv/ah-711", f"{HOME}/.local/share")
         # rootless Docker のコンテナが作ったデータのように、~/work の中に利用者の読めないディレクトリがある
         write(f"{WORK}/proj/pgdata/base/1")
-        run("chown", "-R", "100998:100998", f"{WORK}/proj/pgdata")
+        # 持ち主は別の UID なら何でもよい。rootless Docker の中の試験でも chown できるよう、65536 より小さくする
+        run("chown", "-R", "59998:59998", f"{WORK}/proj/pgdata")
         os.chmod(f"{WORK}/proj/pgdata", 0o700)
         out = tempfile.mkdtemp()
         cls.archive = os.path.join(out, "backup.tar.zst")
@@ -113,6 +118,7 @@ class TestBackupExcludes(unittest.TestCase):
     def test_rebuildable_are_excluded(self):
         for path in (f"{WORK}/proj/node_modules", f"{WORK}/proj/src/__pycache__", f"{WORK}/proj/.venv",
                      f"{HOME}/.config/orca/Cache", f"{HOME}/.config/orca/Partitions/p/Code Cache",
+                     f"{HOME}/.config/orca/orcad.lock", f"{HOME}/.config/orca/SingletonLock",
                      f"{HOME}/.config/gcloud/logs"):
             with self.subTest(path=path):
                 self.assertFalse(self.has(path), path)
@@ -184,6 +190,31 @@ class TestRestore(unittest.TestCase):
         finally:
             os.remove(f"{HOME}/.config")
             os.rename(f"{HOME}/.config.keep", f"{HOME}/.config")
+
+    def test_orca_lock_in_old_archive_is_not_restored(self):
+        # 印を除く前の書き出し(書庫に orcad.lock と SingletonLock がある)から取り込んでも、印は置かない(Issue #52)
+        src = tempfile.mkdtemp()
+        try:
+            manifest = os.path.join(src, "agent-host-manifest.txt")
+            write(manifest, f"hostname=old\ndate=now\nuid.agent={pwd.getpwnam('agent').pw_uid}\n"
+                            f"home.agent={HOME.lstrip('/')}\npath={HOME.lstrip('/')}/.config/orca\n")
+            orca = os.path.join(src, HOME.lstrip("/"), ".config", "orca")
+            write(os.path.join(orca, "orcad.lock"), '{"pid": 1}\n')
+            write(os.path.join(orca, "kept"), "x\n")
+            os.symlink("old-host-123", os.path.join(orca, "SingletonLock"))
+            archive = os.path.join(src, "old.tar.zst")
+            run("tar", "--zstd", "-cf", archive, "--owner=0", "--group=0", "-C", src,
+                "agent-host-manifest.txt", HOME.lstrip("/"))
+            for name in ("orcad.lock", "SingletonLock", "kept"):
+                if os.path.lexists(f"{HOME}/.config/orca/{name}"):
+                    os.remove(f"{HOME}/.config/orca/{name}")
+            r = restore(archive)
+            self.assertEqual(r.returncode, 0, r.stderr)
+            self.assertTrue(os.path.exists(f"{HOME}/.config/orca/kept"))
+            self.assertFalse(os.path.lexists(f"{HOME}/.config/orca/orcad.lock"))
+            self.assertFalse(os.path.lexists(f"{HOME}/.config/orca/SingletonLock"))
+        finally:
+            shutil.rmtree(src)
 
     def test_work_dir_is_on_var_tmp(self):
         # 書き出しは /tmp(tmpfs)ではなく /var/tmp に置き、終わったら残さない(Issue #51)。

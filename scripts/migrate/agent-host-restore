@@ -69,7 +69,10 @@ restore_home() {
     local home rc=0
     home="$(sed -n "s/^home\.$AGENT_USER=//p" "$manifest")"
     grep -q "^path=$home/" "$manifest" || return 0
-    agent_run tar --zstd -i -xpf - -C / --anchored "$home" <"$work/backup.tar.zst" || rc=$?
+    # Orca の印は、印を除く前の書き出しにも入っているので、ここでも展開しない(Issue #52)
+    agent_run tar --zstd -i -xpf - -C / --anchored \
+        --exclude="$home/.config/orca/orcad.lock" --exclude="$home/.config/orca/Singleton*" \
+        "$home" <"$work/backup.tar.zst" || rc=$?
     chmod 700 "$AGENT_HOME"
     if [ "$rc" -ne 0 ]; then
         echo "[agent-host] 注意: $AGENT_USER の取り込みで tar が $rc で終わった(上のエラーを見る)" >&2
