@@ -496,6 +496,21 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Xwayland のアプリの入力: `XMODIFIERS=@im=ibus` は gnome-session が自分で入れている(`/usr/bin/gnome-session` に文字列がある)。ibus のパッケージの `/etc/xdg/Xwayland-session.d/10-ibus-x11` が Xwayland が立つたびに ibus-x11 を起動し、fcitx5 は「Failed to open xim, retrying」を出す。0.3.2 より後に ibus のパッケージを消した(下の「つないでいないセッションで Orca と gnome-shell が CPU を使い続ける」)
 - 未確認: 新しく入れたときに gnome-shell が fcitx5 につなぐこと(RDP の画面での入力)、just update で動いているセッションがその場で fcitx5 に替わること、gsd-keyboard が IBus の mozc-jp を足さないこと(ibus-mozc を消したあと)、上流(mutter・gnome-remote-desktop・gnome-shell)への報告
 
+### システムの資源を減らす(2026-10-28〜11-03、VirtualBox と QEMU/KVM で確認、#44)
+
+今の構成(Ubuntu Desktop 26.04 + 利用者ごとのヘッドレスの GNOME + gnome-remote-desktop)のまま、仕組みを増やさずに、システムが使うメモリと CPU を減らす。OS の乗せ換えは #45 で別に確かめる。物差しは `just footprint <ホスト> [秒]`(cgroup ごとの memory.current と、その秒数の CPU の平均。memory.current はページキャッシュを含む)。
+
+- 止めたもの: gnome-settings-daemon の 10 個(A11ySettings・Color・Datetime・Housekeeping・Rfkill・ScreensaverProxy・Sharing・Sound・UsbProtection・Wacom。`mask_user_units`)、Ubuntu が既定で有効にする拡張機能の 5 つ(デスクトップのアイコン、Tiling Assistant、snapd-prompting、snapd の検索、ウェブ検索。`org.gnome.shell disabled-extensions`)、appstream・packagekit(消す。packagekit は dpkg を動かすたびに起こされて常駐していた)、Ubuntu Pro の apt-news・esm-cache(apt update のたびに python が動く)、Chrome の後ろでの常駐(`BackgroundModeEnabled`)。journald の記録は 1GB まで。ibus のパッケージも消した(下の #50・#42 の節)
+- 残したもの: gsd の Keyboard・MediaKeys(Ctrl+Alt+T)・Power・XSettings(Xwayland のアプリ)、Dock、AppIndicator(fcitx5 のアイコン)、PipeWire・ポータル・キーリング(RDP の画面の取得とファイルのダイアログ)。Sharing と Sound を止めても RDP がつながり、`just verify-rdp` が通った
+- 数字(利用者 2 人、メモリ 4GB、CPU 1、誰もつながない):
+  - 止める前(VirtualBox、10-28 のビルド): 使用 1673MB、system.slice 317MB、利用者ごとの session.slice 約 290MB、GDM のログイン画面(gdm-greeter)596MB。user.slice の CPU は 110%(下の #50 の空回り)
+  - gsd と拡張機能などを止めたあと(VirtualBox、3355a73): 使用 1633MB、session.slice 297・314MB、gdm-greeter 542MB。メモリはほとんど変わらなかった(止めたものは 1 つずつが小さい)
+  - Orca を X11 にし ibus を消したあと(core の QEMU/KVM、4e1607d、再起動して 10 分): user.slice の CPU は 2.4%、pidstat で 1% を超えるプロセスはなかった。system.slice 206MB、session.slice 330・276MB、gdm-greeter 436MB。使用 2074MB は上より多いが、VM の道具・起動してからの時間・rootless Docker のイメージ(alice の docker.service 239MB)が違い、比べられない
+  - 1 人が RDP でつないで何もしないとき(同じ QEMU の VM): つないだ人の session.slice が 330 → 472MB(gnome-shell が 259 → 400MB)、gnome-remote-desktop が 16 → 45MB
+- 分かったこと: 効いたのは CPU で、つないでいないセッションの空回り(1 人あたり CPU の約半分)がなくなった。メモリは、gsd と拡張機能を止めても数十 MB で、1 人あたりの大きいものは Orca(約 0.5〜1GB。本体・描画・GPU のプロセス)と gnome-shell(約 200MB)と rootless Docker(約 75〜240MB)
+- 次の候補(大きい順。どれもまだ試していない): GDM のログイン画面(誰もログインしないのに gnome-shell・mutter-x11-frames・fcitx5 で約 420〜600MB)、mutter-x11-frames(Xwayland のある利用者ごとに約 114MB)、MGLRU の `min_ttl_ms`、zram の大きさ、rootless Docker を使うときだけ起動すること(仕組みが増えるので相談してから)
+- 未確認: 実機での数字。止めた gsd で、RDP の音とアクセシビリティの設定が使えなくなること(使わない前提)
+
 ### つないでいないセッションで Orca と gnome-shell が CPU を使い続ける(2026-11-02、VirtualBox で確認、#50・#42)
 
 VirtualBox の VM(CPU 1 つ、メモリ 4GB、利用者 2 人、gnome-shell 50.1、Orca 1.4.237、fcitx5 5.1.19)で、#44 の基準の値を取っていて見つけた。
@@ -508,6 +523,7 @@ VirtualBox の VM(CPU 1 つ、メモリ 4GB、利用者 2 人、gnome-shell 50.1
 - Xwayland は、fcitx5 が DISPLAY を持って X11 につなぐので、これまでも利用者ごとに起動していた(つないでいたのは fcitx5・gnome-shell・gsd-xsettings・ibus-x11・mutter-x11-frames だけ)。Orca を X11 にしたので、これからは外せない
 - 試してやめたこと: gnome-shell に `--virtual-monitor` を付けて起動のときから画面を持たせると、空回りは止まった。しかしヘッドレスの gnome-remote-desktop は、つなぐたびに自分の仮想モニター(Meta-1)を足し(`screen-share-mode` が `mirror-primary` でも同じ)、RDP には壁紙だけの 2 枚目の画面が出て、Orca とパネルは見えない 1 枚目の側に残った
 - just update で上げたホスト: 利用者の systemd は動き続けるので、前に受け取った `XMODIFIERS=@im=ibus` を再起動まで持ち続ける。動いている ibus-x11 も、セッションを立てなおすまで残る
+- 2026-11-03、core の QEMU/KVM の VM(CPU 1、4e1607d)で、再起動して誰もつながないまま 10 分おいて `pidstat -u 20 1` を取った。1% を超えるプロセスはなく(gnome-shell 0.15〜0.20%、orca-ide 最大 0.25%)、mpstat の idle は 90.68%(iowait 7.41%)
 - 未確認: 実機での空回りと、直したあとの CPU。X11 の Orca での HiDPI の表示、クリップボード、ファイルのダイアログ
 
 ### mstsc の資格情報の画面の PIN と指紋(2026-10-27)

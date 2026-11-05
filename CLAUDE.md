@@ -14,7 +14,7 @@ AGENTS.md                   # ほかのエージェント向けに CLAUDE.md を
 LICENSE                     # Apache License 2.0(標準の全文のまま。書き足さない)
 NOTICE                      # 著作権者の表示(手順書の PDF の発行者もここから入れる)
 icon.png                    # Orca がプロジェクトを登録するときに拾うアイコン(256×256 の PNG。元は docs/icon.svg)
-justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・更新・移行、手順書の PDF とはみ出しの検査、リリース前の確認)。just で一覧
+justfile                    # 手元の PC での作業(ISO の作成、検査、ホストの状態・資源の使い方・更新・移行、手順書の PDF とはみ出しの検査、リリース前の確認)。just で一覧
 CHANGELOG.md                # 変更の記録(版ごと)
 .github/workflows/release.yml # タグの push で手順書の PDF を作り GitHub Release に付ける
 autoinstall/

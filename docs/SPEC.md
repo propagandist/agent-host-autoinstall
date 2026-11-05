@@ -47,7 +47,7 @@ LAN の RDP クライアント → :<その人の port> → その人のデス�
 ## 5. 機能要件
 
 ### 5.1 OS インストール(autoinstall)
-- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力・言語パック・日本語フォントは、インストーラーが入れないことがあったので 76-desktop.sh で入れる。日本語入力は fcitx5 と fcitx5-mozc にし、インストーラーが入れる ibus-mozc は消して、IBus のデーモン(user の `org.freedesktop.IBus.session.GNOME.service`)を全員で mask する。RDP の半角/全角キーが押しっぱなしで届くと、IBus の Mozc では gnome-shell がメモリを漏らしてホストが固まるため。#36・#21、docs/notes.md)
+- ロケール `ja_JP.UTF-8`、タイムゾーン `Asia/Tokyo`(日本語入力・言語パック・日本語フォントは、インストーラーが入れないことがあったので 76-desktop.sh で入れる。日本語入力は fcitx5 と fcitx5-mozc にし、インストーラーが入れる ibus-mozc と ibus は消し(ibus があると gnome-session が X11 のアプリの入力を IBus に向ける。#42)、IBus のデーモン(user の `org.freedesktop.IBus.session.GNOME.service`)を全員で mask する。RDP の半角/全角キーが押しっぱなしで届くと、IBus の Mozc では gnome-shell がメモリを漏らしてホストが固まるため。#36・#21、docs/notes.md)
 - キーボード配列は env.yaml の `keyboard_layout`(`us` / `jp`)で台ごとに決める。RDP ではキーの位置がそのまま送られ、ホスト側の配列で文字になるので、RDP で使う人のキーボードに合わせる
 - ストレージは LVM、ディスク全体を使用(`sizing-policy: all`。既定の scaled はボリュームグループの半分ほどを空けて残す。暗号化はしない。§8 参照)
 - ネットワークは env.yaml の `network` で、DHCP か固定 IP(アドレス、ゲートウェイ、DNS、検索ドメイン)を台ごとに決める。インストール中もこの設定で通信し、インストール後は NetworkManager が管理する
@@ -91,7 +91,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
 - UPS(任意。env.yaml の `ups`):NUT で見る。`usb` はこの PC につないだ UPS をドライバーで読み(upsd は 127.0.0.1 だけ)、`netclient` はほかの機器の NUT サーバーを見る。バッテリーが少なくなるか、NUT サーバーが終了を指示したら正しく終了する。`usb` では終了の最後に UPS の出力を止め、電源が戻ったら UPS が出力を戻し、BIOS の「電源が戻ったら起動」で起動する(そのあとは利用者ごとのセッションと RDP まで人手なしで戻る)。停電・復電・まもなく終了などを `agent-notify` で知らせる
 - IP Messenger の通知先は、ユーザー名・PC 名・ニックネームか IP で指定する。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く)
-- サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。利用者のセッションのファイルの索引作り、予定表、Xwayland の常時起動などを止める。snap と snapd(apt でも入らないように止める)、kdump、使わないパッケージ(画面の読み上げ・点字、印刷のドライバー、sssd、VPN・モデム、Bluetooth、中国語の入力、whoopsie・apport・ubuntu-report・ubuntu-insights)を消す。cups 本体はデスクトップのまとめの必須なので、消さずに止める
+- サービスは最小限にする:印刷、avahi、ModemManager、Bluetooth、root の containerd、rsyslog などを mask する。Canonical への利用状況の送信(ubuntu-insights)と定期の取得を止める。利用者のセッションのファイルの索引作り、予定表と、使わない gnome-settings-daemon(アクセシビリティ、色、時刻、ディスクの警告、機内モード、スクリーンセーバーの口、共有、音、USB の保護、ペンタブレット)を止め、Ubuntu が既定で有効にする拡張機能のうちデスクトップのアイコン・タイル配置・snap とウェブの検索を止める。Ubuntu Pro の APT News と ESM の取得を止め、Chrome は窓を閉じたら後ろに残さない。journald の記録は 1GB まで。snap と snapd(apt でも入らないように止める)、kdump、使わないパッケージ(画面の読み上げ・点字、印刷のドライバー、sssd、VPN・モデム、Bluetooth、中国語の入力、whoopsie・apport・ubuntu-report・ubuntu-insights、ソフトウェアセンター向けの appstream・packagekit)を消す。cups 本体はデスクトップのまとめの必須なので、消さずに止める
 - 資源の最適化:zram(メモリの半分。vm.swappiness 180、vm.page-cluster 0)、電源のプロファイル performance(ない機種では balanced のまま)、RDP の画面の符号化を GPU に任せる(gnome-remote-desktop の Vulkan と VA-API による H.264。Intel は VA-API の full 版、AMD は Mesa、NVIDIA はインストールの中でプロプライエタリ ドライバーを入れて NVENC)、Docker の通信は pasta・ログは 10MB×3・週 1 回の掃除、ディスクの使用率 85% 超を通知、GRUB の待ちを 5 秒、起動画面(splash)を出さない、構成の最後に apt のキャッシュと古いダウンロードを消す
 - デスクトップ:端末は Xfce Terminal(右クリックで貼り付け、選択でコピー)、Caps Lock は無効(caps:none)、クリップボードの履歴は Clipboard Indicator、PDF は Atril(既定のアプリ)、スクリーンショットに Ctrl+Shift+Alt+S、アニメーションなし、壁紙は env.yaml の desktop_color の単色、Dock を絞る、Chrome の利用統計・パスワードの保存を止める
 - 移行:agent-host-backup / agent-host-restore で、ホストの身元・利用者全員のログインと設定・~/work を移す(ホームの分は書き出しも取り込みも利用者の権限で行う。取り込みはこのホストの users にいる名前の分だけ。RDP の認証情報もホームごと移る)(ツールの本体、Docker のイメージ、Chrome のプロファイルは移さない。~/work からは実際に見つけた node_modules・__pycache__・.venv だけを除き、名前だけでは除かない)
