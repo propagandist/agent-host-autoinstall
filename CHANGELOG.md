@@ -29,6 +29,7 @@
 ### 修正
 - 移行で `~/.config/orca/orcad.lock` が一緒に移り、取り込んだあと Orca が「another machine」のダイアログで起動しなかった。書き出しで `orcad.lock` と `Singleton*`(同じ種類の印で、機械の名前が入る)を除き、取り込みでも、すでにある書庫から展開しない。これまでの手での削除は要らない(#52)
 - `just restore` が、メモリの半分より大きい書き出しを取り込めなかった(`No space left on device`)。取り込みは書き出しを丸ごと置いてから展開するが、置き場所が tmpfs の `/tmp` だった。ディスクの上の `/var/tmp` に置く。手順書に、取り込むホストのディスクには書き出しの大きさに加えて展開する分の空きが要ることを書いた(#51)
+- HDD のホストで `just vm-test` が上限の 120 分を超えた。QEMU のディスクを `cache=unsafe` にし(使い捨ての VM なので、ゲストの fsync をホストのディスクまで届けない)、入れなおしから構成の終わりまでが約 29 分になった(#66)
 - Linux の手元で `just verify-rdp` が試験用の VM につながらなかった(Docker の中の FreeRDP が `host.docker.internal` を引けない)。手元が Linux なら Docker を `--network host` で動かす。`vm-test.sh` に実行の権限がなく Linux の just から動かなかったので付けた(#35)
 - 65-docker.sh の subuid/subgid のコメントが「手で決める」になっていた。実際は useradd が割り当てるので、そう直した(#29)
 - README の「秘密情報が入るファイル」に、ホストの `/opt/agent-host/users/`(利用者ごとの値。RDP の仮のパスワードを含む)が抜けていた。足した(手順書には書いてあった)

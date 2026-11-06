@@ -155,7 +155,9 @@ qemu_poweroff() {
     return 1
 }
 # qemu_start [<ISO>]: ディスクを先に、ISO を後に起動の順に入れる(VirtualBox の boot1 disk・boot2 dvd と同じ)。
-# 空のディスクからは起動できないので ISO から入り、入れたあとはディスクから起動する
+# 空のディスクからは起動できないので ISO から入り、入れたあとはディスクから起動する。
+# ディスクは cache=unsafe(ゲストの fsync をホストのディスクまで届けない)。使い捨ての VM なので、ホストが落ちたときに
+# 壊れてもよい。HDD のホストでは、入れなおしから構成の終わりまでが約 120 分から約 29 分になった(docs/notes.md。#66)
 qemu_start() {
     local fwd="" p
     for p in "${rdp_ports[@]}"; do fwd+=",hostfwd=tcp:127.0.0.1:$((p + AGENT_HOST_RDP_PORT_OFFSET))-:$p"; done
@@ -163,7 +165,7 @@ qemu_start() {
         -name "$name" -enable-kvm -machine q35 -cpu host -smp "$cpus" -m "$memory"
         -drive "if=pflash,format=raw,readonly=on,file=$ovmf_code"
         -drive "if=pflash,format=raw,file=$qdir/OVMF_VARS.fd"
-        -device "virtio-blk-pci,drive=disk,bootindex=1" -drive "if=none,id=disk,format=qcow2,file=$qdir/disk.qcow2"
+        -device "virtio-blk-pci,drive=disk,bootindex=1" -drive "if=none,id=disk,format=qcow2,cache=unsafe,file=$qdir/disk.qcow2"
         -netdev "user,id=net0,hostfwd=tcp:127.0.0.1:$ssh_port-:22$fwd" -device "virtio-net-pci,netdev=net0"
         -device virtio-rng-pci
         -display none -serial "file:$qdir/serial.log" -daemonize -pidfile "$qdir/qemu.pid"
