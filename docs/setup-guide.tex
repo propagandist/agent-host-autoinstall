@@ -278,7 +278,7 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
   \item 遠隔操作: GNOME のリモート デスクトップ(RDP)。利用者ごとに画面のない(ヘッドレスの)GNOME のセッションを立て、
         それぞれ自分のポート(env.yaml の \code{users[].port}。例 3389、3390)で待ち受ける。モニターは要らない
   \item 管理: SSH(\code{sysadmin} ユーザー、鍵認証のみ)
-  \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI
+  \item エージェント: Orca(ADE)、Claude Code、Codex、選択で OpenCode・GitHub Copilot CLI・Antigravity CLI。選択でローカル LLM(Ollama)
   \item 開発環境: Node.js、Python(uv)、mise、rootless Docker、GitHub CLI、Gitea CLI、Google Chrome、
         エディター(選択。拡張機能も入る)、クラウドの CLI(選択。AWS・Google Cloud・Azure)
   \item 通知: Slack と IP Messenger(承認待ち・エラー・完了)
@@ -384,7 +384,7 @@ gh auth status           # RDP で入った自分(利用者)のデスクトッ�
 \section{入っている主なアプリケーション}\label{sec:apps}
 %======================================================================
 構成が終わったホストに入っている主なものと、このホストでの使い方。
-版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds} で選んだときだけ入る。
+版は付録 A、置き場所は付録 B にある。「選択」は env.yaml の \code{agents}、\code{editors}、\code{clouds}、\code{llm} で選んだときだけ入る。
 
 {\small
 \begin{longtable}{P{0.25}P{0.48}P{0.27}}
@@ -400,6 +400,7 @@ CCManager & 複数の Claude Code・Codex のセッションを、worktree ご�
 OpenCode(選択) & 使うモデルを選べるオープンソースのコーディングエージェント & \code{opencode} \\
 GitHub Copilot CLI(選択) & GitHub のコーディングエージェント(端末で動く) & \code{copilot} \\
 Antigravity CLI(選択) & Google のコーディングエージェント(端末で動く) & \code{agy} \\
+Ollama(選択) & ローカル LLM のサーバー。Claude Code・Codex・OpenCode から使う & \code{claude-local} など(9 章) \\
 \addlinespace
 \multicolumn{3}{@{}l}{\headstyle\color{accent}クラウドの CLI(選択)} \\
 AWS CLI & AWS の操作 & \code{aws} \\
@@ -559,6 +560,10 @@ just check-env common.yaml hosts/agent-host-01.yaml
 \code{zed_extensions} & Zed に足す拡張機能(zed.dev の ID。版は指定できず、次に Zed を起動したときの最新が入り、その後は更新しない) \\
 \code{agents} & 追加のエージェント: \code{opencode}、\code{copilot}、\code{antigravity} \\
 \code{clouds} & クラウドの CLI: \code{aws}、\code{gcp}、\code{azure}(合わせて約 1.8GB) \\
+\code{llm.mode} & ローカル LLM: \code{none}(既定)、\code{local}(このホストで Ollama を動かす。127.0.0.1 だけ。メモリを多く使う)、\code{remote}(LAN の Ollama のサーバーにつなぐだけ) \\
+\code{llm.url}・\code{llm.api_key} & remote のときのサーバーの URL(\code{/v1} は付けない)と、要るなら API キー(秘密情報) \\
+\code{llm.models} & local は構成のときに取得するモデル(まだないものだけ。その後は更新しない)、remote はサーバーにあるモデル。既定のモデルは \code{llm.default_model}(空なら先頭) \\
+\code{llm.context_length} & local の文脈の長さ(既定 65536。エージェントには 64k 以上が要り、長いほどメモリを使う) \\
 \code{vm} & \code{true} にすると QEMU/KVM と UEFI のファームウェアを入れ、利用者を kvm のグループに入れる。エージェントがこのホストで \code{just vm-test} を回すときだけ(VM 1 台でメモリ 4GB ほど)。既定は \code{false} \\
 \code{notify.slack_webhook_url} & Slack の Incoming Webhook の URL(秘密情報)。空なら送らない \\
 \code{notify.ipmsg_to} & IP Messenger で知らせる相手。ユーザー名・PC 名・ニックネームか IP。名前は送るたびに LAN へブロードキャストして探す(DHCP で IP が変わっても届く) \\
@@ -762,6 +767,7 @@ VirtualBox(CPU 1、メモリ 4GB)ではインストールに約 50 分かかっ�
 \code{60-devtools.sh} & 開発の道具、Node.js、Codex、CCManager、Mermaid CLI、Claude Code、GitHub CLI、Gitea CLI、uv、mise \\
 \code{62-agents.sh} & 選んだ追加のエージェント \\
 \code{63-clouds.sh} & 選んだクラウドの CLI(利用状況の送信を止め、AWS の出力をページャーに渡さない) \\
+\code{64-llm.sh} & env.yaml の \code{llm}。local は Ollama を動かしてモデルを取得し、local・remote とも \code{claude-local} と Codex・OpenCode の設定を置く。none は Ollama を止め、設定から外す \\
 \code{65-docker.sh} & Docker と、利用者ごとの rootless Docker \\
 \code{66-vm.sh} & env.yaml の \code{vm} を選んだら QEMU/KVM と UEFI のファームウェア(ovmf-generic)、\code{sg}(util-linux-extra)を入れ、利用者を kvm に入れる。選ばなくなったら kvm から外す(道具は消さない) \\
 \code{70-orca.sh} & Orca と、利用者ごとの自動起動 \\
@@ -909,6 +915,14 @@ copilot                 # Copilot CLI: 起動して /login → デバイスコ�
 agy                     # Antigravity CLI: 表示された URL を開き、得たコードを貼り付ける
 \end{term}
 Antigravity CLI のテレメトリは、アカウントの設定(\code{/config})で切り替える。
+
+ローカル LLM(env.yaml の \code{llm} を書いたとき)はログインが要らない。エージェントの既定はそのままで、使うときだけ選ぶ。
+\begin{term}
+claude-local            # Claude Code をローカル LLM で起動する
+codex --profile local   # Codex をローカル LLM で起動する
+ollama list             # local のとき: 取得したモデル
+\end{term}
+OpenCode は \code{/models} で \code{agent-host-llm/<名前>} を選ぶ。
 
 \subsection{GitHub・Gitea の認証(push する場合)}
 GitHub は gh で認証する。
@@ -1120,7 +1134,7 @@ env.yaml を直したとき、スクリプトや固定するバージョン(ス�
 OS を入れなおさずに反映できる。
 \begin{caution}
 版を固定したソフト(apt で hold した Claude Code、Docker、GitHub CLI、Orca、VS Code、Google Cloud CLI、Azure CLI、
-/opt に置いた Node.js・Gitea CLI・uv・mise・Zed・AWS CLI・Antigravity CLI、npm で入れたツール、VS Code の拡張機能)には、セキュリティ更新が自動では入らない。各ソフトのセキュリティ情報を見て、
+/opt に置いた Node.js・Gitea CLI・uv・mise・Zed・AWS CLI・Antigravity CLI・Ollama、npm で入れたツール、VS Code の拡張機能)には、セキュリティ更新が自動では入らない。各ソフトのセキュリティ情報を見て、
 スクリプトの先頭の版を上げ、ここの手順で反映する(付録 A に固定している版の一覧がある)。
 \end{caution}
 \begin{local}
@@ -1135,6 +1149,7 @@ env.yaml の項目 & just update で & 注記 \\
 \code{users} & 反映する & 足した人は作ってセッションを立てる。外した人はユーザーとホームを残して止める(\ref{sec:users} 節)。\code{rdp.initial_password} は、その人に RDP の認証情報がまだないときだけ入る(本人が変えた値は上書きしない) \\
 \code{desktop_color} & 反映する(セッション) & セッションが動いていればその場で、そうでなければ次にセッションが立つときに(Dock も) \\
 \code{editors}・\code{agents}・\code{clouds}・拡張機能 & 足すだけ & 外しても消さない \\
+\code{llm} & 反映する & local は Ollama を動かしなおし、まだないモデルを取得する(外したモデルは消さない)。none に戻すと Ollama を止め、エージェントの設定から外す \\
 \code{vm} & 反映する & \code{false} に戻すと利用者を kvm から外す(入れた道具は消さない)。kvm のグループは次のログインから効く \\
 \code{lan_cidrs}・\code{dev_ports} & 足すだけ & ufw の許可は外しても消えない \\
 ほか(\code{proxy}・\code{ca_certs}・\code{notify}・\code{ups} など) & 反映する & 利用者の環境変数は、次にセッションが立つときに効く \\
@@ -1182,7 +1197,7 @@ env.yaml の \code{users} を直して \code{just update} する。\code{port} �
 
 \subsection{環境を入れ替える(OS の入れなおし、機種の交換)}
 ホストの身元(SSH のホスト鍵、RDP の証明書)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、\code{~/work} と Orca の worktree を移す。
-ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。
+ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイル、ローカル LLM のモデルは移さない(作りなおせる)。
 \code{~/work} の中の \code{node_modules}・\code{__pycache__}・\code{.venv} と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。\code{npm install} や \code{uv sync} で作りなおす)。
 ほかの名前(\code{dist}、\code{target} など)は、ビルドの出力でも除かない。
 利用者全員のホームを書き出し、取り込むのは新しいホストの env.yaml の \code{users} にいる名前の分だけ(同じ名前で合わせる)。
@@ -1316,6 +1331,8 @@ mise & 2026.10.18 & リリースの tar(SHA256) \\
 OpenCode & 1.19.4 & npm \\
 GitHub Copilot CLI & 1.0.103 & npm \\
 Antigravity CLI & 1.4.6 & リリースの tar(SHA256) \\
+Ollama & 0.40.13 & リリースの tar(SHA256) \\
+Ollama のモデル & 固定しない & ollama.com(初めて取得したときの版。その後は更新しない) \\
 AWS CLI & 2.38.5 & 公式の zip(PGP 署名を確かめた SHA256) \\
 Google Cloud CLI & 590.0.1 & Google の apt、hold \\
 Azure CLI & 2.91.0 & Microsoft の apt、hold \\
@@ -1356,6 +1373,12 @@ NVIDIA のドライバー(NVIDIA の GPU があるとき) & Ubuntu が推奨す�
 \code{/opt/agent-host/verify.sh} & 仕様どおりかを確かめる(\code{just verify} と同じ) \\
 \code{/etc/nut/} & UPS の設定(env.yaml の \code{ups} を書いたとき。root と nut だけが読める) \\
 \code{/etc/agent-host/notify.env} & 通知の送り先(root:agent-host-users、640) \\
+\code{/etc/agent-host/llm.env} & ローカル LLM の接続先と API キー(env.yaml の \code{llm} を書いたとき。root:agent-host-users、640) \\
+\code{/usr/local/bin/claude-local} & Claude Code をローカル LLM で起動する \\
+\code{agent-host-ollama.service} & Ollama(llm.mode が local のとき) \\
+\code{/opt/ollama-<版>/} & Ollama の本体 \\
+\code{/var/lib/ollama/} & 取得したモデル \\
+\code{/etc/agent-host/ollama.env} & Ollama の文脈の長さなど \\
 \code{/usr/local/bin/agent-notify} & 通知を送るスクリプト \\
 \code{/usr/local/sbin/agent-host-backup}, \code{agent-host-restore} & 移行の書き出しと取り込み \\
 \code{agent-host-diskcheck.timer} & ディスクの残りの監視(1 時間ごと) \\

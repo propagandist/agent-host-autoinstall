@@ -54,6 +54,7 @@ VirtualBox の仮想マシンで、無人インストールから RDP の接続�
   - Docker(Linux の道具を Docker の Ubuntu の中で動かす。Windows では Git Bash と Docker Desktop)
   - Linux なら `xorriso`・`python3-yaml`・`shellcheck`(`just test` には `git`・`zstd` も)
   - ほかに、手順書の PDF(`just guide`)は Docker、`just verify-rdp` は FreeRDP(なければ Docker)、`just vm-test` は VirtualBox か QEMU/KVM(エージェントのホストでは `env.yaml` の `vm`)
+- (任意)ローカル LLM。このホストの Ollama か、LAN の Ollama のサーバーを、Claude Code・Codex・OpenCode から使う(`env.yaml` の `llm`。このホストで動かすならメモリを足す)
 - (任意)UPS。NUT(Network UPS Tools)で見て、バッテリーが少なくなったら正しく終了し、電源が戻ったら起動する(`env.yaml` の `ups`)
 - 8GB 以上の USB メモリと、ISO をそのまま書き込む道具(Windows なら Rufus の DD イメージのモード、Linux なら `dd` など)
 
@@ -92,10 +93,10 @@ just rdp <ホスト> <ポート> <ユーザー>   # その利用者の RDP の�
 
 - **エージェントは確認なしで動きます。** Orca は確認なしでコマンドを実行するモードが最初からオンです。利用者に sudo は渡しませんが、作業のディレクトリのファイルの削除、ログイン済みのサービスへの push や送信、API の利用料の発生は起こりえます
 - **コードとデータは外部のサービスに送られます。** Claude Code や Codex などは、扱うコードを各社のサービスに送ります。その情報を送ってよいかは、利用者が組織の規程や契約で確かめてください
-- **版を固定したソフトには、セキュリティ更新が自動では入りません。** apt で hold したもの(Claude Code、Docker、GitHub CLI、Orca、VS Code、Google Cloud CLI、Azure CLI)、/opt に置いたもの(Node.js、Gitea CLI、uv、mise、Zed、AWS CLI、Antigravity CLI)、npm で入れたツール、VS Code の拡張機能は、利用者が版を上げて反映します(手順は手順書の「運用」)。OS のセキュリティ更新と Google Chrome は自動で入ります
+- **版を固定したソフトには、セキュリティ更新が自動では入りません。** apt で hold したもの(Claude Code、Docker、GitHub CLI、Orca、VS Code、Google Cloud CLI、Azure CLI)、/opt に置いたもの(Node.js、Gitea CLI、uv、mise、Zed、AWS CLI、Antigravity CLI、Ollama)、npm で入れたツール、VS Code の拡張機能は、利用者が版を上げて反映します(手順は手順書の「運用」)。OS のセキュリティ更新と Google Chrome は自動で入ります
 - **ほかのソフトとサービスの規約・ライセンスは、利用者が同意するものです。** このリポジトリはそれらを再配布せず、インストールのときに各社の配布元から取得します(Google Chrome、VS Code とその拡張機能、各エージェント、クラウドの CLI など)。契約が要るものもあります(GitHub Copilot など)
 - **止められない通信があります。** 利用状況の送信は止めていますが、すべてではありません。たとえば Orca の更新の確認は止める手段がありません
-- **秘密情報が入るファイルがあります。** 作った ISO と USB、`env.yaml`、移行の書き出し、手元の `build/` の一時ファイル、ホストの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも)、`/etc/agent-host/notify.env`(Slack の Webhook の URL)、`/etc/nut/`(UPS のパスワード)です。IP Messenger の通知は暗号化されないので、本文に秘密を入れないでください
+- **秘密情報が入るファイルがあります。** 作った ISO と USB、`env.yaml`、移行の書き出し、手元の `build/` の一時ファイル、ホストの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも)、`/etc/agent-host/notify.env`(Slack の Webhook の URL)、`/etc/nut/`(UPS のパスワード)、`/etc/agent-host/llm.env` と利用者の `~/.config/environment.d/64-llm.conf`(LLM のサーバーの API キー。remote で書いたとき)です。IP Messenger の通知は暗号化されないので、本文に秘密を入れないでください
 - **実機ではまだ確かめていない点があります**([docs/notes.md](docs/notes.md) の「確認できていないこと」)
 
 ### 文書

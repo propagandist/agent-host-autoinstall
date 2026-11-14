@@ -26,6 +26,7 @@ export AGENT_HOST_SSH_OPTS="-p 2222 -i build/test/id_ed25519"
    - `proxy` と `ca_certs` は、HTTP プロキシや独自の CA 証明書がある環境だけ書く
    - `editors` は入れたいエディター(vscode / neovim / zed)。VS Code は拡張機能も入り(足すなら `vscode_extensions`)、表示が日本語になる。Zed の拡張機能(足すなら `zed_extensions`)は Zed を初めて起動したときに入る
    - `agents` は追加のエージェント(opencode / copilot / antigravity)、`clouds` はクラウドの CLI(aws / gcp / azure。合わせて約 1.8GB)
+   - `llm` はローカル LLM(任意)。`local` はこのホストで Ollama を動かし `models` を取得する(メモリを多く使う)、`remote` は LAN の Ollama のサーバー(`url`)につなぐだけ。使い方は下の 9
    - `vm` は、エージェントがそのホストで `just vm-test` を回すときだけ `true`(QEMU/KVM を入れ、利用者を kvm に入れる。VM 1 台でメモリ 4GB ほど)
    - `gitea_url` はGitea の URL(任意)、`notify` は通知の送り先(Slack の Webhook と IP Messenger)、`desktop_color` は壁紙の色(台ごとに変えると見分けやすい)
    - `users` は利用者(1 人以上)。1 人ごとに Linux のユーザー、ヘッドレスの GNOME のセッション、RDP のポートを持つ。`port` は人に固定し(例 3389、3390)、`rdp.initial_password` は初回だけの仮のパスワード(本人が最初の RDP で変える。下の 4)。`ssh_authorized_keys` は SFTP でその人のホームに入る公開鍵
@@ -155,6 +156,15 @@ just rdp <ホスト> <ポート> <ユーザー>   # build/<ホスト>-<ポート
 - OpenCode: `opencode auth login` で、使うモデルのプロバイダーの API キーや OAuth を設定する
 - GitHub Copilot CLI: `copilot` を起動し `/login` → デバイスコード(github.com/login/device)。Copilot の契約が要る
 - Antigravity CLI: `agy` を起動し、表示された URL を手元のブラウザで開き、得たコードを端末に貼り付ける。テレメトリはアカウント側の `/config` で切り替える
+
+### ローカル LLM(env.yaml の llm を書いた場合)
+
+ログインは要らない。エージェントの既定はそのままで、使うときだけ選ぶ。
+
+- Claude Code: `claude-local`(ふだんの `claude` はサブスクリプションのまま。モデルは `--model <名前>` で替えられる)
+- Codex: `codex --profile local`
+- OpenCode(agents に opencode を選んだとき): `/models` で `agent-host-llm/<名前>` を選ぶ
+- `local` のとき、モデルの一覧は `ollama list`、足すのは `ollama pull <名前>`(env.yaml の `llm.models` にも書いておくと、入れなおしたときにも入る)。Ollama の記録は `journalctl -u agent-host-ollama`
 
 ## 10. GitHub・Gitea の認証(push する場合)
 
@@ -286,6 +296,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 | `desktop_color` | 反映する(セッション) | セッションが動いていればその場で、そうでなければ次にセッションが立つときに。Dock も、入っているエディターが変わると入れなおす |
 | `editors`・`agents`・`clouds`・`vscode_extensions`・`zed_extensions` | 足すだけ | 外しても消さない(消すときは手で)。Zed の拡張機能は次に Zed を起動したときに入る |
 | `vm` | 反映する | `true` で QEMU/KVM を入れて利用者を kvm に入れ、`false` で kvm から外す(入れた道具は消さない)。kvm のグループは次のログインから効く |
+| `llm` | 反映する | `local` は Ollama を動かしなおし、まだないモデルを取得する(外したモデルは消さない)。`none` に戻すと Ollama を止め、エージェントの設定から外す。API キーは次にセッションが立つときに効く |
 | `lan_cidrs`・`dev_ports` | 足すだけ | ufw の許可は外しても消えない(下の注意) |
 | `proxy`・`ca_certs`・`ntp_servers`・`gitea_url`・`notify`・`ups` | 反映する | 利用者の環境変数(プロキシ、Gitea の URL、クラウドの CLI の設定など)は、セッションが動いていれば次にセッションが立つときに効く |
 
@@ -305,7 +316,7 @@ just update <ホスト>   # env.yaml から設定を作りなおし、スクリ�
 
 ## 16. 環境を入れ替える(OS の入れなおし、機種の交換)
 
-利用者(env.yaml の `users`)全員の分を移す。取り込むのは、新しいホストの `users` にいる名前の分だけ(同じ名前で合わせる)。ホストの身元(SSH のホスト鍵、利用者ごとの RDP の証明書と、本人が変えた RDP のパスワード)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイルは移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。ホームの分は、書き出しも取り込みもその利用者の権限で行う。利用者に読めないもの(rootless Docker のコンテナが作ったデータなど)は書き出さず、書き出しと取り込みの最後に一覧が出る(移すなら、元のホストで読めるようにしてから書き出しなおす)。取り込み先のホームに、ホームの外を指すリンクがあると、その利用者の取り込みは失敗する(ほかの人の分とホストの身元は取り込み、最後に失敗として終わる)。
+利用者(env.yaml の `users`)全員の分を移す。取り込むのは、新しいホストの `users` にいる名前の分だけ(同じ名前で合わせる)。ホストの身元(SSH のホスト鍵、利用者ごとの RDP の証明書と、本人が変えた RDP のパスワード)、ログインと設定(エージェント、GitHub・Gitea の CLI、クラウドの CLI、Orca、エディター)、`~/work` と Orca の worktree を移す。ツールの本体、mise の言語、Docker のイメージ、Chrome のプロファイル、ローカル LLM のモデル(`llm.models`。構成のときに取得しなおす)は移さない(作りなおせる)。`~/work` の中の `node_modules`・`__pycache__`・`.venv` と Orca のキャッシュも除く(取り込みの最後に、除いたものが出る。`npm install` や `uv sync` で作りなおす)。ほかの名前(`dist`、`target` など)は、ビルドの出力でも除かない。ホームの分は、書き出しも取り込みもその利用者の権限で行う。利用者に読めないもの(rootless Docker のコンテナが作ったデータなど)は書き出さず、書き出しと取り込みの最後に一覧が出る(移すなら、元のホストで読めるようにしてから書き出しなおす)。取り込み先のホームに、ホームの外を指すリンクがあると、その利用者の取り込みは失敗する(ほかの人の分とホストの身元は取り込み、最後に失敗として終わる)。
 
 1. Orca とエージェントの作業を止める(書き出しの途中で書き換わらないように)
 2. 書き出す。sudo のパスワードを 1 回聞かれる。ホストには保存されない

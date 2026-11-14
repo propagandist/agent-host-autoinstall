@@ -245,6 +245,57 @@ class TestUps(Case):
                 self.ng(self.with_(ups=ups), message)
 
 
+class TestLlm(Case):
+    """ローカル LLM(env.yaml の llm。64-llm.sh)"""
+
+    def env(self, llm):
+        return read_env_sh(os.path.join(self.ok(self.write(self.with_(llm=llm))), "env.sh"))
+
+    def test_default_is_none(self):
+        env = read_env_sh(os.path.join(self.ok(self.write(BASE)), "env.sh"))
+        self.assertEqual((env["AH_LLM_MODE"], env["AH_LLM_URL"], env["AH_LLM_MODELS"]), ("none", "", ""))
+
+    def test_local(self):
+        env = self.env({"mode": "local", "models": ["qwen3-coder:30b", "hf.co/org/Model-GGUF:Q4_K_M"]})
+        self.assertEqual(env["AH_LLM_URL"], "http://127.0.0.1:11434")  # local は固定
+        self.assertEqual(env["AH_LLM_MODELS"], "qwen3-coder:30b hf.co/org/Model-GGUF:Q4_K_M")
+        self.assertEqual(env["AH_LLM_DEFAULT_MODEL"], "qwen3-coder:30b")  # 書かなければ先頭
+        self.assertEqual(env["AH_LLM_CONTEXT_LENGTH"], "65536")
+        self.assertEqual(env["AH_LLM_API_KEY"], "")
+        env = self.env({"mode": "local", "models": ["a:1", "b"], "default_model": "b", "context_length": 131072})
+        self.assertEqual((env["AH_LLM_DEFAULT_MODEL"], env["AH_LLM_CONTEXT_LENGTH"]), ("b", "131072"))
+
+    def test_remote(self):
+        env = self.env({"mode": "remote", "url": "http://llm.example.internal:11434/", "api_key": "sk-abc",
+                        "models": ["gpt-oss:20b"]})
+        self.assertEqual(env["AH_LLM_URL"], "http://llm.example.internal:11434")  # 末尾の / は落とす
+        self.assertEqual(env["AH_LLM_API_KEY"], "sk-abc")
+
+    def test_rejected(self):
+        cases = [
+            ({"mode": "cloud"}, "llm.mode"),
+            ({"mode": "local"}, "llm.models にモデルを 1 つ以上"),
+            ({"mode": "remote", "models": ["m"]}, "llm.url"),
+            ({"mode": "remote", "url": "llm.example.internal", "models": ["m"]}, "llm.url"),
+            ({"mode": "remote", "url": "http://llm:11434/v1", "models": ["m"]}, "/v1 を付けない"),
+            ({"mode": "local", "url": "http://llm:11434", "models": ["m"]}, "remote のときだけ"),
+            ({"mode": "local", "api_key": "k", "models": ["m"]}, "llm.api_key は mode が remote"),
+            ({"mode": "remote", "url": "http://llm:11434", "api_key": "a b", "models": ["m"]}, "llm.api_key に空白"),
+            ({"mode": "remote", "url": "http://llm:11434", "api_key": "CHANGE_ME", "models": ["m"]}, "CHANGE_ME"),
+            ({"mode": "local", "models": ["qwen 3"]}, "Ollama のモデルの名前"),
+            ({"mode": "local", "models": ["m'x"]}, "Ollama のモデルの名前"),
+            ({"mode": "local", "models": ["m", "m"]}, "重なっている"),
+            ({"mode": "local", "models": ["m"], "default_model": "n"}, "llm.models にも書く"),
+            ({"mode": "local", "models": ["m"], "context_length": 1024}, "2048〜1048576"),
+            ({"mode": "local", "models": ["m"], "context_length": True}, "llm.context_length は数"),
+            ({"mode": "local", "models": "m"}, "llm.models は並び"),
+            ({"mode": "local", "models": ["m"], "port": 1}, "llm.port は知らないキー"),
+        ]
+        for llm, message in cases:
+            with self.subTest(llm=llm):
+                self.ng(self.with_(llm=llm), message)
+
+
 class TestOverlay(Case):
     def test_later_wins_and_dicts_merge(self):
         common = self.write(self.with_(hostname="common", editors=["vscode", "zed"]))
@@ -290,7 +341,7 @@ class TestFleetExample(unittest.TestCase):
             with open(path, encoding="utf-8") as f:
                 found |= set(keys(yaml.safe_load(f)))
         # ひな形に書いていない秘密の値(UPS の password など)も、名前で一致させる
-        secrets = {k for k in found if "password" in k or "webhook" in k} | {"password", "slack_webhook_url"}
+        secrets = {k for k in found if "password" in k or "webhook" in k or k.endswith("api_key")} | {"password", "slack_webhook_url", "api_key"}
         self.assertIn("initial_password", secrets)
         for k in sorted(secrets):
             with self.subTest(key=k):

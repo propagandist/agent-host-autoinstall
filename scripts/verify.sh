@@ -218,6 +218,37 @@ else
     for u in $AH_USERS; do check "$u が kvm に入っていない" not_in_kvm "$u"; done
 fi
 
+section "ローカル LLM(env.yaml の llm: ${AH_LLM_MODE:-none})"
+ollama_unit=agent-host-ollama.service
+case "${AH_LLM_MODE:-none}" in
+none)
+    eq "Ollama が動いていない" "$(systemctl is-active "$ollama_unit" 2>/dev/null || true)" inactive
+    check "claude-local を置いていない" test ! -e /usr/local/bin/claude-local
+    ;;
+local | remote)
+    if [ "$AH_LLM_MODE" = local ]; then
+        check "Ollama が動いている" systemctl is-active "$ollama_unit"
+        check "Ollama が起動のときに立つ" systemctl is-enabled "$ollama_unit"
+        cmd_ver "Ollama" "$(pin OLLAMA_VERSION)" env HOME="${HOME:-/root}" ollama --version
+        check "Ollama は 127.0.0.1:11434 だけで待ち受ける" bash -c "ss -tlnH | awk '{print \$4}' | grep -qx '127.0.0.1:11434' && ! ss -tlnH | awk '{print \$4}' | grep -qE '^(0\\.0\\.0\\.0|\\*|\\[::\\]):11434\$'"
+        eq "文脈の長さが env.yaml と同じ" "$(sed -n 's/^OLLAMA_CONTEXT_LENGTH=//p' /etc/agent-host/ollama.env 2>/dev/null)" "${AH_LLM_CONTEXT_LENGTH:-}"
+        have_models="$(HOME="${HOME:-/root}" OLLAMA_HOST=127.0.0.1:11434 ollama list 2>/dev/null | awk 'NR > 1 {print $1}')"
+        for m in $AH_LLM_MODELS; do
+            # タグを書かなければ :latest として入る
+            [[ "$m" == *:* ]] && want="$m" || want="$m:latest"
+            check "モデル $m がある" grep -qx -- "$want" <<<"$have_models"
+        done
+    else
+        eq "このホストの Ollama は動いていない(remote)" "$(systemctl is-active "$ollama_unit" 2>/dev/null || true)" inactive
+    fi
+    llm_auth=()
+    [ -z "${AH_LLM_API_KEY:-}" ] || llm_auth=(-H "Authorization: Bearer $AH_LLM_API_KEY")
+    check "LLM のサーバー($AH_LLM_URL)が応える" curl -fsS --noproxy 127.0.0.1 -m 10 "${llm_auth[@]}" "$AH_LLM_URL/api/version"
+    check "claude-local がある" test -x /usr/local/bin/claude-local
+    eq "接続先は root と利用者だけが読める" "$(stat -c '%a %U:%G' /etc/agent-host/llm.env 2>/dev/null)" "640 root:$AH_USERS_GROUP"
+    ;;
+esac
+
 section "Docker(rootless)"
 for pkg in docker-ce docker-ce-cli docker-ce-rootless-extras; do pkg_pinned "$pkg" "$(pin DOCKER_VERSION)"; done
 pkg_pinned containerd.io "$(pin CONTAINERD_VERSION)"
@@ -502,6 +533,21 @@ user_checks() {
         check "${notes#"$AGENT_HOME"/} がある" grep -q 'agent-host-autoinstall' "$notes"
     done
     check "Claude Code の通知の hook" grep -q 'agent-notify --claude' "$AGENT_HOME/.claude/settings.json"
+
+    # ローカル LLM(64-llm.sh)
+    local oc_conf="$AGENT_HOME/.config/opencode/opencode.json"
+    if [ "${AH_LLM_MODE:-none}" != none ]; then
+        check "Codex の LLM の接続先(config.toml の model_providers)" grep -qF "base_url = \"$AH_LLM_URL/v1\"" "$AGENT_HOME/.codex/config.toml"
+        check "Codex の profile(local.config.toml。codex --profile local)" grep -qx 'model_provider = "agent-host-llm"' "$AGENT_HOME/.codex/local.config.toml"
+        # Codex 0.134.0 からは、config.toml に [profiles.local] があると --profile local がエラーになる
+        check "Codex の config.toml に古い形の [profiles.local] がない" bash -c "! grep -q '^[[:space:]]*\[profiles\.local\]' '$AGENT_HOME/.codex/config.toml'"
+        if selected "${AH_AGENTS:-}" opencode; then
+            check "OpenCode の LLM の設定(agent-host-llm)" grep -qF "\"baseURL\": \"$AH_LLM_URL/v1\"" "$oc_conf"
+        fi
+    else
+        check "Codex に LLM の設定がない" bash -c "! grep -qF '[model_providers.agent-host-llm]' '$AGENT_HOME/.codex/config.toml' && ! grep -qs 'agent-host-autoinstall(64-llm.sh)' '$AGENT_HOME/.codex/local.config.toml'"
+        check "OpenCode に LLM の設定がない" bash -c "! grep -qF '\"agent-host-llm\"' '$oc_conf' 2>/dev/null"
+    fi
 }
 for u in $AH_USERS; do
     user_checks "$u"

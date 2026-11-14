@@ -30,7 +30,7 @@ scripts/
   setup-provision.sh        # late-commands から呼ぶ。初回起動時の構成サービスを有効にするだけ
   provision.sh              # 構成サービスから呼ぶ。post-install/ を番号順に実行(手で再実行してよい)
   verify.sh                 # ホストが仕様どおりかを読むだけで確かめる(just verify。/opt/agent-host にも置く)
-  systemd/                  # agent-host-provision.service
+  systemd/                  # agent-host-provision.service、agent-host-ollama.service(ローカル LLM。64-llm.sh が置く)
   lib/common.sh             # post-install の共通関数
   post-install/             # 初回起動時に root で実行するスクリプト(番号順)
     05-proxy-ca.sh          # HTTP プロキシと独自の CA 証明書
@@ -45,6 +45,7 @@ scripts/
     60-devtools.sh
     62-agents.sh            # env.yaml の agents で選んだ追加のエージェント
     63-clouds.sh            # env.yaml の clouds で選んだクラウドの CLI(AWS・Google Cloud・Azure)
+    64-llm.sh               # env.yaml の llm で、ローカル LLM(このホストの Ollama か LAN のサーバー)を Claude Code・Codex・OpenCode から使えるようにする
     65-docker.sh            # Docker(固定・hold)と利用者ごとの rootless Docker
     66-vm.sh                # env.yaml の vm を選んだら QEMU/KVM と UEFI のファームウェアを入れ、利用者を kvm に入れる(vm-test のため)
     70-orca.sh
@@ -87,7 +88,7 @@ docs/
 - **公開される前提で書く。** 会社名・ホスト名・IP・個人のメールアドレスを本文・コメント・コミットメッセージに書かない(LICENSE と NOTICE の著作権者表示、それを入れる手順書の PDF の発行者表示、README の「ライセンス / 位置づけ」で PROPAGANDIST の OSS であることを書く 1 か所、このリポジトリ自身の GitHub の URL(clone や Releases の案内)は除く)。特定の組織や読者を前提にしない(「社内」「社外」「当社」「作業者」と書かず、「LAN」「組織」「利用者」などと書く。組織の予定や判断の経緯はこのリポジトリに書かない)
 - **スクリプトは冪等に。** 再実行しても壊れないこと。`set -euo pipefail` を付ける
 - **late-commands は薄く。** 処理はスクリプトに置き、late-commands からは呼ぶだけ(将来 Ansible に移しやすくするため)
-- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるものと、env.yaml の `vscode_extensions` で版を書かなかったもの(どれも入れたときの最新で、その後は更新しない)
+- **バージョンは固定。** Node.js、npm パッケージ、Claude Code、Orca、GitHub CLI、Gitea CLI、Docker、uv、mise、VS Code、Zed、クラウドの CLI、Ollama はバージョンを明示する。例外は、公式リポジトリに最新版しかない Google Chrome(unattended-upgrades で自動更新する)と、版を指定する方法がない Zed の拡張機能、VS Code の拡張機能が依存で入れるものと、env.yaml の `vscode_extensions` で版を書かなかったもの、env.yaml の `llm.models` の Ollama のモデル(タグの指す版が動く)(どれも入れたときの最新で、その後は更新しない)
 - **確認できていない挙動は推測で埋めない。** SPEC.md §9 の未確定事項は、調べた結果か「未確認」をコメントと docs/notes.md に残す
 - **シンプルに保つ。** 過剰な抽象化や汎用化はしない。1台〜数台を確実に作れることが目的
 - コメントとドキュメントは日本語

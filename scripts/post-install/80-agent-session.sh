@@ -195,6 +195,11 @@ fi
 if [ "${AH_VM:-0}" = 1 ]; then
     agent_notes="$agent_notes"$'\n'"- VM を動かせる(QEMU/KVM と UEFI のファームウェア。kvm のグループに入っている)。agent-host-autoinstall の \`just vm-test\` は QEMU で回る。kvm のグループが効いていないセッションでは \`sg kvm -c '...'\` で使う"
 fi
+if [ "${AH_LLM_MODE:-none}" != none ]; then
+    where="このホストの Ollama"
+    [ "$AH_LLM_MODE" = remote ] && where="LAN の LLM サーバー($AH_LLM_URL)"
+    agent_notes="$agent_notes"$'\n'"- ローカル LLM($where。モデル: ${AH_LLM_MODELS// /、})を使える。Claude Code は \`claude-local\`、Codex は \`codex --profile local\`、OpenCode はモデル \`agent-host-llm/<名前>\`。ふだんのモデルより弱いので、秘密を外に出したくない作業や、軽い作業に使う"
+fi
 for notes in "$AGENT_HOME/.claude/CLAUDE.md" "$AGENT_HOME/.codex/AGENTS.md"; do
     if [ ! -f "$notes" ]; then
         printf '%s\n' "$agent_notes" | write_agent_file 644 "$notes"

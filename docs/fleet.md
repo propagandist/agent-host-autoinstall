@@ -184,6 +184,7 @@ ufw の許可は足すだけなので、`lan_cidrs` や `dev_ports` から外し
    - sysadmin のパスワード: `sysadmin.password_hash` を替えて `just update`(ホストのパスワードもこの値に置き換わる)
    - Slack の Webhook: Slack で作りなおして `notify.slack_webhook_url` を替え、`just update`
    - UPS の監視用のパスワード(netclient のとき): NUT サーバーの側で替えて `ups.password` を替え、`just update`
+   - LLM のサーバーの API キー(remote で書いたとき): サーバーの側で替えて `llm.api_key` を替え、`just update`
    - SSH の公開鍵: `sysadmin.ssh_authorized_keys` と `users[].ssh_authorized_keys` から外して `just update`(どちらも env.yaml の内容に置き換わる。sysadmin の鍵は、今つないでいる鍵を外さない順で行う。just update は最後に入りなおせるかを確かめる)
    - 回復用の鍵(その人が共有の保管庫を見られたとき): age と SSH の回復用の鍵を作りなおし、`.sops.yaml` と `sysadmin.ssh_authorized_keys` の古いものと入れ替えて、`sops updatekeys` と `just update`
 
@@ -241,7 +242,7 @@ PC をなくした・盗まれたときは、その PC の鍵が漏れたもの�
    - `sysadmin.password_hash`: いまのホストの sysadmin のパスワードから作る(`openssl passwd -6`)。`just update` は
      ホストのパスワードをこの値に置き換えるので、違うパスワードにすると、ホストのパスワードも変わる
    - `users[].rdp.initial_password`: RDP の認証情報がまだない利用者にだけ入る(本人が変えた値は上書きしない)ので、新しい値でよい
-   - `notify.slack_webhook_url`、`ups.password`: 元の値を入れるか、作りなおす
+   - `notify.slack_webhook_url`、`ups.password`、`llm.api_key`: 元の値を入れるか、作りなおす
 4. `CHANGE_ME` が残っていないことを確かめてから(`sops --decrypt <ファイル> | grep CHANGE_ME`)、`just check-all` する。
    残したまま `just update` や `just iso` をすると、それがそのままパスワードになる
 

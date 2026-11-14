@@ -39,6 +39,7 @@ KNOWN_KEYS = {
     "agents": None,
     "clouds": None,
     "vm": None,
+    "llm": {"mode", "url", "api_key", "models", "default_model", "context_length"},
     "notify": {"slack_webhook_url", "ipmsg_to", "ipmsg_broadcast"},
     "ups": {"mode", "driver", "port", "server", "name", "username", "password"},
     "dev_ports": None,
@@ -62,6 +63,7 @@ OLD_KEYS = {
 RESERVED_USERS = {
     "root", "sysadmin", "gdm", "gdm-greeter", "nobody", "daemon", "bin", "sys", "sync", "games", "man", "lp",
     "mail", "news", "uucp", "proxy", "www-data", "backup", "list", "irc", "nut", "docker", "messagebus", "syslog",
+    "ollama",
 }
 
 
@@ -72,7 +74,7 @@ TYPES = {
     "hostname": str, "keyboard_layout": str, "desktop_color": str, "gitea_url": str,
     "ca_certs": list, "ntp_servers": list, "editors": list, "vscode_extensions": list, "zed_extensions": list,
     "agents": list, "clouds": list, "dev_ports": list, "lan_cidrs": list, "users": list,
-    "network": dict, "proxy": dict, "notify": dict, "sysadmin": dict, "ups": dict, "vm": bool,
+    "network": dict, "proxy": dict, "notify": dict, "sysadmin": dict, "ups": dict, "vm": bool, "llm": dict,
     "network.mode": str, "network.interface": str, "network.address": str, "network.gateway": str,
     "network.dns": list, "network.search": list,
     "proxy.url": str, "proxy.no_proxy": str,
@@ -80,6 +82,8 @@ TYPES = {
     "sysadmin.password_hash": str, "sysadmin.ssh_authorized_keys": list,
     "ups.mode": str, "ups.driver": str, "ups.port": str, "ups.server": str, "ups.name": str,
     "ups.username": str, "ups.password": str,
+    "llm.mode": str, "llm.url": str, "llm.api_key": str, "llm.models": list, "llm.default_model": str,
+    "llm.context_length": int,
 }
 TYPE_NAMES = {str: "文字列(数字や true/false は引用符で囲む)", list: "並び(- で始まる行)", dict: "キーと値", int: "数",
               bool: "真偽値(true か false。引用符で囲まない)"}
@@ -103,7 +107,7 @@ def check_types(env):
         value = get_path(env, path)
         if value is None:
             continue
-        if not isinstance(value, want):
+        if not isinstance(value, want) or (want is int and isinstance(value, bool)):
             fail(f"env.yaml の {path} は{TYPE_NAMES[want]}にする")
         if want is list:
             for item in value:
@@ -139,7 +143,7 @@ UPDATE_SCOPE = {
     "sysadmin": "update", "proxy": "update", "ca_certs": "update", "ntp_servers": "update",
     "users": "update", "editors": "update", "vscode_extensions": "update",
     "zed_extensions": "update", "gitea_url": "update", "agents": "update", "clouds": "update", "vm": "update", "notify": "update",
-    "dev_ports": "update", "lan_cidrs": "update", "ups": "update",
+    "dev_ports": "update", "lan_cidrs": "update", "ups": "update", "llm": "update",
     "desktop_color": "relogin",
 }
 
@@ -398,6 +402,47 @@ def main():
             if "CHANGE_ME" in value:
                 fail(f"env.yaml の ups.{key} に CHANGE_ME が残っている")
 
+    # ローカル LLM(64-llm.sh)。local はこのホストの Ollama(127.0.0.1:11434 に固定)、remote は LAN の Ollama 互換のサーバー
+    llm = env.get("llm") or {}
+    llm_mode = str(llm.get("mode") or "none")
+    llm_url = str(llm.get("url") or "").rstrip("/")
+    llm_api_key = str(llm.get("api_key") or "")
+    llm_models = [str(m) for m in (llm.get("models") or [])]
+    llm_default = str(llm.get("default_model") or "")
+    llm_context = llm.get("context_length")
+    if llm_mode not in ("none", "local", "remote"):
+        fail("llm.mode は none・local・remote のどれかにする")
+    if llm_mode == "remote":
+        if not re.fullmatch(r"https?://[^\s/\"'\\]+(/[^\s\"'\\]*)?", llm_url):
+            fail("llm.mode が remote のときは llm.url に http://llm.example.internal:11434 の形でサーバーを書く")
+        if llm_url.endswith("/v1"):
+            fail("llm.url には /v1 を付けない(Ollama の URL。/v1 はエージェントの設定で足す)")
+    elif llm_url:
+        fail("llm.url は mode が remote のときだけ書く(local は 127.0.0.1:11434 に固定)")
+    if llm_api_key:
+        if llm_mode != "remote":
+            fail("llm.api_key は mode が remote のときだけ書く")
+        if re.search(r"[\s\"'\\$]", llm_api_key):
+            fail("llm.api_key に空白・引用符・\\・$ は使えない")
+        if "CHANGE_ME" in llm_api_key:
+            fail("env.yaml の llm.api_key に CHANGE_ME が残っている")
+    if llm_mode != "none" and not llm_models:
+        fail(f"llm.mode が {llm_mode} のときは llm.models にモデルを 1 つ以上書く(例 qwen3:8b)")
+    for m in llm_models:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._/-]*(:[A-Za-z0-9._-]+)?", m):
+            fail(f"llm.models の {m} は Ollama のモデルの名前(名前:タグ。例 qwen3:8b)にする")
+    if len(set(llm_models)) != len(llm_models):
+        fail("llm.models に同じモデルが重なっている")
+    if llm_default and llm_default not in llm_models:
+        fail(f"llm.default_model の {llm_default} を llm.models にも書く")
+    llm_default = llm_default or (llm_models[0] if llm_models else "")
+    if llm_context is None:
+        llm_context = 65536
+    if not 2048 <= llm_context <= 1048576:
+        fail("llm.context_length は 2048〜1048576 にする(エージェントには 65536 以上が要る)")
+    if llm_mode == "local":
+        llm_url = "http://127.0.0.1:11434"
+
     if not re.fullmatch(r"\$(6|5|y|2[aby])\$\S+", str(password_hash)):
         fail("sysadmin.password_hash は crypt 形式のハッシュ($6$... か $y$... など。mkpasswd -m sha-512 で作る)にする")
     for k in keys:
@@ -454,6 +499,12 @@ def main():
         f"AH_UPS_NAME={shlex.quote(ups_name)}",
         f"AH_UPS_USER={shlex.quote(ups_user)}",
         f"AH_UPS_PASSWORD={shlex.quote(ups_password)}",
+        f"AH_LLM_MODE={shlex.quote(llm_mode)}",
+        f"AH_LLM_URL={shlex.quote(llm_url)}",
+        f"AH_LLM_API_KEY={shlex.quote(llm_api_key)}",
+        f"AH_LLM_MODELS={shlex.quote(' '.join(llm_models))}",
+        f"AH_LLM_DEFAULT_MODEL={shlex.quote(llm_default)}",
+        f"AH_LLM_CONTEXT_LENGTH={llm_context}",
     ]
     with open(os.path.join(out_dir, "env.sh"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + "\n")

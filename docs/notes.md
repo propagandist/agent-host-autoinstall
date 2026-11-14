@@ -512,6 +512,52 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
   - 手で保存すると使われた: 手元の PowerShell で `cmdkey /add:TERMSRV/<ホスト> /user:<ユーザー名> /pass` で保存してからつなぐと、資格情報の画面が出ずにつながった(接続ファイルは使わず、mstsc に接続先を打ち込んだ)。止まっているのはチェック欄からの保存のほう。チェック欄で保存されない理由は未確認。手順書にはこの `cmdkey` を回避策として書いた
 - 別に見つけたこと: `just rdp` は `docs/agent-host.rdp.example` の `username:s:agent` をそのまま写していたので、`rdp.username` が agent でない利用者には、違うユーザー名が初めから入った。3 つ目の引数でユーザー名を渡すようにした(省くとユーザー名の行を消す)。PIN の件とは関係がない(試験は接続ファイルを使わずに行った)
 
+### ローカル LLM(2026-11-14 調査)
+
+- 実行環境は Ollama にした。1 つのバイナリと systemd で動き、モデルの取得と切り替えを持ち、OpenAI 互換(Chat Completions と
+  Responses)と Anthropic 互換(Messages)の API を出すので、Claude Code・Codex・OpenCode のどれからも使える(Ollama の
+  docs/integrations の claude-code・codex・opencode)。llama.cpp の llama-server は軽いが、モデルの取得と切り替えを自分で組む
+  ことになる
+- 版は 0.40.13(2026-10-28 のリリース)。資産は `ollama-linux-amd64.tar.zst`(約 1.5GB。CUDA と Vulkan のライブラリを含む)で、
+  SHA256 は GitHub API の digest。AMD の ROCm は別の tar(約 1GB)なので入れていない(AMD は Vulkan で動く見込み。未確認)
+- Ollama の既定(v0.40.13 の envconfig/config.go と discover/runner.go): 待ち受けは 127.0.0.1:11434、Vulkan は有効。
+  ただし内蔵 GPU は、CUDA と一部の ROCm のほかは `OLLAMA_IGPU_ENABLE` を付けないと使わない。Intel の内蔵 GPU は RDP の画面の
+  符号化にも使い、メモリも共有するので、付けずに CPU で動かす(速さは未確認)
+- 文脈の長さの既定は「GPU のメモリで 4k/32k/256k」で、GPU のない機械では短くなる。Ollama の文書は Codex・OpenCode・Claude Code
+  に 64k 以上を勧めるので、`OLLAMA_CONTEXT_LENGTH` を env.yaml の `llm.context_length`(既定 65536)にした。長いほど KV キャッシュの
+  メモリが増える
+- 利用者のセッションを優先するため、サービスは `MemoryMax=50%`・`MemorySwapMax=0`・`CPUWeight=50`・`IOWeight=50`、
+  `OLLAMA_MAX_LOADED_MODELS=1`・`OLLAMA_NUM_PARALLEL=1`・`OLLAMA_KEEP_ALIVE=10m`。モデルが上限を超えると Ollama だけが落ちて
+  立ちなおる(実際に上限で落ちるかは未確認)
+- `OLLAMA_NO_CLOUD=1` で ollama.com のクラウドのモデルと Web 検索を止める(コードを外に出さない)
+- モデルは `ollama show` で見つからないものだけ `ollama pull` する。タグの指す版は動くので、取得した時点の版を使い続ける
+  (新しくするときは手で `ollama pull`)。127.0.0.1 の API にはどの利用者もつなげるので、利用者も `ollama pull`・`ollama rm` できる
+- エージェントの既定は変えない。Claude Code は `claude-local`(`ANTHROPIC_BASE_URL` と `ANTHROPIC_AUTH_TOKEN` を差し替え、
+  モデルの環境変数をすべて既定のモデルにする)、Codex は config.toml の印で囲んだ `[model_providers.agent-host-llm]`
+  (`wire_api = "responses"`。Ollama の文書の profile の例と同じ)と、`~/.codex/local.config.toml`(1 行目の印で
+  64-llm.sh が書いたものと見分ける)、OpenCode は opencode.json の `provider.agent-host-llm`(`@ai-sdk/openai-compatible`)
+- Codex 0.134.0 からは、`--profile <名前>` が config.toml の `[profiles.<名前>]` を読まず、`~/.codex/<名前>.config.toml` を
+  config.toml に重ねる(learn.chatgpt.com の config-advanced)。config.toml に `[profiles.local]` が残っていると、0.164.0 の
+  `codex exec --profile local` は「legacy `[profiles.local]`」のエラーで止まる(2026-11-14 に VM で確認。Ollama の文書の例は古い形)
+- remote は「Ollama 互換」とした。Claude Code が Anthropic 互換の API を、Codex が Responses API を使うので、OpenAI 互換の
+  Chat Completions だけのサーバー(vLLM・llama-server など)では Claude Code と Codex が動かない見込み(未確認)
+- ollama の CLI(pull・show・list)は `$HOME` がないと `panic: $HOME is not defined` で落ちる(サーバーにつなぐだけでも、
+  起動のときにモデルの置き場所を HOME から決めるため)。構成のサービスには HOME がないので、64-llm.sh と verify.sh は
+  HOME を補って呼ぶ(2026-11-14 の vm-test で、最初のモデルの取得が落ちて分かった)
+- 移行(agent-host-backup)では /var/lib/ollama のモデルを書き出さない。取り込み先で構成するときに取得しなおす
+- 2026-11-14 の VirtualBox の VM(1 CPU・4GB。llm.mode: local、qwen2.5:0.5b、文脈 32768)で確かめたこと:
+  - 構成と `just verify` の「ローカル LLM」の節が通る(Ollama 0.40.13、127.0.0.1:11434 だけ、モデルの取得、claude-local、
+    Codex と OpenCode の設定)。電源を切ったあとも Ollama が立ちなおる
+  - 3 つのエージェントの要求が Ollama に届く(Ollama のログ): `claude-local -p` は `/v1/messages` へ約 1 万トークン、
+    `codex exec --profile local` は約 4,400 トークン、`opencode run -m agent-host-llm/qwen2.5:0.5b` は `/v1/chat/completions`
+  - ただし 1 CPU では最初のプロンプトの処理だけで 5 分を超え(約 4 トークン/秒)、答えが返るまでは確かめられていない。
+    この VM の CPU は CCManager の本体が `Illegal instruction` で落ちるもので、実機よりかなり遅い
+  - claude-local は「Claude Code doesn't recognize the model」と出し、文脈を 200k と仮定する(Ollama の文脈の長さとは別)
+  - `just update` で none に戻すと、Ollama が止まり、claude-local・Codex の provider と local.config.toml・OpenCode の
+    provider が外れ、`just verify` の「ローカル LLM」の節が通る(モデルは /var/lib/ollama に残る)
+- 未確認: エージェントから答えが返るまで(実機か、CPU の多い VM で)、Claude Code がサブスクリプションのログインがあっても
+  `ANTHROPIC_AUTH_TOKEN` を優先するか、remote、推論にかかる時間とメモリ
+
 ## 確認できていないこと
 
 実機でしか確かめられないもの、実際のアカウントやネットワークが要るものは、まだ確かめていない。
@@ -532,6 +578,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - このホストの Orca を Remote Orca Server として公開し、手元の Orca からつなぐことの残り(LAN の IP で 6768 を足してつながることは確かめた。2 人目以降でポートがずれるか、手元とホストで Orca の版が違うときにつながるか、Tailscale でつなぐこと)
 - Mermaid CLI: プロキシ・独自の CA の下での `npm install`、自動更新された Chrome と固定した puppeteer の版がずれたときの動作(#28)
 - vm-test: 関数に寄せた VirtualBox の版の回しなおし(#35)
+- ローカル LLM(env.yaml の llm): Claude Code・Codex・OpenCode から答えが返るまで(VM では要求が届くまでを確かめた)、内蔵 GPU(Vulkan)での推論、remote のサーバー(上の「ローカル LLM」)
 - 日本語入力の fcitx5: 新しく入れたときと just update のときに gnome-shell が fcitx5 につなぐこと、Xwayland のアプリでの入力、systemd-oomd がこの利用者の user@ を見なくなっていた理由(#36・#21。上の「半角/全角の押しっぱなしで gnome-shell が漏れて固まる」)
 - 原因を調べていないもの: インストール中にライブ環境のログイン画面で止まって見えること、first-login の "RDP server certificate is invalid"、`localectl set-x11-keymap` の "Access denied"、RDP での Caps Lock の状態のずれ
 
@@ -540,7 +587,7 @@ Zenn の記事(#1 を題材にしたもの)の推敲で、事実の照合を頼�
 - Codex のログインはデバイスコード認証(`codex login --device-auth`)。ChatGPT 側の設定で事前に有効化しておかないと、エラーにならず止まって見える
 - Codex の認証情報は `~/.codex/auth.json` に平文で保存される。利用者のホームは 700 にしている(sysadmin は読める)
 - Orca は .deb 版なら自分では更新を適用しない(通知は出る)。apt-mark hold で固定している。上げるときは 70-orca.sh の版と SHA256 を直す
-- バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
+- バージョンを上げるときは、版を持つスクリプト(60-devtools.sh、62-agents.sh、63-clouds.sh、64-llm.sh、65-docker.sh、70-orca.sh、72-editors.sh、76-desktop.sh)の先頭の値を直し、手順書の付録「固定しているバージョン」も直して、`just update <ホスト>` で反映する
 - build-usb.sh で作った ISO と、ターゲットの `/opt/agent-host/env.sh` と `/opt/agent-host/users/`(RDP の仮のパスワード。更新の前の一式の `/opt/agent-host.prev/` の同じものも。どれも root のみ読める)には秘密情報が入る。ほかに秘密情報が入るファイルは README の「利用上の注意」にまとめている
 - デスクトップ共有とリモートログインを両方有効にすると、デスクトップ共有が 3390 番に移る。リモートログインは有効にしない
 - いちばん崩れやすいのは受け入れテスト4(再起動後、何もせずに RDP がつながるか)。ここを最優先で検証する

@@ -73,6 +73,7 @@ sudo ss -tlnp | grep gnome-remote
 | Zed の拡張機能 | Zed を一度起動して閉じたあと `ls ~/.local/share/zed/extensions/installed` | 72-editors.sh の ZED_EXTENSIONS(と clouds・zed_extensions の分)が並ぶ |
 | Gitea CLI | RDP の端末で `tea --version` と `echo $GITEA_SERVER_URL` | 60-devtools.sh の版。gitea_url を書いたらその URL |
 | クラウドの CLI | RDP の端末で `aws --version; gcloud --version; az version`(選んだものだけ) | 63-clouds.sh の版。`echo $AWS_PAGER` は空 |
+| ローカル LLM(env.yaml の llm を書いたときだけ) | RDP の端末で `claude-local -p '1+1 は?'`、`codex exec --profile local '1+1 は?'`、(opencode を選んでいれば)`opencode run -m agent-host-llm/<名前> '1+1 は?'`。local なら `ollama list` | どれも答えが返る。local では `llm.models` が並ぶ。`none` に戻して `just update` したら、`claude-local` がなく Ollama が止まっている |
 | VM(env.yaml の vm を選んだときだけ) | RDP の端末で `id -nG; ls -l /dev/kvm; qemu-system-x86_64 --version` | kvm に入っている(次のログインから)。QEMU が入っている。vm を外して `just update` したら kvm に入っていない |
 | 開発の道具 | RDP の端末で `mise --version; uv --version; python --version; pnpm --version; ccmanager --version; git flow version; ulimit -n` | それぞれ動く。git flow は 1.12.3(AVH)。python は Python 3。ulimit -n は 65536 |
 | Mermaid CLI | RDP の端末で `printf 'flowchart LR\n  A[開始] --> B[日本語のラベル]\n' >/tmp/t.mmd; for f in svg png pdf; do mmdc -i /tmp/t.mmd -o /tmp/t.$f; done` | 3 つとも出る。PNG・PDF の日本語が文字化けしない。sandbox のエラーが出ない |

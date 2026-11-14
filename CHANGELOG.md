@@ -12,8 +12,10 @@
 
 ### env.yaml の変更
 - `vm` を足した(true か false)。書かなければ今までどおり(false)
+- `llm` を足した(mode・url・api_key・models・default_model・context_length)。書かなければ今までどおり(使わない)。構成リポジトリでは `.sops.yaml` の `encrypted_regex` と `with-env.sh` に `api_key` を足す
 
 ### 追加
+- env.yaml の `llm` でローカル LLM を使えるようにした(64-llm.sh)。`local` はこのホストで Ollama 0.40.13 を動かし(127.0.0.1:11434 だけ。クラウドの機能は止め、メモリの上限は半分)、`llm.models` を取得する。`remote` は LAN の Ollama のサーバーにつなぐ設定だけを置く。エージェントの既定は変えず、Claude Code は `claude-local`、Codex は `codex --profile local`、OpenCode はモデル `agent-host-llm/<名前>` で使う。`just verify` も見る
 - env.yaml の `vm` を `true` にすると、QEMU/KVM と UEFI のファームウェアを入れ、利用者全員を kvm に入れる(66-vm.sh)。エージェントがそのホストで `just vm-test` を回せる。`false` に戻すと kvm から外す。`just verify` も見る(#35)
 - `just vm-test` が QEMU/KVM でも動く。VBoxManage があれば VirtualBox、なくて QEMU と `/dev/kvm` があれば QEMU を選ぶ(`AGENT_HOST_VM_BACKEND` で決められる)。kvm のグループが今のセッションに効いていなければ `sg kvm` で実行しなおす(26.04 では `sg` が util-linux-extra にあるので、66-vm.sh で入れる)。転送のポートを `AGENT_HOST_VM_SSH_PORT`・`AGENT_HOST_VM_RDP_PORT_OFFSET` で変えられ、使われていれば入れなおす前に止まる(#35)
 - Mermaid CLI(`mmdc`)12.0.0 を既定で入れる。エージェントが Mermaid の図を SVG・PNG・PDF に描き出せる。peer の puppeteer も 25.16.0 に固定して `/opt/mermaid-cli-<版>` に入れ、ブラウザは Google Chrome を使う(chrome-headless-shell は取らない)(#28)

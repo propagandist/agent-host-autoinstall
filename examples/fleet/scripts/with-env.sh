@@ -19,7 +19,7 @@ chmod 700 "$dec"
 trap 'rm -rf "$dec"' EXIT
 
 # .sops.yaml の encrypted_regex と同じ名前(変えたら両方を直す)。値が空("" や '')なら秘密ではない
-secret_line='^[[:space:]-]*(password_hash|password|initial_password|slack_webhook_url):[[:space:]]*([^[:space:]#"'"'"']|"[^"]|'"'"'[^'"'"'])'
+secret_line='^[[:space:]-]*(password_hash|password|initial_password|slack_webhook_url|api_key):[[:space:]]*([^[:space:]#"'"'"']|"[^"]|'"'"'[^'"'"'])'
 
 decrypt() {
     if grep -q '^sops:' "$1"; then

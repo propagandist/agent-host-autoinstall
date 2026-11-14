@@ -16,7 +16,7 @@
 |---|---|
 | OS | Ubuntu Desktop 26.04 LTS(GNOME のセッションは Wayland のみ。xrdp の Xorg のセッションでは GNOME が動かないため不採用) |
 | 言語・地域 | 日本語の環境向け。ロケール ja_JP.UTF-8、タイムゾーン Asia/Tokyo、日本語入力 fcitx5 の Mozc(autoinstall.yaml、76-desktop.sh、first-login で固定。IBus は使わない) |
-| ハードウェア | x86_64 の物理PC。メモリ 32GB 以上(利用者 1 人あたり、セッションに 0.5〜1GB とエージェント・ビルドの分)、NVMe SSD 推奨、有線 LAN。GPU は Intel の第 6 世代以降の内蔵 GPU か AMD を推奨(RDP の画面を GPU で符号化する) |
+| ハードウェア | x86_64 の物理PC。メモリ 32GB 以上(利用者 1 人あたり、セッションに 0.5〜1GB とエージェント・ビルドの分)、NVMe SSD 推奨、有線 LAN。GPU は Intel の第 6 世代以降の内蔵 GPU か AMD を推奨(RDP の画面を GPU で符号化する)。ローカル LLM をこのホストで動かす(env.yaml の `llm.mode: local`)なら、モデルと文脈の分のメモリを足し、NVIDIA の GPU を推奨 |
 | 画面 | 物理モニターなし運用。利用者ごとのセッションはヘッドレス(ダミープラグは要らない) |
 | ネットワーク | LAN。固定IP(または DHCP 予約) |
 | 遠隔操作 | GNOME のリモートデスクトップ(gnome-remote-desktop)の headless の RDP。利用者ごとにポートを分ける |
@@ -87,6 +87,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - 追加の AI エージェント:env.yaml の `agents` で OpenCode / GitHub Copilot CLI / Antigravity CLI から選ぶ(Claude Code と Codex はいつも入れる)。版を固定し、自動更新を止める
 - クラウドの CLI:env.yaml の `clouds` で AWS CLI v2 / Google Cloud CLI / Azure CLI から選ぶ。版を固定し、利用状況の送信を止める。認証は短い時間だけ有効なログインと、権限を絞った開発用のアカウントで使う。Terraform・OpenTofu・kubectl・Helm などはホストに入れず、エージェントが mise で入れる
 - VM(任意。env.yaml の `vm`):エージェントがホストで `just vm-test` を回せるよう、QEMU/KVM と UEFI のファームウェア(OVMF)を入れ、利用者を kvm に入れる。選ばなくなったら kvm から外す。VM 1 台でメモリ 4GB ほどを使うので、既定は入れない
+- ローカル LLM(任意。env.yaml の `llm`):`local` はこのホストで Ollama(版を固定。127.0.0.1:11434 だけで待ち受け、ollama.com のクラウドの機能は止める。メモリの上限は半分、CPU と I/O は利用者のセッションを優先)を動かし、`llm.models` を取得する(まだないものだけ。その後は更新しない)。`remote` は LAN の Ollama のサーバーにつなぐ設定だけを置く。どちらもエージェントの既定は変えず、Claude Code は `claude-local`、Codex は `codex --profile local`、OpenCode はモデル `agent-host-llm/<名前>` で使う。`none` に戻すと Ollama を止め、エージェントの設定から外す(取得したモデルは消さない)
 - 通知:Claude Code の hooks(承認待ち・入力待ち・API のエラー)と Codex の notify(完了)から `agent-notify` を呼び、env.yaml の `notify` の Slack(Incoming Webhook)と IP Messenger(LAN 内の UDP)に送る。承認待ちとエラーは両方、完了は Slack だけ。本文の頭は `[ホスト名/利用者名]`
 - スマホからの操作は Claude Code の Remote Control を使う(手作業。docs/manual-steps.md)
 - UPS(任意。env.yaml の `ups`):NUT で見る。`usb` はこの PC につないだ UPS をドライバーで読み(upsd は 127.0.0.1 だけ)、`netclient` はほかの機器の NUT サーバーを見る。バッテリーが少なくなるか、NUT サーバーが終了を指示したら正しく終了する。`usb` では終了の最後に UPS の出力を止め、電源が戻ったら UPS が出力を戻し、BIOS の「電源が戻ったら起動」で起動する(そのあとは利用者ごとのセッションと RDP まで人手なしで戻る)。停電・復電・まもなく終了などを `agent-notify` で知らせる
@@ -165,6 +166,7 @@ late-commands は同梱スクリプトを `/opt/agent-host` に置き、初回�
 - [済] Orca .deb の入手 URL とバージョン固定・自動更新停止の方法
 - [済] Claude Code の Linux 上での推奨インストール方法(公式の apt リポジトリ)
 - [対象外] LAN の外からの接続方式(VPN など)は、使う組織の方針に任せる
+- [未確認] ローカル LLM(env.yaml の `llm`):VM での通し、Claude Code が Ollama の Anthropic 互換の API で動くか、Intel・AMD の内蔵 GPU での推論、remote のサーバーが Ollama 以外のとき(notes.md)
 
 ## 10. 対象外
 - Orca / Claude Code / Codex の利用ルール。誰に使わせるか(アカウントは利用者ごとに分けるが、誰を利用者にするかは対象外)
